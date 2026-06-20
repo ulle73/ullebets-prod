@@ -1,6 +1,6 @@
 # Ullebets Prod — Source Map
 
-Det här dokumentet ska bara förklara **vad vi vill uppnå**, **vad vi redan har** och **var källorna finns**.
+Det här dokumentet ska förklara **vad jag vill uppnå**, **vad jag redan har** och **var källorna finns**.
 
 Gamla repot finns här:
 
@@ -141,6 +141,86 @@ Ett lag kan vara topprankat i skott men lågt rankat i skott på mål.
 Detta är min tes till varför dessa rankingfält finns och varför de kan vara viktiga.
 
 Men modellen ska inte låsas till exakt hur jag tänkt. Den får använda all tillgänglig statistik, ranking, odds, linor och historiska utfall på det sätt som ger bäst testad ROI. Poängen är bara att den ska förstå att matchup, lagstyrka, liga, motståndartyp och stat-specifik ranking sannolikt är viktiga signaler.
+
+---
+
+# MIN TES OM FEATURE-SÖKNING
+
+Jag vill inte att modellen bara ska testa enkla snitt som `senaste 5 matcher`.
+
+Tesen är att bästa vägen är att låta modellen använda **alla tillgängliga parametrar som fanns före matchen** och testa många olika kombinationer för att hitta vilka features som faktiskt predikterar varje `stat_key` bäst.
+
+Med alla tillgängliga parametrar menas till exempel:
+
+```txt
+alla historiska SofaScore-stats vi har
+Unibet odds + linor före match
+lagstyrka / ELO / optaRating
+optaRank
+league_rank per stat
+liga
+hemma/borta
+favorit/underdog
+motståndartyp
+stat-specifik ranking
+historiska resultat/utfall för odds + linor
+closing/CLV där det finns
+```
+
+Modellen bör gärna skapa/testa features i flera tidsfönster, till exempel:
+
+```txt
+senaste 3 matcher
+senaste 5 matcher
+senaste 10 matcher
+senaste 20 matcher
+hela säsongen
+hemma senaste 3/5/10/20
+borta senaste 3/5/10/20
+mot topplag senaste 3/5/10/20
+mot mittenlag senaste 3/5/10/20
+mot bottenlag senaste 3/5/10/20
+som favorit senaste 3/5/10/20
+som underdog senaste 3/5/10/20
+```
+
+Den bör kunna göra detta per relevant `stat_key`, till exempel:
+
+```txt
+shots / totalShots
+shotsOnGoal
+cornerKicks
+```
+
+Och även för stats som kan vara indirekt viktiga för skott, skott på mål och hörnor, till exempel:
+
+```txt
+possession
+attacks / dangerous attacks om det finns
+fouls
+cards
+offsides
+saves
+tackles
+passes
+crosses eller liknande om det finns i rådata
+```
+
+Poängen är inte att jag på förhand vet exakt vilka features som är bäst.
+
+Poängen är att nya modellen ska kunna testa brett och hitta starkaste features för varje marknad/stat:
+
+```txt
+vilka features predikterar skott bäst?
+vilka features predikterar skott på mål bäst?
+vilka features predikterar hörnor bäst?
+vilka kombinationer visar när Unibets lina historiskt varit fel?
+vilka features har faktiskt lett till +ROI i backtest?
+```
+
+Efter det kan den bygga vidare från de starkaste featuresen och förbättra modellen.
+
+Viktigt: efter-match-statistik och slutligt utfall är facit/rättning, inte pre-match-input. Modellen ska lära sig från historiken men när den simulerar ett spel ska den bara använda information som fanns före match.
 
 ---
 
@@ -439,6 +519,8 @@ Det viktiga oddsflödet är Unibet/Kambi-flödet för stat-marknader som skott, 
 I docs/source-map.md hittar du filer, endpoints och collections som visar hur gamla systemet hämtade kommande matcher, Unibet odds + linor, matchstatistik efter match, rättning och CLV.
 
 Det finns även lagstyrka/ranking och league_rank-tänk i datan. Tanken är att modellen inte bara ska titta på råa snitt, utan även kunna förstå liga, lagstyrka, motståndartyp, topplag/mellanlag/bottenlag, hemma/borta och stat-specifika rankings.
+
+Jag vill att modellen testar brett med alla tillgängliga pre-match-parametrar och många olika feature-kombinationer, till exempel senaste 3/5/10/20 matcher, hemma/borta, topplag/mellanlag/bottenlag, favorit/underdog och league_rank per stat_key. Syftet är att hitta vilka features och kombinationer som bäst predikterar varje stat-marknad och vilka som historiskt gett bäst +ROI mot Unibets odds + linor.
 
 Bygg om implementationen i detta repo så att systemet kan hämta kommande matcher, hämta odds + linor före match, hämta statistik efter match, rätta utfall och träna/anpassa en modell för att hitta bästa möjliga +ROI framåt.
 ```
