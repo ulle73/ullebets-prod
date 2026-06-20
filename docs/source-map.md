@@ -98,6 +98,52 @@ hörnor
 
 ---
 
+# MIN TES OM VARFÖR ELO / RANKING / LEAGUE_RANK FINNS
+
+Jag har redan försökt tänka på att rå statistik inte alltid går att jämföra rakt av.
+
+Ett lag som snittar många skott i en svag liga behöver inte vara bättre på att skapa skott än ett lag med lägre råsnitt i en starkare liga. Samma sak gäller hörnor, skott på mål och andra stats. Därför finns ranking/rating och `league_rank`-tänk i datan.
+
+Det finns lagstyrka/ranking i:
+
+```txt
+data/leagues-and-teams.json
+```
+
+Den innehåller laginformation som kan användas för att förstå lagstyrka, till exempel `optaRank` och `optaRating` där det finns.
+
+Jag har även haft `league_rank` per stat eftersom olika stats kan skilja sig mycket mellan ligor och lag. Ett lag kan vara högt rankat i en liga på hörnor men inte på skott på mål. Ett lag kan vara starkt totalt men ändå inte skapa många skott. Därför är det viktigt att modellen inte bara tittar på råa snitt, utan även på hur laget rankas inom sin liga och inom varje relevant stat.
+
+Min hypotes är att modellen bör kunna använda saker som:
+
+```txt
+lagstyrka / ELO / optaRating
+optaRank
+league_rank per stat
+styrkeskillnad mellan lagen
+hur laget spelar mot topplag
+hur laget spelar mot mittenlag
+hur laget spelar mot bottenlag
+hur laget spelar hemma/borta
+hur laget spelar som favorit/underdog
+hur laget skapar eller släpper till skott/hörnor mot olika typer av motstånd
+```
+
+Exempel på varför detta kan vara viktigt:
+
+```txt
+Ett lag kanske skjuter mycket mot bottenlag men nästan inget mot topplag.
+Ett annat lag kanske släpper till många hörnor mot starka offensiva lag men inte mot svagare lag.
+Ett topplag kanske dominerar boll men ändå inte skapar många skott på mål.
+Ett lag kan vara topprankat i skott men lågt rankat i skott på mål.
+```
+
+Detta är min tes till varför dessa rankingfält finns och varför de kan vara viktiga.
+
+Men modellen ska inte låsas till exakt hur jag tänkt. Den får använda all tillgänglig statistik, ranking, odds, linor och historiska utfall på det sätt som ger bäst testad ROI. Poängen är bara att den ska förstå att matchup, lagstyrka, liga, motståndartyp och stat-specifik ranking sannolikt är viktiga signaler.
+
+---
+
 # ENDPOINTS OCH FILER FÖR ATT HÄMTA KOMMANDE MATCHER
 
 Gamla filer att titta på:
@@ -391,6 +437,8 @@ Vi har historisk statistik, historiska odds + linor före match, resultat/utfall
 Det viktiga oddsflödet är Unibet/Kambi-flödet för stat-marknader som skott, skott på mål och hörnor.
 
 I docs/source-map.md hittar du filer, endpoints och collections som visar hur gamla systemet hämtade kommande matcher, Unibet odds + linor, matchstatistik efter match, rättning och CLV.
+
+Det finns även lagstyrka/ranking och league_rank-tänk i datan. Tanken är att modellen inte bara ska titta på råa snitt, utan även kunna förstå liga, lagstyrka, motståndartyp, topplag/mellanlag/bottenlag, hemma/borta och stat-specifika rankings.
 
 Bygg om implementationen i detta repo så att systemet kan hämta kommande matcher, hämta odds + linor före match, hämta statistik efter match, rätta utfall och träna/anpassa en modell för att hitta bästa möjliga +ROI framåt.
 ```
