@@ -1,0 +1,1225 @@
+{
+  "Premier League": {
+    "leagueId": 17,
+    "country": "England",
+    "seasonId": 76986,
+    "groupId": 1000094985,
+    "categoryId": 1,
+    "teams": [
+      {
+        "name": "Arsenal",
+        "id": 42,
+        "slug": "arsenal",
+        "imageUrl": "/images/teams/42.png",
+        "optaId": 3,
+        "optaRank": 1,
+        "optaRating": 100
+      },
+      {
+        "name": "Bournemouth",
+        "id": 60,
+        "slug": "bournemouth",
+        "imageUrl": "/images/teams/60.png",
+        "optaId": 91,
+        "optaRank": 14,
+        "optaRating": 92.1163744242
+      },
+      {
+        "name": "Tottenham Hotspur",
+        "id": 33,
+        "slug": "tottenham-hotspur",
+        "imageUrl": "/images/teams/33.png",
+        "optaId": 6,
+        "optaRank": 16,
+        "optaRating": 91.8865135193
+      },
+      {
+        "name": "Sunderland",
+        "id": 41,
+        "slug": "sunderland",
+        "imageUrl": "/images/teams/41.png",
+        "optaId": 56,
+        "optaRank": 50,
+        "optaRating": 86.0714001091
+      },
+      {
+        "name": "Manchester City",
+        "id": 17,
+        "slug": "manchester-city",
+        "imageUrl": "/images/teams/17.png",
+        "optaId": 43,
+        "optaRank": 3,
+        "optaRating": 97.4048157878
+      },
+      {
+        "name": "Manchester United",
+        "id": 35,
+        "slug": "manchester-united",
+        "imageUrl": "/images/teams/35.png",
+        "optaId": 1,
+        "optaRank": 18,
+        "optaRating": 91.1863355645
+      },
+      {
+        "name": "Liverpool",
+        "id": 44,
+        "slug": "liverpool",
+        "imageUrl": "/images/teams/44.png",
+        "optaId": 14,
+        "optaRank": 5,
+        "optaRating": 96.8855071308
+      },
+      {
+        "name": "Aston Villa",
+        "id": 40,
+        "slug": "aston-villa",
+        "imageUrl": "/images/teams/40.png",
+        "optaId": 7,
+        "optaRank": 11,
+        "optaRating": 93.7626980044
+      },
+      {
+        "name": "Chelsea",
+        "id": 38,
+        "slug": "chelsea",
+        "imageUrl": "/images/teams/38.png",
+        "optaId": 8,
+        "optaRank": 8,
+        "optaRating": 94.474011971
+      },
+      {
+        "name": "Crystal Palace",
+        "id": 7,
+        "slug": "crystal-palace",
+        "imageUrl": "/images/teams/7.png",
+        "optaId": 31,
+        "optaRank": 12,
+        "optaRating": 93.1897250565
+      },
+      {
+        "name": "Brentford",
+        "id": 50,
+        "slug": "brentford",
+        "imageUrl": "/images/teams/50.png",
+        "optaId": 94,
+        "optaRank": 19,
+        "optaRating": 91.1175133418
+      },
+      {
+        "name": "Newcastle United",
+        "id": 39,
+        "slug": "newcastle-united",
+        "imageUrl": "/images/teams/39.png",
+        "optaId": 4,
+        "optaRank": 9,
+        "optaRating": 94.3873093391
+      },
+      {
+        "name": "Brighton & Hove Albion",
+        "id": 30,
+        "slug": "brighton-and-hove-albion",
+        "imageUrl": "/images/teams/30.png",
+        "optaId": 36,
+        "optaRank": 13,
+        "optaRating": 92.1485789544
+      },
+      {
+        "name": "Everton",
+        "id": 48,
+        "slug": "everton",
+        "imageUrl": "/images/teams/48.png",
+        "optaId": 11,
+        "optaRank": 29,
+        "optaRating": 88.9758001383
+      },
+      {
+        "name": "Leeds United",
+        "id": 34,
+        "slug": "leeds-united",
+        "imageUrl": "/images/teams/34.png",
+        "optaId": 2,
+        "optaRank": 52,
+        "optaRating": 85.668291847
+      },
+      {
+        "name": "Burnley",
+        "id": 6,
+        "slug": "burnley",
+        "imageUrl": "/images/teams/6.png",
+        "optaId": 90,
+        "optaRank": 53,
+        "optaRating": 85.6561111615
+      },
+      {
+        "name": "Fulham",
+        "id": 43,
+        "slug": "fulham",
+        "imageUrl": "/images/teams/43.png",
+        "optaId": 54,
+        "optaRank": 31,
+        "optaRating": 88.5244880826
+      },
+      {
+        "name": "Nottingham Forest",
+        "id": 14,
+        "slug": "nottingham-forest",
+        "imageUrl": "/images/teams/14.png",
+        "optaId": 17,
+        "optaRank": 41,
+        "optaRating": 87.3498746941
+      },
+      {
+        "name": "West Ham United",
+        "id": 37,
+        "slug": "west-ham-united",
+        "imageUrl": "/images/teams/37.png",
+        "optaId": 21,
+        "optaRank": 55,
+        "optaRating": 85.6051744865
+      },
+      {
+        "name": "Wolverhampton",
+        "id": 3,
+        "slug": "wolverhampton",
+        "imageUrl": "/images/teams/3.png",
+        "optaId": 39,
+        "optaRank": 63,
+        "optaRating": 84.8796410094
+      }
+    ],
+    "imageUrl": "/images/league/premier-league.png"
+  },
+  "La Liga": {
+    "leagueId": 8,
+    "country": "Spain",
+    "seasonId": 77559,
+    "groupId": 1000095049,
+    "categoryId": 32,
+    "teams": [
+      {
+        "name": "Real Madrid",
+        "id": 2829,
+        "slug": "real-madrid",
+        "imageUrl": "/images/teams/2829.png",
+        "optaId": 186,
+        "optaRank": 6,
+        "optaRating": 95.6429474486
+      },
+      {
+        "name": "Barcelona",
+        "id": 2817,
+        "slug": "barcelona",
+        "imageUrl": "/images/teams/2817.png",
+        "optaId": 178,
+        "optaRank": 7,
+        "optaRating": 95.1877593018
+      },
+      {
+        "name": "Villarreal",
+        "id": 2819,
+        "slug": "villarreal",
+        "imageUrl": "/images/teams/2819.png",
+        "optaId": 449,
+        "optaRank": 30,
+        "optaRating": 88.7691686273
+      },
+      {
+        "name": "Atlético Madrid",
+        "id": 2836,
+        "slug": "atletico-madrid",
+        "imageUrl": "/images/teams/2836.png",
+        "optaId": 175,
+        "optaRank": 15,
+        "optaRating": 92.0675132201
+      },
+      {
+        "name": "Espanyol",
+        "id": 2814,
+        "slug": "espanyol",
+        "imageUrl": "/images/teams/2814.png",
+        "optaId": 177,
+        "optaRank": 79,
+        "optaRating": 83.3599868701
+      },
+      {
+        "name": "Real Betis",
+        "id": 2816,
+        "slug": "real-betis",
+        "imageUrl": "/images/teams/2816.png",
+        "optaId": 185,
+        "optaRank": 45,
+        "optaRating": 86.7445196765
+      },
+      {
+        "name": "Rayo Vallecano",
+        "id": 2818,
+        "slug": "rayo-vallecano",
+        "imageUrl": "/images/teams/2818.png",
+        "optaId": 184,
+        "optaRank": 68,
+        "optaRating": 84.33657284
+      },
+      {
+        "name": "Elche",
+        "id": 2846,
+        "slug": "elche",
+        "imageUrl": "/images/teams/2846.png",
+        "optaId": 954,
+        "optaRank": 100,
+        "optaRating": 81.7190993438
+      },
+      {
+        "name": "Athletic Club",
+        "id": 2825,
+        "slug": "athletic-club",
+        "imageUrl": "/images/teams/2825.png",
+        "optaId": 174,
+        "optaRank": 49,
+        "optaRating": 86.1374844603
+      },
+      {
+        "name": "Getafe",
+        "id": 2859,
+        "slug": "getafe",
+        "imageUrl": "/images/teams/2859.png",
+        "optaId": 1450,
+        "optaRank": 93,
+        "optaRating": 82.313459424
+      },
+      {
+        "name": "Sevilla",
+        "id": 2833,
+        "slug": "sevilla",
+        "imageUrl": "/images/teams/2833.png",
+        "optaId": 179,
+        "optaRank": 88,
+        "optaRating": 82.617521718
+      },
+      {
+        "name": "Deportivo Alavés",
+        "id": 2885,
+        "slug": "deportivo-alaves",
+        "imageUrl": "/images/teams/2885.png",
+        "optaId": 173,
+        "optaRank": 91,
+        "optaRating": 82.3591580909
+      },
+      {
+        "name": "Celta Vigo",
+        "id": 2821,
+        "slug": "celta-vigo",
+        "imageUrl": "/images/teams/2821.png",
+        "optaId": 176,
+        "optaRank": 70,
+        "optaRating": 83.9507532284
+      },
+      {
+        "name": "Osasuna",
+        "id": 2820,
+        "slug": "osasuna",
+        "imageUrl": "/images/teams/2820.png",
+        "optaId": 450,
+        "optaRank": 72,
+        "optaRating": 83.7423805861
+      },
+      {
+        "name": "Levante UD",
+        "id": 2849,
+        "slug": "levante-ud",
+        "imageUrl": "/images/teams/2849.png",
+        "optaId": 855,
+        "optaRank": 116,
+        "optaRating": 81.1134913595
+      },
+      {
+        "name": "Mallorca",
+        "id": 2826,
+        "slug": "mallorca",
+        "imageUrl": "/images/teams/2826.png",
+        "optaId": 181,
+        "optaRank": 95,
+        "optaRating": 82.2600227326
+      },
+      {
+        "name": "Real Sociedad",
+        "id": 2824,
+        "slug": "real-sociedad",
+        "imageUrl": "/images/teams/2824.png",
+        "optaId": 188,
+        "optaRank": 84,
+        "optaRating": 82.8571169629
+      },
+      {
+        "name": "Valencia",
+        "id": 2828,
+        "slug": "valencia",
+        "imageUrl": "/images/teams/2828.png",
+        "optaId": 191,
+        "optaRank": 86,
+        "optaRating": 82.8169367796
+      },
+      {
+        "name": "Real Oviedo",
+        "id": 2851,
+        "slug": "real-oviedo",
+        "imageUrl": "/images/teams/2851.png",
+        "optaId": 187,
+        "optaRank": 194,
+        "optaRating": 78.920583456
+      },
+      {
+        "name": "Girona FC",
+        "id": 24264,
+        "slug": "girona-fc",
+        "imageUrl": "/images/teams/24264.png",
+        "optaId": 2893,
+        "optaRank": 171,
+        "optaRating": 79.504194598
+      }
+    ],
+    "imageUrl": "/images/league/la-liga.png"
+  },
+  "Bundesliga": {
+    "leagueId": 35,
+    "country": "Germany",
+    "seasonId": 77333,
+    "groupId": 1000094994,
+    "categoryId": 30,
+    "teams": [
+      {
+        "name": "FC Bayern München",
+        "id": 2672,
+        "slug": "fc-bayern-munchen",
+        "imageUrl": "/images/teams/2672.png",
+        "optaId": 156,
+        "optaRank": 4,
+        "optaRating": 97.1755647395
+      },
+      {
+        "name": "RB Leipzig",
+        "id": 36360,
+        "slug": "rb-leipzig",
+        "imageUrl": "/images/teams/36360.png",
+        "optaId": 6339,
+        "optaRank": 35,
+        "optaRating": 88.2572917432
+      },
+      {
+        "name": "VfB Stuttgart",
+        "id": 2677,
+        "slug": "vfb-stuttgart",
+        "imageUrl": "/images/teams/2677.png",
+        "optaId": 169,
+        "optaRank": 47,
+        "optaRating": 86.2622748631
+      },
+      {
+        "name": "Borussia Dortmund",
+        "id": 2673,
+        "slug": "borussia-dortmund",
+        "imageUrl": "/images/teams/2673.png",
+        "optaId": 157,
+        "optaRank": 17,
+        "optaRating": 91.7506803761
+      },
+      {
+        "name": "Bayer 04 Leverkusen",
+        "id": 2681,
+        "slug": "bayer-04-leverkusen",
+        "imageUrl": "/images/teams/2681.png",
+        "optaId": 164,
+        "optaRank": 23,
+        "optaRating": 89.9371235408
+      },
+      {
+        "name": "Eintracht Frankfurt",
+        "id": 2674,
+        "slug": "eintracht-frankfurt",
+        "imageUrl": "/images/teams/2674.png",
+        "optaId": 159,
+        "optaRank": 44,
+        "optaRating": 86.8896568509
+      },
+      {
+        "name": "TSG Hoffenheim",
+        "id": 2569,
+        "slug": "tsg-hoffenheim",
+        "imageUrl": "/images/teams/2569.png",
+        "optaId": 1902,
+        "optaRank": 90,
+        "optaRating": 82.3643176805
+      },
+      {
+        "name": "1. FC Köln",
+        "id": 2671,
+        "slug": "1-fc-koln",
+        "imageUrl": "/images/teams/2671.png",
+        "optaId": 387,
+        "optaRank": 145,
+        "optaRating": 80.0876064575
+      },
+      {
+        "name": "SV Werder Bremen",
+        "id": 2534,
+        "slug": "sv-werder-bremen",
+        "imageUrl": "/images/teams/2534.png",
+        "optaId": 171,
+        "optaRank": 76,
+        "optaRating": 83.489410404
+      },
+      {
+        "name": "1. FC Union Berlin",
+        "id": 2547,
+        "slug": "1-fc-union-berlin",
+        "imageUrl": "/images/teams/2547.png",
+        "optaId": 816,
+        "optaRank": 118,
+        "optaRating": 80.9580658914
+      },
+      {
+        "name": "SC Freiburg",
+        "id": 2538,
+        "slug": "sc-freiburg",
+        "imageUrl": "/images/teams/2538.png",
+        "optaId": 160,
+        "optaRank": 69,
+        "optaRating": 84.1373838617
+      },
+      {
+        "name": "VfL Wolfsburg",
+        "id": 2524,
+        "slug": "vfl-wolfsburg",
+        "imageUrl": "/images/teams/2524.png",
+        "optaId": 172,
+        "optaRank": 115,
+        "optaRating": 81.1757384973
+      },
+      {
+        "name": "Hamburger SV",
+        "id": 2676,
+        "slug": "hamburger-sv",
+        "imageUrl": "/images/teams/2676.png",
+        "optaId": 161,
+        "optaRank": 183,
+        "optaRating": 79.2348145548
+      },
+      {
+        "name": "FC St. Pauli",
+        "id": 2526,
+        "slug": "fc-st-pauli",
+        "imageUrl": "/images/teams/2526.png",
+        "optaId": 680,
+        "optaRank": 210,
+        "optaRating": 78.5740297706
+      },
+      {
+        "name": "FC Augsburg",
+        "id": 2600,
+        "slug": "fc-augsburg",
+        "imageUrl": "/images/teams/2600.png",
+        "optaId": 1772,
+        "optaRank": 146,
+        "optaRating": 80.084293235
+      },
+      {
+        "name": "1. FSV Mainz 05",
+        "id": 2556,
+        "slug": "1-fsv-mainz-05",
+        "imageUrl": "/images/teams/2556.png",
+        "optaId": 810,
+        "optaRank": 89,
+        "optaRating": 82.6153101967
+      },
+      {
+        "name": "1. FC Heidenheim",
+        "id": 5885,
+        "slug": "1-fc-heidenheim",
+        "imageUrl": "/images/teams/5885.png",
+        "optaId": 2891,
+        "optaRank": 267,
+        "optaRating": 77.2512809714
+      },
+      {
+        "name": "Borussia M'gladbach",
+        "id": 2527,
+        "slug": "borussia-mgladbach",
+        "imageUrl": "/images/teams/2527.png",
+        "optaId": 683,
+        "optaRank": 166,
+        "optaRating": 79.6900583613
+      }
+    ],
+    "imageUrl": "/images/league/bundesliga.png"
+  },
+  "Serie A": {
+    "leagueId": 23,
+    "country": "Italy",
+    "seasonId": 76457,
+    "groupId": 1000095001,
+    "categoryId": 31,
+    "teams": [
+      {
+        "name": "Napoli",
+        "id": 2714,
+        "slug": "napoli",
+        "imageUrl": "/images/teams/2714.webp",
+        "optaId": 459,
+        "optaRank": 20,
+        "optaRating": 90.7956300028
+      },
+      {
+        "name": "Roma",
+        "id": 2702,
+        "slug": "roma",
+        "imageUrl": "/images/teams/2702.webp",
+        "optaId": 121,
+        "optaRank": 26,
+        "optaRating": 89.3277453881
+      },
+      {
+        "name": "Inter",
+        "id": 2697,
+        "slug": "inter",
+        "imageUrl": "/images/teams/2697.png",
+        "optaId": 127,
+        "optaRank": 10,
+        "optaRating": 93.9027213046
+      },
+      {
+        "name": "Milan",
+        "id": 2692,
+        "slug": "milan",
+        "imageUrl": "/images/teams/2692.png",
+        "optaId": 120,
+        "optaRank": 24,
+        "optaRating": 89.748894154
+      },
+      {
+        "name": "Como",
+        "id": 2704,
+        "slug": "como",
+        "imageUrl": "/images/teams/2704.png",
+        "optaId": 1065,
+        "optaRank": 59,
+        "optaRating": 85.0014073946
+      },
+      {
+        "name": "Bologna",
+        "id": 2685,
+        "slug": "bologna",
+        "imageUrl": "/images/teams/2685.png",
+        "optaId": 123,
+        "optaRank": 43,
+        "optaRating": 87.2231759999
+      },
+      {
+        "name": "Juventus",
+        "id": 2687,
+        "slug": "juventus",
+        "imageUrl": "/images/teams/2687.png",
+        "optaId": 128,
+        "optaRank": 34,
+        "optaRating": 88.2890727732
+      },
+      {
+        "name": "Cremonese",
+        "id": 2761,
+        "slug": "cremonese",
+        "imageUrl": "/images/teams/2761.png",
+        "optaId": 2174,
+        "optaRank": 123,
+        "optaRating": 80.9175540728
+      },
+      {
+        "name": "Atalanta",
+        "id": 2686,
+        "slug": "atalanta",
+        "imageUrl": "/images/teams/2686.png",
+        "optaId": 456,
+        "optaRank": 25,
+        "optaRating": 89.4756377752
+      },
+      {
+        "name": "Udinese",
+        "id": 2695,
+        "slug": "udinese",
+        "imageUrl": "/images/teams/2695.png",
+        "optaId": 136,
+        "optaRank": 130,
+        "optaRating": 80.7301052422
+      },
+      {
+        "name": "Torino",
+        "id": 2696,
+        "slug": "torino",
+        "imageUrl": "/images/teams/2696.png",
+        "optaId": 135,
+        "optaRank": 71,
+        "optaRating": 83.9050201444
+      },
+      {
+        "name": "Lazio",
+        "id": 2699,
+        "slug": "lazio",
+        "imageUrl": "/images/teams/2699.png",
+        "optaId": 129,
+        "optaRank": 42,
+        "optaRating": 87.2549423416
+      },
+      {
+        "name": "Sassuolo",
+        "id": 2793,
+        "slug": "sassuolo",
+        "imageUrl": "/images/teams/2793.png",
+        "optaId": 2182,
+        "optaRank": 156,
+        "optaRating": 79.9830584829
+      },
+      {
+        "name": "Cagliari",
+        "id": 2719,
+        "slug": "cagliari",
+        "imageUrl": "/images/teams/2719.png",
+        "optaId": 124,
+        "optaRank": 147,
+        "optaRating": 80.0820844229
+      },
+      {
+        "name": "Parma",
+        "id": 2690,
+        "slug": "parma",
+        "imageUrl": "/images/teams/2690.png",
+        "optaId": 131,
+        "optaRank": 157,
+        "optaRating": 79.8704177462
+      },
+      {
+        "name": "Lecce",
+        "id": 2689,
+        "slug": "lecce",
+        "imageUrl": "/images/teams/2689.webp",
+        "optaId": 130,
+        "optaRank": 216,
+        "optaRating": 78.397832888
+      },
+      {
+        "name": "Hellas Verona",
+        "id": 2701,
+        "slug": "hellas-verona",
+        "imageUrl": "/images/teams/2701.png",
+        "optaId": 126,
+        "optaRank": 223,
+        "optaRating": 78.2720400718
+      },
+      {
+        "name": "Pisa",
+        "id": 2737,
+        "slug": "pisa",
+        "imageUrl": "/images/teams/2737.png",
+        "optaId": 2170,
+        "optaRank": 213,
+        "optaRating": 78.4577895754
+      },
+      {
+        "name": "Fiorentina",
+        "id": 2693,
+        "slug": "fiorentina",
+        "imageUrl": "/images/teams/2693.png",
+        "optaId": 125,
+        "optaRank": 64,
+        "optaRating": 84.8641439616
+      },
+      {
+        "name": "Genoa",
+        "id": 2713,
+        "slug": "genoa",
+        "imageUrl": "/images/teams/2713.png",
+        "optaId": 990,
+        "optaRank": 163,
+        "optaRating": 79.7320180901
+      }
+    ],
+    "imageUrl": "/images/league/serie-a.png"
+  },
+  "Brasileirão Série A": {
+    "leagueId": 325,
+    "country": "Brazil",
+    "seasonId": 72034,
+    "slug": "brasileirao-serie-a",
+    "groupId": 1000094569,
+    "categoryId": 13,
+    "teams": [
+      {
+        "name": "Palmeiras",
+        "id": 1963,
+        "slug": "palmeiras",
+        "imageUrl": "/images/teams/1963.webp",
+        "optaId": 625,
+        "optaRank": 61,
+        "optaRating": 84.9401174569
+      },
+      {
+        "name": "Flamengo",
+        "id": 5981,
+        "slug": "flamengo",
+        "imageUrl": "/images/teams/5981.png",
+        "optaId": 1029,
+        "optaRank": 54,
+        "optaRating": 85.6553360293
+      },
+      {
+        "name": "Cruzeiro",
+        "id": 1954,
+        "slug": "cruzeiro",
+        "imageUrl": "/images/teams/1954.png",
+        "optaId": 764,
+        "optaRank": 109,
+        "optaRating": 81.3650329002
+      },
+      {
+        "name": "Mirassol",
+        "id": 21982,
+        "slug": "mirassol",
+        "imageUrl": "/images/teams/21982.png",
+        "optaId": 8007,
+        "optaRank": 128,
+        "optaRating": 80.8077710599
+      },
+      {
+        "name": "Bahia",
+        "id": 1955,
+        "slug": "bahia",
+        "imageUrl": "/images/teams/1955.png",
+        "optaId": 1578,
+        "optaRank": 214,
+        "optaRating": 78.4378896401
+      },
+      {
+        "name": "Fluminense",
+        "id": 1961,
+        "slug": "fluminense",
+        "imageUrl": "/images/teams/1961.webp",
+        "optaId": 1734,
+        "optaRank": 149,
+        "optaRating": 80.0610640151
+      },
+      {
+        "name": "Botafogo",
+        "id": 1958,
+        "slug": "botafogo",
+        "imageUrl": "/images/teams/1958.png",
+        "optaId": 1419,
+        "optaRank": 127,
+        "optaRating": 80.8239748255
+      },
+      {
+        "name": "Vasco da Gama",
+        "id": 1974,
+        "slug": "vasco-da-gama",
+        "imageUrl": "/images/teams/1974.webp",
+        "optaId": 2308,
+        "optaRank": 192,
+        "optaRating": 78.9680093277
+      },
+      {
+        "name": "São Paulo",
+        "id": 1981,
+        "slug": "sao-paulo",
+        "imageUrl": "/images/teams/1981.png",
+        "optaId": 451,
+        "optaRank": 215,
+        "optaRating": 78.4231763225
+      },
+      {
+        "name": "Corinthians",
+        "id": 1957,
+        "slug": "corinthians",
+        "imageUrl": "/images/teams/1957.webp",
+        "optaId": 609,
+        "optaRank": 167,
+        "optaRating": 79.6226669695
+      },
+      {
+        "name": "Grêmio",
+        "id": 5926,
+        "slug": "gremio",
+        "imageUrl": "/images/teams/5926.png",
+        "optaId": 1339,
+        "optaRank": 281,
+        "optaRating": 76.9799644832
+      },
+      {
+        "name": "Red Bull Bragantino",
+        "id": 1999,
+        "slug": "red-bull-bragantino",
+        "imageUrl": "/images/teams/1999.png",
+        "optaId": 8005,
+        "optaRank": 389,
+        "optaRating": 75.0159750576
+      },
+      {
+        "name": "Atlético Mineiro",
+        "id": 1977,
+        "slug": "atletico-mineiro",
+        "imageUrl": "/images/teams/1977.png",
+        "optaId": 1373,
+        "optaRank": 243,
+        "optaRating": 77.8957759278
+      },
+      {
+        "name": "Ceará",
+        "id": 2001,
+        "slug": "ceara",
+        "imageUrl": "/images/teams/2001.webp",
+        "optaId": 5569,
+        "optaRank": 348,
+        "optaRating": 75.794938436
+      },
+      {
+        "name": "Internacional",
+        "id": 1966,
+        "slug": "internacional",
+        "imageUrl": "/images/teams/1966.webp",
+        "optaId": 602,
+        "optaRank": 255,
+        "optaRating": 77.5266058391
+      },
+      {
+        "name": "Santos",
+        "id": 1968,
+        "slug": "santos",
+        "imageUrl": "/images/teams/1968.png",
+        "optaId": 1303,
+        "optaRank": 363,
+        "optaRating": 75.5223936619
+      },
+      {
+        "name": "Vitória",
+        "id": 1962,
+        "slug": "vitoria",
+        "imageUrl": "/images/teams/1962.png",
+        "optaId": 2576,
+        "optaRank": 386,
+        "optaRating": 75.1239311786
+      },
+      {
+        "name": "Fortaleza",
+        "id": 2020,
+        "slug": "fortaleza",
+        "imageUrl": "/images/teams/2020.png",
+        "optaId": 7682,
+        "optaRank": 374,
+        "optaRating": 75.2954250985
+      },
+      {
+        "name": "Juventude",
+        "id": 1980,
+        "slug": "juventude",
+        "imageUrl": "/images/teams/1980.png",
+        "optaId": 3633,
+        "optaRank": 528,
+        "optaRating": 73.3900373226
+      },
+      {
+        "name": "Sport Recife",
+        "id": 1959,
+        "slug": "sport-recife",
+        "imageUrl": "/images/teams/1959.webp",
+        "optaId": 2575,
+        "optaRank": 551,
+        "optaRating": 73.0463126985
+      }
+    ],
+    "imageUrl": "/images/league/brasileirão-série-a.png"
+  },
+  "Ligue 1": {
+    "leagueId": 34,
+    "country": "France",
+    "seasonId": 77356,
+    "groupId": 1000094991,
+    "categoryId": 7,
+    "teams": [
+      {
+        "name": "Paris Saint-Germain",
+        "id": 1644,
+        "slug": "paris-saint-germain",
+        "imageUrl": "/images/teams/1644.webp",
+        "optaId": 149,
+        "optaRank": 2,
+        "optaRating": 98.0748836636
+      },
+      {
+        "name": "AS Monaco",
+        "id": 1653,
+        "slug": "as-monaco",
+        "imageUrl": "/images/teams/1653.png",
+        "optaId": 146,
+        "optaRank": 39,
+        "optaRating": 87.7466396478
+      },
+      {
+        "name": "Olympique de Marseille",
+        "id": 1641,
+        "slug": "olympique-de-marseille",
+        "imageUrl": "/images/teams/1641.png",
+        "optaId": 144,
+        "optaRank": 36,
+        "optaRating": 88.187079431
+      },
+      {
+        "name": "RC Strasbourg",
+        "id": 1659,
+        "slug": "rc-strasbourg",
+        "imageUrl": "/images/teams/1659.png",
+        "optaId": 153,
+        "optaRank": 48,
+        "optaRating": 86.1511446024
+      },
+      {
+        "name": "Olympique Lyonnais",
+        "id": 1649,
+        "slug": "olympique-lyonnais",
+        "imageUrl": "/images/teams/1649.png",
+        "optaId": 143,
+        "optaRank": 38,
+        "optaRating": 88.0695710991
+      },
+      {
+        "name": "RC Lens",
+        "id": 1648,
+        "slug": "rc-lens",
+        "imageUrl": "/images/teams/1648.png",
+        "optaId": 142,
+        "optaRank": 51,
+        "optaRating": 86.0197154125
+      },
+      {
+        "name": "Lille",
+        "id": 1643,
+        "slug": "lille",
+        "imageUrl": "/images/teams/1643.png",
+        "optaId": 429,
+        "optaRank": 33,
+        "optaRating": 88.3415494093
+      },
+      {
+        "name": "Nice",
+        "id": 1661,
+        "slug": "nice",
+        "imageUrl": "/images/teams/1661.png",
+        "optaId": 1395,
+        "optaRank": 67,
+        "optaRating": 84.4070311479
+      },
+      {
+        "name": "Toulouse",
+        "id": 1681,
+        "slug": "toulouse",
+        "imageUrl": "/images/teams/1681.png",
+        "optaId": 427,
+        "optaRank": 75,
+        "optaRating": 83.5196472384
+      },
+      {
+        "name": "Stade Rennais",
+        "id": 1658,
+        "slug": "stade-rennais",
+        "imageUrl": "/images/teams/1658.png",
+        "optaId": 150,
+        "optaRank": 81,
+        "optaRating": 82.9481703052
+      },
+      {
+        "name": "Le Havre",
+        "id": 1662,
+        "slug": "le-havre",
+        "imageUrl": "/images/teams/1662.png",
+        "optaId": 141,
+        "optaRank": 185,
+        "optaRating": 79.2119998684
+      },
+      {
+        "name": "Paris FC",
+        "id": 6070,
+        "slug": "paris-fc",
+        "imageUrl": "/images/teams/6070.png",
+        "optaId": 2338,
+        "optaRank": 206,
+        "optaRating": 78.656064116
+      },
+      {
+        "name": "Angers",
+        "id": 1684,
+        "slug": "angers",
+        "imageUrl": "/images/teams/1684.png",
+        "optaId": 2128,
+        "optaRank": 189,
+        "optaRating": 79.1553322518
+      },
+      {
+        "name": "Stade Brestois",
+        "id": 1715,
+        "slug": "stade-brestois",
+        "imageUrl": "/images/teams/1715.png",
+        "optaId": 862,
+        "optaRank": 85,
+        "optaRating": 82.8291013413
+      },
+      {
+        "name": "Nantes",
+        "id": 1647,
+        "slug": "nantes",
+        "imageUrl": "/images/teams/1647.png",
+        "optaId": 430,
+        "optaRank": 154,
+        "optaRating": 80.0095630941
+      },
+      {
+        "name": "Lorient",
+        "id": 1656,
+        "slug": "lorient",
+        "imageUrl": "/images/teams/1656.png",
+        "optaId": 694,
+        "optaRank": 205,
+        "optaRating": 78.6656288781
+      },
+      {
+        "name": "Auxerre",
+        "id": 1646,
+        "slug": "auxerre",
+        "imageUrl": "/images/teams/1646.png",
+        "optaId": 138,
+        "optaRank": 148,
+        "optaRating": 80.0754580012
+      },
+      {
+        "name": "Metz",
+        "id": 1651,
+        "slug": "metz",
+        "imageUrl": "/images/teams/1651.png",
+        "optaId": 145,
+        "optaRank": 279,
+        "optaRating": 77.025211912
+      }
+    ],
+    "imageUrl": "/images/league/ligue-1.png"
+  },
+  "A-League Men": {
+    "leagueId": 136,
+    "country": "Australia",
+    "seasonId": 82603,
+    "groupId": 1000182606,
+    "categoryId": 34,
+    "teams": [
+      {
+        "name": "Melbourne City",
+        "id": 42210,
+        "slug": "melbourne-city",
+        "imageUrl": "/images/teams/42210.png",
+        "optaId": 5664,
+        "optaRank": 725,
+        "optaRating": 71.0212251922
+      },
+      {
+        "name": "Wellington Phoenix",
+        "id": 7568,
+        "slug": "wellington-phoenix",
+        "imageUrl": "/images/teams/7568.png",
+        "optaId": 2655,
+        "optaRank": 1565,
+        "optaRating": 64.7544061041
+      },
+      {
+        "name": "Auckland FC",
+        "id": 800224,
+        "slug": "auckland-fc",
+        "imageUrl": "/images/teams/800224.png",
+        "optaId": 21568,
+        "optaRank": 884,
+        "optaRating": 69.5826149812
+      },
+      {
+        "name": "Newcastle Jets",
+        "id": 2934,
+        "slug": "newcastle-jets",
+        "imageUrl": "/images/teams/2934.png",
+        "optaId": 2319,
+        "optaRank": 1394,
+        "optaRating": 65.7341313455
+      },
+      {
+        "name": "Sydney FC",
+        "id": 5971,
+        "slug": "sydney-fc",
+        "imageUrl": "/images/teams/5971.png",
+        "optaId": 1962,
+        "optaRank": 916,
+        "optaRating": 69.2798798422
+      },
+      {
+        "name": "Adelaide United",
+        "id": 2946,
+        "slug": "adelaide-united",
+        "imageUrl": "/images/teams/2946.png",
+        "optaId": 2309,
+        "optaRank": 1364,
+        "optaRating": 65.8944923212
+      },
+      {
+        "name": "Brisbane Roar",
+        "id": 5968,
+        "slug": "brisbane-roar",
+        "imageUrl": "/images/teams/5968.png",
+        "optaId": 2248,
+        "optaRank": 2130,
+        "optaRating": 62.2160273055
+      },
+      {
+        "name": "Macarthur FC",
+        "id": 371682,
+        "slug": "macarthur-fc",
+        "imageUrl": "/images/teams/371682.png",
+        "optaId": 15049,
+        "optaRank": 1347,
+        "optaRating": 66.1129589015
+      },
+      {
+        "name": "Central Coast Mariners",
+        "id": 5966,
+        "slug": "central-coast-mariners",
+        "imageUrl": "/images/teams/5966.png",
+        "optaId": 1988,
+        "optaRank": 1572,
+        "optaRating": 64.7076802558
+      },
+      {
+        "name": "Western Sydney Wanderers",
+        "id": 72926,
+        "slug": "western-sydney-wanderers",
+        "imageUrl": "/images/teams/72926.png",
+        "optaId": 7062,
+        "optaRank": 976,
+        "optaRating": 68.797515713
+      },
+      {
+        "name": "Melbourne Victory",
+        "id": 5970,
+        "slug": "melbourne-victory",
+        "imageUrl": "/images/teams/5970.png",
+        "optaId": 2237,
+        "optaRank": 1041,
+        "optaRating": 68.2688261467
+      },
+      {
+        "name": "Perth Glory",
+        "id": 2945,
+        "slug": "perth-glory",
+        "imageUrl": "/images/teams/2945.png",
+        "optaId": 989,
+        "optaRank": 2821,
+        "optaRating": 60.1515998498
+      }
+    ],
+    "imageUrl": "/images/league/a-league-men.png"
+  }
+}

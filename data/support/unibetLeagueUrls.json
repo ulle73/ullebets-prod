@@ -1,0 +1,53 @@
+{
+  "Premier League": {
+    "countrySlug": "england",
+    "leagueSlug": "premier_league",
+    "baseUrl": "https://eu1.offering-api.kambicdn.com/offering/v2018/ubse/listView/football/england/premier_league.json"
+  },
+  "La Liga": {
+    "countrySlug": "spain",
+    "leagueSlug": "la_liga",
+    "baseUrl": "https://eu1.offering-api.kambicdn.com/offering/v2018/ubse/listView/football/spain/la_liga.json",
+    "lookupSlugs": [
+      "LaLiga",
+      "laliga"
+    ]
+  },
+  "Bundesliga": {
+    "countrySlug": "germany",
+    "leagueSlug": "bundesliga",
+    "baseUrl": "https://eu1.offering-api.kambicdn.com/offering/v2018/ubse/listView/football/germany/bundesliga.json",
+    "lookupSlugs": ["bundesliga", "german bundesliga"]
+  },
+  "Serie A": {
+    "countrySlug": "italy",
+    "leagueSlug": "serie_a",
+    "baseUrl": "https://eu1.offering-api.kambicdn.com/offering/v2018/ubse/listView/football/italy/serie_a.json",
+    "lookupSlugs": ["serie a", "italian serie a"]
+  },
+  "Brasileirão Série A": {
+    "countrySlug": "brazil",
+    "leagueSlug": "brasileirao_serie_a",
+    "baseUrl": "https://eu1.offering-api.kambicdn.com/offering/v2018/ubse/listView/football/brazil/brasileirao_serie_a.json",
+    "lookupSlugs": [
+      "brasileirao serie a",
+      "brasileirao betano",
+      "campeonato brasileiro serie a",
+      "brazil serie a",
+      "brasileirao"
+    ]
+  },
+  "Ligue 1": {
+    "countrySlug": "france",
+    "leagueSlug": "ligue_1",
+    "baseUrl": "https://eu1.offering-api.kambicdn.com/offering/v2018/ubse/listView/football/france/ligue_1.json",
+    "lookupSlugs": ["ligue 1", "french ligue 1"]
+  },
+  "A-League Men": {
+    "countrySlug": "australia",
+    "leagueSlug": "a_league_men",
+    "baseUrl": "https://eu1.offering-api.kambicdn.com/offering/v2018/ubse/listView/football/australia.json",
+    "lookupSlugs": ["a-league men", "a league men", "a league"]
+  }
+}
+

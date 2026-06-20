@@ -1,0 +1,26 @@
+[project]
+name = "ullebets-offline-v1"
+version = "0.1.0"
+description = "Offline historical stat-market pipeline for Ullebets"
+requires-python = ">=3.13"
+dependencies = [
+  "duckdb>=1.0.0",
+  "pandas>=2.2.0",
+  "pyarrow>=17.0.0",
+  "pymongo>=4.8.0",
+  "scikit-learn>=1.5.0",
+]
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

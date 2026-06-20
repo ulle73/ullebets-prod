@@ -1,2 +1,6 @@
 /data/teamstats
+/data/derived/offline_v1
+.codegraph/
+.pytest_cache/
+__pycache__/
 .env.local
