@@ -150,10 +150,10 @@ Jag vill inte att modellen bara ska testa enkla snitt som `senaste 5 matcher`.
 
 Tesen är att bästa vägen är att låta modellen använda **alla tillgängliga parametrar som fanns före matchen** och testa många olika kombinationer för att hitta vilka features som faktiskt predikterar varje `stat_key` bäst.
 
-Med alla tillgängliga parametrar menas till exempel:
+Med alla tillgängliga pre-match-parametrar menas till exempel:
 
 ```txt
-alla historiska SofaScore-stats vi har
+alla historiska SofaScore-stats vi har, men bara från matcher före aktuell match
 Unibet odds + linor före match
 lagstyrka / ELO / optaRating
 optaRank
@@ -163,9 +163,9 @@ hemma/borta
 favorit/underdog
 motståndartyp
 stat-specifik ranking
-historiska resultat/utfall för odds + linor
-closing/CLV där det finns
 ```
+
+Resultat, faktiskt utfall, matchstatistik efter match och CLV är **facit/labels/utvärdering**. Det ska användas för att lära modellen vad som hände och mäta ROI, men inte som input när modellen simulerar ett spel före match.
 
 Modellen bör gärna skapa/testa features i flera tidsfönster, till exempel:
 
@@ -221,6 +221,92 @@ vilka features har faktiskt lett till +ROI i backtest?
 Efter det kan den bygga vidare från de starkaste featuresen och förbättra modellen.
 
 Viktigt: efter-match-statistik och slutligt utfall är facit/rättning, inte pre-match-input. Modellen ska lära sig från historiken men när den simulerar ett spel ska den bara använda information som fanns före match.
+
+---
+
+# MIN TES OM HUR MODELLEN BÖR TESTA FEATURES OCH LÄRA SIG
+
+Jag tänker att detta bör göras i två tydliga steg.
+
+Steg 1: skapa en bred feature-fabrik.
+
+```txt
+Släng in / skapa så många rimliga pre-match-features som möjligt från all historik.
+Gör detta per stat_key + period + scope.
+Testa många kombinationer: senaste 3/5/10/20, hemma/borta, topplag/mellanlag/bottenlag, favorit/underdog, league_rank, optaRating, styrkeskillnad och andra SofaScore-stats.
+Låt modellen/feature-selection hitta vilka features som faktiskt verkar starkast för varje marknad.
+```
+
+Steg 2: låt modellen lära sig av facit.
+
+```txt
+När matchen är spelad finns facit: faktisk statistik, om over/under vann, ROI och CLV där det finns.
+Detta facit används för träning och utvärdering.
+Modellen ska lära sig vilka pre-match-features som historiskt förklarat när Unibets odds + linor varit felprissatta.
+```
+
+Men feature-valet och modellvalet får inte göras på hela historiken och sedan testas på samma historik. Då finns risk att man bara hittar slump.
+
+Tesen är därför att modellen bör testa detta framåt i tiden:
+
+```txt
+träna på gammal data
+välj features på gammal data
+testa på nästa period som modellen inte sett
+flytta fram perioden
+träna om / anpassa modellen
+utvärdera igen
+```
+
+Målet är inte bara att hitta features som såg bäst ut historiskt. Målet är att hitta features som fortsätter fungera när modellen simulerar framtida matcher.
+
+---
+
+# DATAKVALITET INNAN MODELLERING
+
+Innan modellen tränas bör systemet börja med att granska datan och filtrera bort matcher/linor som inte går att använda.
+
+En historisk match/lina bör inte tas med i träning eller backtest om något viktigt saknas.
+
+Exempel på sådant som bör filtreras bort eller markeras som ogiltigt:
+
+```txt
+matchen saknar korrekt matchId/eventId
+matchen saknar kickoff/starttid
+Unibet odds + lina saknas före match
+Unibet-market går inte att mappa tydligt till stat_key + period + scope
+matchstatistik efter match saknas
+statistiken saknar rätt stat_key, period eller home/away/total
+faktiskt utfall kan inte räknas ut
+linan kan inte rättas som over/under win/loss
+matchen är inställd, avbruten eller inte färdigspelad
+lagmatchning mellan SofaScore och Unibet är osäker
+samma match/lina finns dubbelt med konfliktande värden
+```
+
+Sådana matcher ska inte tyst blandas in i modellen. De bör antingen:
+
+```txt
+exkluderas från träning/backtest
+eller sparas som invalid/needs_review
+```
+
+Det bör också skapas en enkel datarapport som visar:
+
+```txt
+hur många matcher som hittades
+hur många som hade Unibet odds + linor
+hur många som hade matchstatistik efter match
+hur många som kunde rättas
+hur många som filtrerades bort
+varför de filtrerades bort
+```
+
+Poängen är att modellen bara ska tränas och backtestas på matcher där kedjan är komplett:
+
+```txt
+pre-match stats + odds/lina före match -> match spelas -> statistik/resultat efter match -> rättad over/under -> ROI/CLV-utvärdering
+```
 
 ---
 
@@ -521,6 +607,10 @@ I docs/source-map.md hittar du filer, endpoints och collections som visar hur ga
 Det finns även lagstyrka/ranking och league_rank-tänk i datan. Tanken är att modellen inte bara ska titta på råa snitt, utan även kunna förstå liga, lagstyrka, motståndartyp, topplag/mellanlag/bottenlag, hemma/borta och stat-specifika rankings.
 
 Jag vill att modellen testar brett med alla tillgängliga pre-match-parametrar och många olika feature-kombinationer, till exempel senaste 3/5/10/20 matcher, hemma/borta, topplag/mellanlag/bottenlag, favorit/underdog och league_rank per stat_key. Syftet är att hitta vilka features och kombinationer som bäst predikterar varje stat-marknad och vilka som historiskt gett bäst +ROI mot Unibets odds + linor.
+
+Gör först datakoll: filtrera bort matcher/linor som saknar odds + lina före match, saknar matchstatistik efter match, inte kan mappas tydligt till stat_key + period + scope, inte kan rättas som over/under, är inställda/avbrutna eller har osäker lagmatchning. Sådana rader ska inte användas i träning/backtest förrän de är rättade.
+
+Tänk två steg: först bred feature-sökning per stat_key + period + scope på historisk pre-match-data. Sedan träning/utvärdering med facit från spelade matcher. Feature-val och modellval bör testas framåt i tiden så modellen inte bara hittar slump i historiken.
 
 Bygg om implementationen i detta repo så att systemet kan hämta kommande matcher, hämta odds + linor före match, hämta statistik efter match, rätta utfall och träna/anpassa en modell för att hitta bästa möjliga +ROI framåt.
 ```
