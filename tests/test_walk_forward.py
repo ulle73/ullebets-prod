@@ -14,6 +14,7 @@ def test_selection_from_lambda_preserves_snapshot_metadata():
     frame = pd.DataFrame(
         [
             {
+                "exposure_match_id": "m1",
                 "match_id": "m1",
                 "match_date": "2026-01-03",
                 "league_name": "Premier League",
@@ -46,3 +47,51 @@ def test_selection_from_lambda_preserves_snapshot_metadata():
     assert row["latest_snapshot_minutes_before_kickoff"] == 90.0
     assert bool(row["has_latest_prematch_snapshot"]) is True
     assert row["prematch_snapshot_count"] == 4
+
+
+def test_selection_from_lambda_dedupes_by_exposure_match_id_not_raw_match_id():
+    frame = pd.DataFrame(
+        [
+            {
+                "exposure_match_id": "ts1",
+                "match_id": None,
+                "resolved_teamstats_match_id": "ts1",
+                "match_date": "2026-01-03",
+                "league_name": "Premier League",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "line_value": 8.5,
+                "over_odds": 2.2,
+                "under_odds": 1.7,
+                "over_result": "win",
+                "under_result": "loss",
+                "over_clv_pct": 0.03,
+                "under_clv_pct": -0.01,
+                "model_lambda": 12.0,
+            },
+            {
+                "exposure_match_id": "ts2",
+                "match_id": None,
+                "resolved_teamstats_match_id": "ts2",
+                "match_date": "2026-01-03",
+                "league_name": "Premier League",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "line_value": 8.5,
+                "over_odds": 2.15,
+                "under_odds": 1.72,
+                "over_result": "win",
+                "under_result": "loss",
+                "over_clv_pct": 0.02,
+                "under_clv_pct": -0.01,
+                "model_lambda": 12.0,
+            },
+        ]
+    )
+
+    selections = _selection_from_lambda(frame, "model_lambda", threshold=0.0)
+
+    assert len(selections) == 2
+    assert set(selections["exposure_match_id"]) == {"ts1", "ts2"}

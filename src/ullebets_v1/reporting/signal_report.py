@@ -19,7 +19,7 @@ def build_signal_report(audit_summary: dict, walk_forward_summary: pd.DataFrame,
     lines.append(f"- Teamstats-covered rows: `{audit_summary['teamstats_covered_rows']}`")
     lines.append(f"- CLV-covered rows: `{audit_summary['clv_covered_rows']}`")
     lines.append(
-        "- Walk-forward universe: canonical model-eligible lines only, with two-sided cornerKicks and over-only totalShots/shotsOnGoal."
+        "- Walk-forward universe: canonical model-eligible lines only, with two-sided cornerKicks and over-only totalShots/shotsOnGoal, plus a strict `snapshot_time < match_start_time` filter."
     )
     lines.append("")
     completeness = audit_summary.get("primary_target_market_completeness", {})

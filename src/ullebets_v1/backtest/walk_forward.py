@@ -15,6 +15,11 @@ SELECTION_METADATA_COLUMNS = (
     "latest_snapshot_minutes_before_kickoff",
     "has_latest_prematch_snapshot",
     "prematch_snapshot_count",
+    "odds_timing_status",
+    "is_strictly_prematch_odds",
+    "timing_leakage_risk",
+    "match_start_time",
+    "match_start_time_source",
 )
 
 
@@ -31,7 +36,7 @@ def _to_date(value: str) -> date:
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
-def _selection_from_lambda(frame: pd.DataFrame, lambda_column: str, threshold: float) -> pd.DataFrame:
+def _selection_candidate_rows(frame: pd.DataFrame, lambda_column: str, threshold: float) -> pd.DataFrame:
     rows: list[dict] = []
     for row in frame.itertuples(index=False):
         lam = getattr(row, lambda_column)
@@ -65,8 +70,15 @@ def _selection_from_lambda(frame: pd.DataFrame, lambda_column: str, threshold: f
         if best_side is None or best_ev is None or best_ev <= threshold:
             continue
 
+        exposure_match_id = getattr(
+            row,
+            "exposure_match_id",
+            getattr(row, "resolved_teamstats_match_id", getattr(row, "match_id", None)),
+        )
         payload = {
+            "exposure_match_id": exposure_match_id,
             "match_id": row.match_id,
+            "resolved_teamstats_match_id": getattr(row, "resolved_teamstats_match_id", None),
             "match_date": row.match_date,
             "league_name": row.league_name,
             "stat_key": row.stat_key,
@@ -84,18 +96,45 @@ def _selection_from_lambda(frame: pd.DataFrame, lambda_column: str, threshold: f
         }
         for column in SELECTION_METADATA_COLUMNS:
             payload[column] = getattr(row, column, None)
+        side_prefix = "over" if best_side == "over" else "under"
+        payload["selected_snapshot_time"] = getattr(row, f"{side_prefix}_snapshot_time", None)
+        payload["selected_snapshot_time_source"] = getattr(
+            row,
+            f"{side_prefix}_snapshot_time_source",
+            None,
+        )
+        payload["selected_side_timing_status"] = getattr(
+            row,
+            f"{side_prefix}_odds_timing_status",
+            None,
+        )
         rows.append(payload)
-    selections = pd.DataFrame(rows)
+    return pd.DataFrame(rows)
+
+
+def _dedupe_selection_rows(selections: pd.DataFrame) -> pd.DataFrame:
     if selections.empty:
         return selections
     selections = selections.sort_values(
-        ["match_id", "stat_key", "period", "scope", "expected_roi_units"],
+        ["exposure_match_id", "stat_key", "period", "scope", "line_value", "selected_side", "expected_roi_units"],
+        ascending=[True, True, True, True, True, True, False],
+    )
+    selections = selections.drop_duplicates(
+        subset=["exposure_match_id", "stat_key", "period", "scope", "line_value", "selected_side"],
+        keep="first",
+    )
+    selections = selections.sort_values(
+        ["exposure_match_id", "stat_key", "period", "scope", "expected_roi_units"],
         ascending=[True, True, True, True, False],
     )
     return selections.drop_duplicates(
-        subset=["match_id", "stat_key", "period", "scope"],
+        subset=["exposure_match_id", "stat_key", "period", "scope"],
         keep="first",
     )
+
+
+def _selection_from_lambda(frame: pd.DataFrame, lambda_column: str, threshold: float) -> pd.DataFrame:
+    return _dedupe_selection_rows(_selection_candidate_rows(frame, lambda_column, threshold))
 
 
 def _summarize_selection_rows(name: str, rows: pd.DataFrame) -> dict:

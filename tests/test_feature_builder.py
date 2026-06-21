@@ -1,7 +1,7 @@
 import pandas as pd
 
 from ullebets_v1.features.rolling import last_n_average
-from ullebets_v1.features.builder import build_market_points
+from ullebets_v1.features.builder import _rolling_feature_frame, build_market_points
 from ullebets_v1.backtest.metrics import poisson_probabilities_for_line
 
 
@@ -182,3 +182,108 @@ def test_build_market_points_marks_canonical_lines_for_two_sided_and_over_only_m
     assert one_sided["is_model_eligible_segment"] == True
     assert one_sided["is_canonical_line"] == True
     assert one_sided["line_rank_in_segment"] == 1
+
+
+def test_build_market_points_uses_exposure_match_id_for_canonical_ranking():
+    market_lines = pd.DataFrame(
+        [
+            {
+                "exposure_match_id": "ts1",
+                "match_id": None,
+                "resolved_teamstats_match_id": "ts1",
+                "match_date": "2026-01-01",
+                "league_name": "Premier League",
+                "home_team_name": "Home1",
+                "away_team_name": "Away1",
+                "period": "ALL",
+                "scope": "total",
+                "stat_key": "shotsOnGoal",
+                "line_value": 3.5,
+                "direction": "over",
+                "odds_decimal": 1.8,
+                "actual_value": 4.0,
+                "settlement_result": "win",
+                "has_clv": False,
+                "match_mapping_method": "name_date_fallback",
+                "filter_reason": None,
+                "is_primary_target": True,
+            },
+            {
+                "exposure_match_id": "ts2",
+                "match_id": None,
+                "resolved_teamstats_match_id": "ts2",
+                "match_date": "2026-01-02",
+                "league_name": "Premier League",
+                "home_team_name": "Home2",
+                "away_team_name": "Away2",
+                "period": "ALL",
+                "scope": "total",
+                "stat_key": "shotsOnGoal",
+                "line_value": 4.5,
+                "direction": "over",
+                "odds_decimal": 1.82,
+                "actual_value": 5.0,
+                "settlement_result": "win",
+                "has_clv": False,
+                "match_mapping_method": "name_date_fallback",
+                "filter_reason": None,
+                "is_primary_target": True,
+            },
+        ]
+    )
+    line_clv = pd.DataFrame(
+        columns=["match_id", "stat_key", "period", "scope", "direction", "line_value", "clv_pct", "closing_odds"]
+    )
+
+    points = build_market_points(market_lines=market_lines, line_clv=line_clv)
+
+    assert len(points) == 2
+    assert int(points["is_canonical_line"].sum()) == 2
+
+
+def test_rolling_feature_frame_keeps_all_group_history_chronological_across_roles():
+    team_stats_long = pd.DataFrame(
+        [
+            {
+                "match_id": "m1",
+                "match_date": "2026-01-10",
+                "kickoff_ts": 10,
+                "team_name": "A",
+                "opponent_name": "B",
+                "team_role": "home",
+                "period": "ALL",
+                "stat_item_key": "cornerKicks",
+                "team_value": 5.0,
+                "opponent_value": 4.0,
+            },
+            {
+                "match_id": "m3",
+                "match_date": "2026-01-20",
+                "kickoff_ts": 20,
+                "team_name": "A",
+                "opponent_name": "D",
+                "team_role": "home",
+                "period": "ALL",
+                "stat_item_key": "cornerKicks",
+                "team_value": 9.0,
+                "opponent_value": 3.0,
+            },
+            {
+                "match_id": "m2",
+                "match_date": "2026-01-15",
+                "kickoff_ts": 15,
+                "team_name": "A",
+                "opponent_name": "C",
+                "team_role": "away",
+                "period": "ALL",
+                "stat_item_key": "cornerKicks",
+                "team_value": 7.0,
+                "opponent_value": 2.0,
+            },
+        ]
+    )
+
+    feature_frame = _rolling_feature_frame(team_stats_long)
+    target = feature_frame[(feature_frame["match_id"] == "m3") & (feature_frame["team_role"] == "home")].iloc[0]
+
+    assert target["cornerKicks__team_for_all_avg_3"] == 6.0

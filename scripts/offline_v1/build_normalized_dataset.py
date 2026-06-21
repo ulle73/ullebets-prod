@@ -14,6 +14,9 @@ import pandas as pd
 from ullebets_v1.config import PipelineConfig
 from ullebets_v1.logging_utils import configure_logging
 from ullebets_v1.normalize.coverage import build_market_line_coverage
+from ullebets_v1.normalize.market_lines import resolve_filter_reason
+from ullebets_v1.normalize.outcomes import annotate_market_line_outcomes
+from ullebets_v1.registry.stats import PRIMARY_TARGET_STAT_KEYS
 
 
 def _load_parquet(path: Path) -> pd.DataFrame:
@@ -50,6 +53,52 @@ def _dedupe_teamstats_long(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _write_parquet(frame: pd.DataFrame, path: Path) -> None:
     frame.to_parquet(path, index=False)
+
+
+def _resolved_filter_reason(row: pd.Series) -> str | None:
+    if row.get("stat_key") in PRIMARY_TARGET_STAT_KEYS and bool(row.get("has_teamstats_match")):
+        if bool(row.get("has_authoritative_teamstats_outcome")) is not True:
+            return "missing_teamstats_actual"
+    return resolve_filter_reason(
+        stat_key=row.get("stat_key"),
+        period=row.get("period"),
+        scope=row.get("scope"),
+        line_value=row.get("line_value"),
+        odds_decimal=row.get("odds_decimal"),
+        settlement_result=row.get("settlement_result"),
+        has_teamstats_match=bool(row.get("has_teamstats_match")),
+    )
+
+
+def _build_source_coverage(frame: pd.DataFrame) -> pd.DataFrame:
+    return frame[
+        [
+            "match_id",
+            "bet_key",
+            "stat_key",
+            "period",
+            "scope",
+            "has_teamstats_match",
+            "teamstats_match_count",
+            "resolved_teamstats_match_id",
+            "exposure_match_id",
+            "match_mapping_method",
+            "has_clv",
+            "clv_match_count",
+            "has_shortlist_reference",
+            "has_result_loop_reference",
+            "is_primary_target",
+            "prematch_snapshot_count",
+            "has_latest_prematch_snapshot",
+            "latest_snapshot_type",
+            "latest_snapshot_fetched_at",
+            "latest_snapshot_minutes_before_kickoff",
+            "effective_odds_source",
+            "outcome_verification_status",
+            "has_authoritative_teamstats_outcome",
+            "filter_reason",
+        ]
+    ].copy()
 
 
 def _refresh_duckdb_views(config: PipelineConfig) -> None:
@@ -92,6 +141,9 @@ def main() -> None:
         shortlist_rows=shortlist_rows,
         result_loop_rows=result_loop_rows,
     )
+    enriched_market_lines = annotate_market_line_outcomes(enriched_market_lines, team_stats_long)
+    enriched_market_lines["filter_reason"] = enriched_market_lines.apply(_resolved_filter_reason, axis=1)
+    coverage = _build_source_coverage(enriched_market_lines)
 
     _write_parquet(teamstats_index, config.normalized_dir / "matches.parquet")
     _write_parquet(enriched_market_lines, config.normalized_dir / "market_lines.parquet")

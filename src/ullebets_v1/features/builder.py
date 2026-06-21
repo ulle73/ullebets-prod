@@ -60,6 +60,8 @@ def build_market_points(market_lines: pd.DataFrame, line_clv: pd.DataFrame) -> p
     kept = market_lines[(market_lines["is_primary_target"] == True) & (market_lines["filter_reason"].isna())].copy()
     if kept.empty:
         return kept
+    if "exposure_match_id" not in kept.columns:
+        kept["exposure_match_id"] = kept["resolved_teamstats_match_id"].fillna(kept["match_id"]).astype("string")
     odds_column = "effective_odds_decimal" if "effective_odds_decimal" in kept.columns else "odds_decimal"
 
     clv_lookup = line_clv[
@@ -100,6 +102,7 @@ def build_market_points(market_lines: pd.DataFrame, line_clv: pd.DataFrame) -> p
     )
 
     group_cols = [
+        "exposure_match_id",
         "match_id",
         "resolved_teamstats_match_id",
         "match_date",
@@ -172,10 +175,10 @@ def build_market_points(market_lines: pd.DataFrame, line_clv: pd.DataFrame) -> p
             points.loc[balanced, "market_no_vig_prob_over"] - 0.5
         ).abs()
         ranked = points.loc[balanced].sort_values(
-            ["match_id", "stat_key", "period", "scope", "market_balance_gap", "market_overround", "line_value"],
+            ["exposure_match_id", "stat_key", "period", "scope", "market_balance_gap", "market_overround", "line_value"],
             ascending=[True, True, True, True, True, True, True],
         )
-        ranked_positions = ranked.groupby(["match_id", "stat_key", "period", "scope"], dropna=False).cumcount() + 1
+        ranked_positions = ranked.groupby(["exposure_match_id", "stat_key", "period", "scope"], dropna=False).cumcount() + 1
         points.loc[ranked.index, "line_rank_in_segment"] = ranked_positions.astype("Int64")
         canonical_index = ranked.loc[ranked_positions == 1].index
         points.loc[canonical_index, "is_canonical_line"] = True
@@ -190,7 +193,7 @@ def build_market_points(market_lines: pd.DataFrame, line_clv: pd.DataFrame) -> p
         ).abs()
         ranked = points.loc[one_sided_modeled].sort_values(
             [
-                "match_id",
+                "exposure_match_id",
                 "stat_key",
                 "period",
                 "scope",
@@ -200,7 +203,7 @@ def build_market_points(market_lines: pd.DataFrame, line_clv: pd.DataFrame) -> p
             ascending=[True, True, True, True, True, True],
         )
         ranked_positions = (
-            ranked.groupby(["match_id", "stat_key", "period", "scope"], dropna=False)
+            ranked.groupby(["exposure_match_id", "stat_key", "period", "scope"], dropna=False)
             .cumcount()
             + 1
         )
@@ -215,7 +218,7 @@ def build_market_points(market_lines: pd.DataFrame, line_clv: pd.DataFrame) -> p
 def _rolling_feature_frame(team_stats_long: pd.DataFrame) -> pd.DataFrame:
     wanted_stats = set(CONTEXT_STAT_KEYS)
     base = team_stats_long[team_stats_long["stat_item_key"].isin(wanted_stats)].copy()
-    base = base.sort_values(["team_name", "team_role", "period", "stat_item_key", "kickoff_ts", "match_id"])
+    base = base.sort_values(["team_name", "period", "stat_item_key", "kickoff_ts", "match_id", "team_role"])
     all_group = ["team_name", "period", "stat_item_key"]
     role_group = ["team_name", "team_role", "period", "stat_item_key"]
 

@@ -73,7 +73,7 @@ def _enrich_latest_snapshot_metadata(
         snapshot_rows["snapshot_fetched_at_ts"].notna()
         & (
             snapshot_rows["kickoff_at_ts"].isna()
-            | (snapshot_rows["snapshot_fetched_at_ts"] <= snapshot_rows["kickoff_at_ts"])
+            | (snapshot_rows["snapshot_fetched_at_ts"] < snapshot_rows["kickoff_at_ts"])
         )
     ].copy()
 
