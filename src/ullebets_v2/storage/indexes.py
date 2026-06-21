@@ -51,6 +51,8 @@ def build_core_index_plan() -> list[dict[str, Any]]:
         {
             "collection": "support_sources",
             "indexes": [
+                {"keys": [("source_key", 1)], "name": "source_key_unique", "unique": True},
+                {"keys": [("source_name", 1), ("captured_at", -1)], "name": "source_name_captured_at"},
                 {"keys": [("source_type", 1), ("source_version", 1)], "name": "source_type_version"},
                 {"keys": [("captured_at", -1)], "name": "captured_at"},
             ],
