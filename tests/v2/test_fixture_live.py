@@ -122,6 +122,17 @@ def test_build_category_plan_groups_leagues_by_category() -> None:
     assert plan == [{"category_id": 13, "league_ids": [325]}]
 
 
+def test_fixture_source_config_uses_default_base_urls_when_env_is_sparse() -> None:
+    config = FixtureSourceConfig.from_env({})
+
+    assert config.rapidapi_keys == []
+    assert config.rapidapi_sportapi7_base_url == "https://sportapi7.p.rapidapi.com"
+    assert config.rapidapi_sofascore_base_url == "https://sofascore.p.rapidapi.com"
+    assert config.rapidapi_sport_api_real_time_base_url == "https://sport-api-real-time.p.rapidapi.com"
+    assert config.rapidapi_sofascore_sport_api_base_url == "https://sofascore-sport-api.p.rapidapi.com"
+    assert config.sofascore_public_api_base_url == "https://api.sofascore.com/api/v1"
+
+
 def test_fetch_live_fixture_batches_records_endpoint_metadata() -> None:
     def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:
         assert headers["x-rapidapi-key"] == "key-1"
@@ -302,6 +313,68 @@ def test_run_fixture_ingest_window_live_writes_job_and_reports() -> None:
     assert database["fixture_source_links"].count_documents() == 1
     assert database["parity_reports"].count_documents() == 1
     assert database["audit_reports"].count_documents() == 1
+
+
+def test_run_fixture_ingest_window_live_handles_empty_requested_date_as_no_targets() -> None:
+    support_docs = build_support_docs()
+
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
+        return HttpJsonResponse(
+            status=200,
+            headers={"content-type": "application/json"},
+            data={"events": []},
+        )
+
+    summary = run_fixture_ingest_window(
+        mode="live",
+        dates=["2026-06-29"],
+        support_docs=support_docs,
+        source_workflow="import-fixtures-rolling.yml",
+        old_payloads_by_date={},
+        database=None,
+        dry_run=True,
+        source_config=FixtureSourceConfig.from_env({}),
+        transport=transport,
+        source_dir=Path(r"C:\dev\frontend\ullebets-vecel\matches-for-date"),
+    )
+
+    assert summary["processed_dates"] == 1
+    assert summary["canonical_docs"] == 0
+    assert summary["parity_reports"] == 1
+    assert summary["audit_reports"] == 1
+    assert summary["parity_status_counts"] == {"no_targets": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+
+
+def test_run_fixture_ingest_window_live_distinguishes_empty_from_source_failure() -> None:
+    support_docs = build_support_docs()
+
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
+        return HttpJsonResponse(
+            status=403,
+            headers={"content-type": "application/json"},
+            data=None,
+        )
+
+    summary = run_fixture_ingest_window(
+        mode="live",
+        dates=["2026-06-29"],
+        support_docs=support_docs,
+        source_workflow="import-fixtures-rolling.yml",
+        old_payloads_by_date={},
+        database=None,
+        dry_run=True,
+        source_config=FixtureSourceConfig.from_env({}),
+        transport=transport,
+        source_dir=Path(r"C:\dev\frontend\ullebets-vecel\matches-for-date"),
+    )
+
+    assert summary["processed_dates"] == 1
+    assert summary["canonical_docs"] == 0
+    assert summary["parity_reports"] == 1
+    assert summary["audit_reports"] == 1
+    assert summary["parity_status_counts"] == {"missing_oracle": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
 
 
 def test_fixture_reports_mark_missing_old_oracle() -> None:

@@ -97,12 +97,24 @@ def run_fixture_ingest_window(
 
     parity_rows = build_fixture_parity_rows(
         old_workflow=source_workflow,
+        requested_dates=dates,
+        successful_source_dates={
+            str(doc["source_date"])
+            for doc in raw_docs
+            if doc.get("event_count") is not None
+        },
         old_payloads_by_date=old_payloads_by_date,
         canonical_fixture_docs=canonical_docs,
         source_link_docs=source_link_docs,
     )
     audit_rows = build_fixture_audit_rows(
         source_workflow=source_workflow,
+        requested_dates=dates,
+        successful_source_dates={
+            str(doc["source_date"])
+            for doc in raw_docs
+            if doc.get("event_count") is not None
+        },
         raw_fixture_docs=raw_docs,
         canonical_fixture_docs=canonical_docs,
         source_link_docs=source_link_docs,
@@ -120,6 +132,14 @@ def run_fixture_ingest_window(
         "source_link_docs": len(source_link_docs),
         "parity_reports": len(parity_rows),
         "audit_reports": len(audit_rows),
+        "parity_status_counts": {
+            status: sum(1 for row in parity_rows if row["parity_status"] == status)
+            for status in sorted({row["parity_status"] for row in parity_rows})
+        },
+        "audit_status_counts": {
+            status: sum(1 for row in audit_rows if row["status"] == status)
+            for status in sorted({row["status"] for row in audit_rows})
+        },
         "results": results,
     }
 

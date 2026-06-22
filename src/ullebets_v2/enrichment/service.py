@@ -3,6 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ullebets_v2.enrichment.live import (
+    EnrichmentSourceConfig,
+    Transport,
+    build_live_match_enrichment_source_rows,
+)
 from ullebets_v2.enrichment.persistence import persist_enrichment_records
 from ullebets_v2.enrichment.replay import build_match_enrichment_documents, build_teamstats_source_rows
 from ullebets_v2.enrichment.reports import build_match_enrichment_audit_rows, build_match_enrichment_parity_rows
@@ -21,16 +26,18 @@ def filter_source_rows_by_dates(source_rows: list[dict[str, Any]], dates: list[s
     return filtered
 
 
-def run_match_enrichment_window(
+def _run_match_enrichment_pipeline(
     *,
-    source_dir: Path,
+    source_rows: list[dict[str, Any]],
+    expected_matches: list[dict[str, Any]] | None,
     support_docs: dict[str, Any],
     source_workflow: str,
-    dates: list[str] | None = None,
-    database: Any | None = None,
-    dry_run: bool = False,
+    job_args: dict[str, Any],
+    target_window: dict[str, Any],
+    database: Any | None,
+    dry_run: bool,
+    extra_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    source_rows = filter_source_rows_by_dates(build_teamstats_source_rows(source_dir), dates)
     docs = build_match_enrichment_documents(
         source_rows=source_rows,
         support_docs=support_docs,
@@ -38,11 +45,13 @@ def run_match_enrichment_window(
     parity_rows = build_match_enrichment_parity_rows(
         source_workflow=source_workflow,
         source_rows=source_rows,
+        expected_matches=expected_matches,
         canonical_match_results=docs["match_results"],
     )
     audit_rows = build_match_enrichment_audit_rows(
         source_workflow=source_workflow,
         source_rows=source_rows,
+        expected_matches=expected_matches,
         raw_match_statistics=docs["raw_match_statistics"],
         raw_incidents=docs["raw_incidents"],
         raw_shotmaps=docs["raw_shotmaps"],
@@ -53,7 +62,6 @@ def run_match_enrichment_window(
 
     summary: dict[str, Any] = {
         "job": "ingest_match_enrichment",
-        "dates": dates or [],
         "source_files": len(source_rows),
         "raw_match_statistics": len(docs["raw_match_statistics"]),
         "raw_incidents": len(docs["raw_incidents"]),
@@ -72,6 +80,8 @@ def run_match_enrichment_window(
             for status in sorted({row["status"] for row in audit_rows})
         },
     }
+    if extra_summary:
+        summary.update(extra_summary)
 
     if dry_run:
         return summary
@@ -82,8 +92,8 @@ def run_match_enrichment_window(
     run_doc = build_job_run_started_doc(
         job_name="ingest_match_enrichment",
         source_workflow=source_workflow,
-        target_window={"dates": dates or []},
-        job_args={"dry_run": False},
+        target_window=target_window,
+        job_args=job_args,
     )
     job_collection.insert_one(run_doc)
     try:
@@ -116,3 +126,61 @@ def run_match_enrichment_window(
         )
         raise
     return summary
+
+
+def run_match_enrichment_window(
+    *,
+    source_dir: Path,
+    support_docs: dict[str, Any],
+    source_workflow: str,
+    dates: list[str] | None = None,
+    database: Any | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    source_rows = filter_source_rows_by_dates(build_teamstats_source_rows(source_dir), dates)
+    return _run_match_enrichment_pipeline(
+        source_rows=source_rows,
+        expected_matches=None,
+        support_docs=support_docs,
+        source_workflow=source_workflow,
+        job_args={"dry_run": False, "mode": "replay"},
+        target_window={"dates": dates or [], "mode": "replay"},
+        database=database,
+        dry_run=dry_run,
+        extra_summary={"dates": dates or [], "mode": "replay"},
+    )
+
+
+def run_live_match_enrichment_window(
+    *,
+    targets: list[dict[str, Any]],
+    support_docs: dict[str, Any],
+    source_workflow: str,
+    source_config: EnrichmentSourceConfig,
+    database: Any | None = None,
+    dry_run: bool = False,
+    transport: Transport | None = None,
+) -> dict[str, Any]:
+    live_result = build_live_match_enrichment_source_rows(
+        targets=targets,
+        source_config=source_config,
+        transport=transport,
+    )
+    return _run_match_enrichment_pipeline(
+        source_rows=live_result["source_rows"],
+        expected_matches=targets,
+        support_docs=support_docs,
+        source_workflow=source_workflow,
+        job_args={"dry_run": False, "mode": "live"},
+        target_window={"target_matches": len(targets), "mode": "live"},
+        database=database,
+        dry_run=dry_run,
+        extra_summary={
+            "mode": "live",
+            "target_matches": len(targets),
+            "dates": sorted({str(row.get("source_date") or "") for row in targets}),
+            "errors": sum(1 for row in live_result["match_rows"] if row.get("error")),
+            "matched_targets": len(live_result["source_rows"]),
+            "match_rows": live_result["match_rows"],
+        },
+    )

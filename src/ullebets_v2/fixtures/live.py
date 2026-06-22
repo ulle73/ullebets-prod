@@ -3,11 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Callable
-from urllib.parse import urlencode
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 import json
 
 from ullebets_v2.fixtures.replay import canonical_json_hash
+
+
+DEFAULT_FIXTURE_SOURCE_BASE_URLS = {
+    "sportapi7": "https://sportapi7.p.rapidapi.com",
+    "sofascore": "https://sofascore.p.rapidapi.com",
+    "sportApiRealTime": "https://sport-api-real-time.p.rapidapi.com",
+    "sofascoreSportApi": "https://sofascore-sport-api.p.rapidapi.com",
+    "sofascorePublic": "https://api.sofascore.com/api/v1",
+}
 
 
 def utc_now() -> datetime:
@@ -22,6 +32,11 @@ def join_url(base_url: str, path: str) -> str:
     clean_base = trim_trailing_slash(base_url)
     clean_path = str(path).lstrip("/")
     return f"{clean_base}/{clean_path}"
+
+
+def extract_host(base_url: str) -> str | None:
+    host = urlparse(str(base_url or "")).netloc.strip()
+    return host or None
 
 
 def append_query_params(url: str, params: dict[str, Any] | None) -> str:
@@ -86,11 +101,26 @@ class FixtureSourceConfig:
         ]
         return cls(
             rapidapi_keys=keys,
-            rapidapi_sportapi7_base_url=env["RAPIDAPI_SPORTAPI7_BASE_URL"],
-            rapidapi_sofascore_base_url=env["RAPIDAPI_SOFASCORE_BASE_URL"],
-            rapidapi_sport_api_real_time_base_url=env["RAPIDAPI_SPORT_API_REAL_TIME_BASE_URL"],
-            rapidapi_sofascore_sport_api_base_url=env["RAPIDAPI_SOFASCORE_SPORT_API_BASE_URL"],
-            sofascore_public_api_base_url=env["SOFASCORE_PUBLIC_API_BASE_URL"],
+            rapidapi_sportapi7_base_url=env.get(
+                "RAPIDAPI_SPORTAPI7_BASE_URL",
+                DEFAULT_FIXTURE_SOURCE_BASE_URLS["sportapi7"],
+            ),
+            rapidapi_sofascore_base_url=env.get(
+                "RAPIDAPI_SOFASCORE_BASE_URL",
+                DEFAULT_FIXTURE_SOURCE_BASE_URLS["sofascore"],
+            ),
+            rapidapi_sport_api_real_time_base_url=env.get(
+                "RAPIDAPI_SPORT_API_REAL_TIME_BASE_URL",
+                DEFAULT_FIXTURE_SOURCE_BASE_URLS["sportApiRealTime"],
+            ),
+            rapidapi_sofascore_sport_api_base_url=env.get(
+                "RAPIDAPI_SOFASCORE_SPORT_API_BASE_URL",
+                DEFAULT_FIXTURE_SOURCE_BASE_URLS["sofascoreSportApi"],
+            ),
+            sofascore_public_api_base_url=env.get(
+                "SOFASCORE_PUBLIC_API_BASE_URL",
+                DEFAULT_FIXTURE_SOURCE_BASE_URLS["sofascorePublic"],
+            ),
         )
 
 
@@ -124,7 +154,7 @@ def build_scheduled_match_endpoints(
                     source_config.rapidapi_sportapi7_base_url,
                     f"/api/v1/sport/football/scheduled-events/{date}",
                 ),
-                "host": "sportapi7.example",
+                "host": extract_host(source_config.rapidapi_sportapi7_base_url),
                 "query": None,
             }
         )
@@ -138,7 +168,7 @@ def build_scheduled_match_endpoints(
                     source_config.rapidapi_sofascore_base_url,
                     "/tournaments/get-scheduled-events",
                 ),
-                "host": "sofascore.example",
+                "host": extract_host(source_config.rapidapi_sofascore_base_url),
                 "query": {"categoryId": category_id, "date": date},
             },
             {
@@ -148,7 +178,7 @@ def build_scheduled_match_endpoints(
                     source_config.rapidapi_sport_api_real_time_base_url,
                     "/tournaments/scheduled-events",
                 ),
-                "host": "realtime.example",
+                "host": extract_host(source_config.rapidapi_sport_api_real_time_base_url),
                 "query": {"categoryId": category_id, "date": date},
             },
             {
@@ -158,7 +188,7 @@ def build_scheduled_match_endpoints(
                     source_config.rapidapi_sofascore_sport_api_base_url,
                     f"/api/sport/football/scheduled-events/{date}",
                 ),
-                "host": "sportapi.example",
+                "host": extract_host(source_config.rapidapi_sofascore_sport_api_base_url),
                 "query": None,
             },
             {
@@ -178,14 +208,19 @@ def build_scheduled_match_endpoints(
 
 def default_transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:
     request = Request(url, headers=headers, method="GET")
-    with urlopen(request, timeout=timeout_seconds) as response:
-        payload = response.read().decode("utf-8")
-        data = json.loads(payload) if payload else None
-        return HttpJsonResponse(
-            status=response.status,
-            headers=dict(response.headers.items()),
-            data=data,
-        )
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:
+            payload = response.read().decode("utf-8")
+            data = json.loads(payload) if payload else None
+            return HttpJsonResponse(
+                status=response.status,
+                headers=dict(response.headers.items()),
+                data=data,
+            )
+    except HTTPError as exc:
+        return HttpJsonResponse(status=exc.code, headers=dict(exc.headers.items()), data=None)
+    except URLError:
+        return HttpJsonResponse(status=0, headers={}, data=None)
 
 
 def normalize_events(payload: Any) -> list[dict[str, Any]]:

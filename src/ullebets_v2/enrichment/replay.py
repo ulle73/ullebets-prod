@@ -103,6 +103,55 @@ def _raw_doc_key(source_file: str, match_key: str, artifact_type: str) -> str:
     )
 
 
+def _get_raw_source_meta(match: dict[str, Any], artifact_field: str) -> dict[str, Any]:
+    raw_sources = match.get("_rawSources")
+    if not isinstance(raw_sources, dict):
+        return {}
+    artifact_meta = raw_sources.get(artifact_field)
+    return artifact_meta if isinstance(artifact_meta, dict) else {}
+
+
+def _build_raw_artifact_doc(
+    *,
+    match: dict[str, Any],
+    source_file: str,
+    source_role: str | None,
+    match_key: str,
+    source_match_id: str | None,
+    source_date: str,
+    fetched_at: datetime,
+    artifact_field: str,
+    artifact_type: str,
+    payload: Any,
+) -> dict[str, Any]:
+    meta = _get_raw_source_meta(match, artifact_field)
+    payload_hash = str(meta.get("payload_hash") or canonical_json_hash(payload))
+    doc = {
+        "raw_key": str(meta.get("raw_key") or _raw_doc_key(source_file, match_key, artifact_type)),
+        "match_key": match_key,
+        "source_match_id": source_match_id,
+        "source_date": source_date,
+        "source_file": source_file,
+        "source_role": source_role,
+        "fetched_at": meta.get("fetched_at") or fetched_at,
+        "payload_hash": payload_hash,
+        "payload": payload,
+    }
+    optional_fields = (
+        "source_name",
+        "source_provider",
+        "source_url",
+        "source_endpoint",
+        "api_key_slot",
+        "http_status",
+        "source_status",
+    )
+    for field in optional_fields:
+        if field in meta:
+            doc[field] = meta[field]
+    return doc
+
+
 def _iter_stat_rows(match: dict[str, Any], match_key: str, context: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     statistics = match.get("matchDetails", {}).get("statistics", [])
@@ -222,17 +271,18 @@ def build_match_enrichment_documents(
 
             if isinstance(match.get("matchDetails"), dict):
                 raw_match_statistics.append(
-                    {
-                        "raw_key": _raw_doc_key(source_file, match_key, "match_statistics"),
-                        "match_key": match_key,
-                        "source_match_id": source_match_id,
-                        "source_date": source_date,
-                        "source_file": source_file,
-                        "source_role": source_row["source_role"],
-                        "fetched_at": fetched_at,
-                        "payload_hash": canonical_json_hash(match["matchDetails"]),
-                        "payload": match["matchDetails"],
-                    }
+                    _build_raw_artifact_doc(
+                        match=match,
+                        source_file=source_file,
+                        source_role=source_row["source_role"],
+                        match_key=match_key,
+                        source_match_id=source_match_id,
+                        source_date=source_date,
+                        fetched_at=fetched_at,
+                        artifact_field="matchDetails",
+                        artifact_type="match_statistics",
+                        payload=match["matchDetails"],
+                    )
                 )
                 for stat_row in _iter_stat_rows(
                     match,
@@ -253,54 +303,52 @@ def build_match_enrichment_documents(
 
             if match.get("incidents") is not None:
                 raw_incidents.append(
-                    {
-                        "raw_key": _raw_doc_key(source_file, match_key, "incidents"),
-                        "match_key": match_key,
-                        "source_match_id": source_match_id,
-                        "source_date": source_date,
-                        "source_file": source_file,
-                        "source_role": source_row["source_role"],
-                        "fetched_at": fetched_at,
-                        "payload_hash": canonical_json_hash({"incidents": match["incidents"]}),
-                        "payload": match["incidents"],
-                    }
+                    _build_raw_artifact_doc(
+                        match=match,
+                        source_file=source_file,
+                        source_role=source_row["source_role"],
+                        match_key=match_key,
+                        source_match_id=source_match_id,
+                        source_date=source_date,
+                        fetched_at=fetched_at,
+                        artifact_field="incidents",
+                        artifact_type="incidents",
+                        payload=match["incidents"],
+                    )
                 )
 
             if match.get("shotmap") is not None:
                 raw_shotmaps.append(
-                    {
-                        "raw_key": _raw_doc_key(source_file, match_key, "shotmap"),
-                        "match_key": match_key,
-                        "source_match_id": source_match_id,
-                        "source_date": source_date,
-                        "source_file": source_file,
-                        "source_role": source_row["source_role"],
-                        "fetched_at": fetched_at,
-                        "payload_hash": canonical_json_hash({"shotmap": match["shotmap"]}),
-                        "payload": match["shotmap"],
-                    }
+                    _build_raw_artifact_doc(
+                        match=match,
+                        source_file=source_file,
+                        source_role=source_row["source_role"],
+                        match_key=match_key,
+                        source_match_id=source_match_id,
+                        source_date=source_date,
+                        fetched_at=fetched_at,
+                        artifact_field="shotmap",
+                        artifact_type="shotmap",
+                        payload=match["shotmap"],
+                    )
                 )
 
             raw_results.append(
-                {
-                    "raw_key": _raw_doc_key(source_file, match_key, "result"),
-                    "match_key": match_key,
-                    "source_match_id": source_match_id,
-                    "source_date": source_date,
-                    "source_file": source_file,
-                    "source_role": source_row["source_role"],
-                    "fetched_at": fetched_at,
-                    "payload_hash": canonical_json_hash(
-                        {
-                            "homeScore": match.get("homeScore"),
-                            "awayScore": match.get("awayScore"),
-                        }
-                    ),
-                    "payload": {
+                _build_raw_artifact_doc(
+                    match=match,
+                    source_file=source_file,
+                    source_role=source_row["source_role"],
+                    match_key=match_key,
+                    source_match_id=source_match_id,
+                    source_date=source_date,
+                    fetched_at=fetched_at,
+                    artifact_field="result",
+                    artifact_type="result",
+                    payload={
                         "homeScore": match.get("homeScore"),
                         "awayScore": match.get("awayScore"),
                     },
-                }
+                )
             )
 
     match_results = list(match_results_by_key.values())
