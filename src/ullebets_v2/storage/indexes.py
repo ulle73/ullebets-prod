@@ -207,16 +207,19 @@ def build_core_index_plan() -> list[dict[str, Any]]:
             "collection": "model_snapshots",
             "indexes": [
                 {
-                    "keys": [("match_key", 1), ("offer_key", 1), ("snapshot_label", 1), ("snapshot_mode", 1)],
-                    "name": "model_snapshot_unique",
+                    "keys": [("selection_key", 1)],
+                    "name": "selection_key_unique",
                     "unique": True,
-                }
+                },
+                {"keys": [("match_key", 1), ("snapshot_mode", 1), ("snapshot_time", -1)], "name": "match_mode_time"},
+                {"keys": [("bet_key", 1)], "name": "bet_key"},
             ],
         },
         {
             "collection": "settled_bets_v2",
             "indexes": [
-                {"keys": [("bet_key", 1)], "name": "bet_key_unique", "unique": True},
+                {"keys": [("settlement_key", 1)], "name": "settlement_key_unique", "unique": True},
+                {"keys": [("bet_key", 1)], "name": "bet_key"},
                 {"keys": [("settlement_status", 1), ("settled_at", -1)], "name": "settlement_status_settled_at"},
             ],
         },
