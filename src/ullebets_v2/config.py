@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import os
+import subprocess
 
 
 def load_dotenv_map(path: Path) -> dict[str, str]:
@@ -17,6 +18,42 @@ def load_dotenv_map(path: Path) -> dict[str, str]:
         key, value = line.split("=", 1)
         values[key.strip()] = value.strip().strip('"').strip("'")
     return values
+
+
+def _iter_git_worktree_roots(repo_root: Path) -> list[Path]:
+    try:
+        completed = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return []
+
+    roots: list[Path] = []
+    for raw_line in completed.stdout.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("worktree "):
+            continue
+        candidate = Path(line.removeprefix("worktree ").strip()).resolve()
+        if candidate not in roots:
+            roots.append(candidate)
+    return roots
+
+
+def resolve_env_file(repo_root: Path) -> Path:
+    direct = (repo_root / ".env.local").resolve()
+    if direct.exists():
+        return direct
+
+    for worktree_root in _iter_git_worktree_roots(repo_root):
+        candidate = (worktree_root / ".env.local").resolve()
+        if candidate.exists():
+            return candidate
+
+    return direct
 
 
 @dataclass(frozen=True)
@@ -35,7 +72,7 @@ class V2Config:
     @classmethod
     def from_env(cls, repo_root: Path | None = None) -> "V2Config":
         resolved_root = (repo_root or Path(os.getcwd())).resolve()
-        env_file = resolved_root / ".env.local"
+        env_file = resolve_env_file(resolved_root)
         dotenv_values = load_dotenv_map(env_file)
 
         data_dir = resolved_root / "data" / "v2"

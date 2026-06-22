@@ -559,6 +559,34 @@ def resolve_final_scores(primary: Any, secondary: Any) -> tuple[int | None, int 
     )
 
 
+def extract_scores_from_incidents(payload: Any) -> tuple[int | None, int | None]:
+    if isinstance(payload, dict) and isinstance(payload.get("incidents"), list):
+        candidates = payload["incidents"]
+    elif isinstance(payload, list):
+        candidates = payload
+    else:
+        candidates = []
+
+    best_pair: tuple[int | None, int | None] = (None, None)
+    best_sort_key: tuple[int, int, int] | None = None
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        home_score = resolve_score_value(item.get("homeScore"))
+        away_score = resolve_score_value(item.get("awayScore"))
+        if home_score is None or away_score is None:
+            continue
+        sort_key = (
+            _to_int(item.get("timeSeconds")) or 0,
+            _to_int(item.get("time")) or 0,
+            _to_int(item.get("addedTime")) or 0,
+        )
+        if best_sort_key is None or sort_key >= best_sort_key:
+            best_sort_key = sort_key
+            best_pair = (home_score, away_score)
+    return best_pair
+
+
 def _extract_team_payload(event: Any, side: str) -> dict[str, Any]:
     if not isinstance(event, dict):
         return {}
@@ -668,6 +696,14 @@ def build_live_match_enrichment_source_rows(
         home_payload = _extract_team_payload(event_payload, "homeTeam")
         away_payload = _extract_team_payload(event_payload, "awayTeam")
         home_score, away_score = resolve_final_scores(event_payload, target)
+        if home_score is None or away_score is None:
+            incident_home_score, incident_away_score = extract_scores_from_incidents(incidents_result.data)
+            if home_score is None:
+                home_score = incident_home_score
+            if away_score is None:
+                away_score = incident_away_score
+            if (home_score is not None or away_score is not None) and row["result_source"] is None:
+                row["result_source"] = incidents_result.source_name
         match_timestamp = _resolve_timestamp_seconds(
             target.get("timestamp"),
             target.get("startTimestamp"),
@@ -698,17 +734,36 @@ def build_live_match_enrichment_source_rows(
                     artifact_type="result",
                     match_key=match_key,
                     payload=event_payload if event_result.success else {"homeScore": home_score, "awayScore": away_score},
-                    fetch_result=event_result if event_result.success else FetchResult(
-                        success=False,
-                        data=None,
-                        source_name="fixture-target",
-                        source_provider="fixture",
-                        source_url=target.get("source_path"),
-                        source_endpoint="fixture-target",
-                        api_key_slot=None,
-                        http_status=None,
-                        calls=0,
-                        empty=False,
+                    fetch_result=(
+                        event_result
+                        if event_result.success
+                        else (
+                            FetchResult(
+                                success=True,
+                                data=incidents_result.data,
+                                source_name=incidents_result.source_name,
+                                source_provider=incidents_result.source_provider,
+                                source_url=incidents_result.source_url,
+                                source_endpoint=incidents_result.source_endpoint,
+                                api_key_slot=incidents_result.api_key_slot,
+                                http_status=incidents_result.http_status,
+                                calls=incidents_result.calls,
+                                empty=incidents_result.empty,
+                            )
+                            if home_score is not None and away_score is not None and incidents_result.success
+                            else FetchResult(
+                                success=False,
+                                data=None,
+                                source_name="fixture-target",
+                                source_provider="fixture",
+                                source_url=target.get("source_path"),
+                                source_endpoint="fixture-target",
+                                api_key_slot=None,
+                                http_status=None,
+                                calls=0,
+                                empty=False,
+                            )
+                        )
                     ),
                     fetched_at=now,
                 ),

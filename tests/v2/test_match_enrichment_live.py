@@ -151,3 +151,64 @@ def test_run_live_match_enrichment_window_flags_missing_statistics() -> None:
     assert summary["match_results_canonical"] == 0
     assert summary["parity_status_counts"] == {"mismatch": 1}
     assert summary["audit_status_counts"] == {"warn": 1}
+
+
+def test_run_live_match_enrichment_window_recovers_scores_from_incidents() -> None:
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
+        if url.endswith("/event/14671649"):
+            return HttpJsonResponse(status=403, headers={}, data=None)
+        if url.endswith("/event/14671649/statistics"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={
+                    "statistics": [
+                        {
+                            "period": "ALL",
+                            "groups": [
+                                {
+                                    "groupName": "Match overview",
+                                    "statisticsItems": [
+                                        {"key": "cornerKicks", "homeValue": 6, "awayValue": 5},
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+        if url.endswith("/event/14671649/incidents"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={
+                    "incidents": [
+                        {"text": "HT", "homeScore": 1, "awayScore": 0, "time": 45, "addedTime": 999},
+                        {"text": "FT", "homeScore": 2, "awayScore": 1, "time": 90, "addedTime": 999},
+                    ]
+                },
+            )
+        if url.endswith("/event/14671649/shotmap"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={"shotmap": [{"isHome": True, "time": 10}]},
+            )
+        return HttpJsonResponse(status=404, headers={}, data=None)
+
+    summary = run_live_match_enrichment_window(
+        targets=[build_fixture_target()],
+        support_docs=build_support_docs(),
+        source_workflow="update-teamstats-and-teamprofiles.yml",
+        source_config=EnrichmentSourceConfig.from_env({}),
+        dry_run=True,
+        transport=transport,
+    )
+
+    assert summary["errors"] == 0
+    assert summary["matched_targets"] == 1
+    assert summary["match_results_canonical"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["match_rows"][0]["result_source"] == "sofascore-public-incidents"
+    assert summary["match_rows"][0]["has_scores"] == True
