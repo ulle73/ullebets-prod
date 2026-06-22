@@ -14,7 +14,7 @@ from ullebets_v2.analysis.oracle import OriginalJsAutoAnalysisOracle
 from ullebets_v2.config import V2Config
 from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle
 from ullebets_v2.odds.oracle import OriginalJsOracle
-from ullebets_v2.odds.service import build_smoke_targets_for_league, load_replay_fixture_targets
+from ullebets_v2.odds.service import build_smoke_targets_for_league, load_fixture_targets_from_database, load_replay_fixture_targets
 from ullebets_v2.prediction_exports.service import run_prediction_export_pipeline
 from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.storage.mongo import get_database
@@ -24,7 +24,7 @@ from ullebets_v2.support.loaders import load_support_documents
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build V2 AI bet exports and immutable forward bet rows from canonical analysis outputs.")
     parser.add_argument("--mode", choices=["daily", "combos", "user-daily", "user-closing"], default="daily")
-    parser.add_argument("--target-mode", choices=["smoke-live", "replay-fixtures"], default="smoke-live")
+    parser.add_argument("--target-mode", choices=["smoke-live", "replay-fixtures", "fixture-db"], default="smoke-live")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--source-workflow")
     parser.add_argument("--league")
@@ -65,6 +65,7 @@ def main() -> int:
         leagues_path=args.leagues_path or (config.old_repo_root / "data" / "leagues-and-teams.json"),
         league_urls_path=args.league_urls_path or (config.old_repo_root / "data" / "unibetLeagueUrls.json"),
     )
+    read_database = None
     if args.target_mode == "replay-fixtures":
         if not args.dates:
             raise RuntimeError("--date is required in replay-fixtures target mode.")
@@ -74,6 +75,16 @@ def main() -> int:
             old_repo_root=config.old_repo_root,
         )
         run_date = args.run_date or args.dates[0]
+    elif args.target_mode == "fixture-db":
+        read_database = get_database(config)
+        targets = load_fixture_targets_from_database(
+            database=read_database,
+            dates=args.dates or None,
+            max_days_ahead=args.max_days_ahead,
+            league_name=args.league,
+            limit=args.limit if args.limit > 0 else None,
+        )
+        run_date = args.run_date or (args.dates[0] if args.dates else None)
     else:
         if not args.league:
             raise RuntimeError("--league is required in smoke-live target mode.")
@@ -85,7 +96,7 @@ def main() -> int:
         )
         run_date = args.run_date
 
-    database = None if args.dry_run else get_database(config)
+    database = None if args.dry_run else (read_database or get_database(config))
     odds_oracle = None if args.disable_odds_oracle else OriginalJsOracle(config.old_repo_root)
     model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
     analysis_oracle = None if args.disable_analysis_oracle else OriginalJsAutoAnalysisOracle(config.old_repo_root)

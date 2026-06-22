@@ -14,7 +14,7 @@ from ullebets_v2.config import V2Config
 from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
 from ullebets_v2.odds.oracle import OriginalJsOracle
-from ullebets_v2.odds.service import build_smoke_targets_for_league, load_replay_fixture_targets
+from ullebets_v2.odds.service import build_smoke_targets_for_league, load_fixture_targets_from_database, load_replay_fixture_targets
 from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.storage.mongo import get_database
 from ullebets_v2.support.loaders import load_support_documents
@@ -22,7 +22,7 @@ from ullebets_v2.support.loaders import load_support_documents
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build directed V2 model snapshot rows using the unchanged legacy JS EV engine.")
-    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures"], default="smoke-live")
+    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "fixture-db"], default="smoke-live")
     parser.add_argument("--snapshot-mode", choices=["backtest", "forward"], default="forward")
     parser.add_argument("--snapshot-label", default="CURRENT")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -49,6 +49,7 @@ def main() -> int:
         league_urls_path=args.league_urls_path or (config.old_repo_root / "data" / "unibetLeagueUrls.json"),
     )
 
+    read_database = None
     if args.mode == "replay-fixtures":
         if not args.dates:
             raise RuntimeError("--date is required in replay-fixtures mode.")
@@ -57,6 +58,18 @@ def main() -> int:
             dates=args.dates,
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
+        )
+    elif args.mode == "fixture-db":
+        source_workflow = args.source_workflow or (
+            "run-unibet-backtests.yml" if args.snapshot_mode == "backtest" else "run-unibet-forward.yml"
+        )
+        read_database = get_database(config)
+        targets = load_fixture_targets_from_database(
+            database=read_database,
+            dates=args.dates or None,
+            max_days_ahead=args.max_days_ahead,
+            league_name=args.league,
+            limit=args.limit if args.limit > 0 else None,
         )
     else:
         if not args.league:
@@ -69,7 +82,7 @@ def main() -> int:
             max_days_ahead=args.max_days_ahead,
         )
 
-    database = None if args.dry_run else get_database(config)
+    database = None if args.dry_run else (read_database or get_database(config))
     odds_oracle = None if args.disable_odds_oracle else OriginalJsOracle(config.old_repo_root)
     model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
     summary = run_model_snapshot_build(

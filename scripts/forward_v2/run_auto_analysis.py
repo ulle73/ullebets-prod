@@ -15,7 +15,7 @@ from ullebets_v2.analysis.service import run_auto_analysis_pipeline
 from ullebets_v2.config import V2Config
 from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle
 from ullebets_v2.odds.oracle import OriginalJsOracle
-from ullebets_v2.odds.service import build_smoke_targets_for_league, load_replay_fixture_targets
+from ullebets_v2.odds.service import build_smoke_targets_for_league, load_fixture_targets_from_database, load_replay_fixture_targets
 from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.storage.mongo import get_database
 from ullebets_v2.support.loaders import load_support_documents
@@ -23,7 +23,7 @@ from ullebets_v2.support.loaders import load_support_documents
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run V2 auto-analysis using canonical model snapshots and the legacy JS ranking policy.")
-    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures"], default="smoke-live")
+    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "fixture-db"], default="smoke-live")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--source-workflow", default="run-auto-analysis-checkpoints.yml")
     parser.add_argument("--league")
@@ -56,6 +56,7 @@ def main() -> int:
         league_urls_path=args.league_urls_path or (config.old_repo_root / "data" / "unibetLeagueUrls.json"),
     )
 
+    read_database = None
     if args.mode == "replay-fixtures":
         if not args.dates:
             raise RuntimeError("--date is required in replay-fixtures mode.")
@@ -65,6 +66,16 @@ def main() -> int:
             old_repo_root=config.old_repo_root,
         )
         run_date = args.run_date or args.dates[0]
+    elif args.mode == "fixture-db":
+        read_database = get_database(config)
+        targets = load_fixture_targets_from_database(
+            database=read_database,
+            dates=args.dates or None,
+            max_days_ahead=args.max_days_ahead,
+            league_name=args.league,
+            limit=args.limit if args.limit > 0 else None,
+        )
+        run_date = args.run_date or (args.dates[0] if args.dates else None)
     else:
         if not args.league:
             raise RuntimeError("--league is required in smoke-live mode.")
@@ -76,7 +87,7 @@ def main() -> int:
         )
         run_date = args.run_date
 
-    database = None if args.dry_run else get_database(config)
+    database = None if args.dry_run else (read_database or get_database(config))
     odds_oracle = None if args.disable_odds_oracle else OriginalJsOracle(config.old_repo_root)
     model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
     analysis_oracle = None if args.disable_analysis_oracle else OriginalJsAutoAnalysisOracle(config.old_repo_root)

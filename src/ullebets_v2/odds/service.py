@@ -85,6 +85,42 @@ def load_replay_fixture_targets(
     return targets
 
 
+def load_fixture_targets_from_database(
+    *,
+    database: Any,
+    dates: list[str] | None = None,
+    max_days_ahead: int = 7,
+    reference_time: datetime | None = None,
+    league_key: str | None = None,
+    league_name: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    now = reference_time or utc_now()
+    query: dict[str, Any] = {}
+    if dates:
+        query["source_date"] = {"$in": list(dates)}
+    else:
+        query["start_time"] = {
+            "$gte": now,
+            "$lte": now + timedelta(days=max(0, max_days_ahead)),
+        }
+    if league_key:
+        query["league_key"] = league_key
+    elif league_name:
+        query["league_name"] = league_name
+
+    rows = list(database["fixtures_canonical"].find(query, projection={"_id": 0}))
+    rows.sort(
+        key=lambda row: (
+            _parse_match_time(row.get("start_time")) or datetime.max.replace(tzinfo=UTC),
+            str(row.get("match_key") or ""),
+        )
+    )
+    if limit is not None and limit > 0:
+        return rows[:limit]
+    return rows
+
+
 def build_smoke_targets_for_league(
     *,
     league_name: str,

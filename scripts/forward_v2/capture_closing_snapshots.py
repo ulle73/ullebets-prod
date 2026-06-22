@@ -13,7 +13,7 @@ if str(SRC) not in sys.path:
 from ullebets_v2.closing.service import run_closing_capture
 from ullebets_v2.config import V2Config
 from ullebets_v2.odds.oracle import OriginalJsOracle
-from ullebets_v2.odds.service import build_smoke_targets_for_league, load_replay_fixture_targets
+from ullebets_v2.odds.service import build_smoke_targets_for_league, load_fixture_targets_from_database, load_replay_fixture_targets
 from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.storage.mongo import get_database
 from ullebets_v2.support.loaders import load_support_documents
@@ -21,7 +21,7 @@ from ullebets_v2.support.loaders import load_support_documents
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Capture V2 closing snapshots and derive canonical closing_lines_v2 rows.")
-    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures"], default="smoke-live")
+    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "fixture-db"], default="smoke-live")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--source-workflow", default="run-unibet-closing.yml")
     parser.add_argument("--league")
@@ -52,6 +52,7 @@ def main() -> int:
     else:
         now = None
 
+    read_database = None
     if args.mode == "replay-fixtures":
         if not args.dates:
             raise RuntimeError("--date is required in replay-fixtures mode.")
@@ -59,6 +60,16 @@ def main() -> int:
             dates=args.dates,
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
+        )
+    elif args.mode == "fixture-db":
+        read_database = get_database(config)
+        targets = load_fixture_targets_from_database(
+            database=read_database,
+            dates=args.dates or None,
+            max_days_ahead=args.max_days_ahead,
+            reference_time=now,
+            league_name=args.league,
+            limit=args.limit if args.limit > 0 else None,
         )
     else:
         if not args.league:
@@ -71,7 +82,7 @@ def main() -> int:
             reference_time=now,
         )
 
-    database = None if args.dry_run else get_database(config)
+    database = None if args.dry_run else (read_database or get_database(config))
     oracle = None if args.disable_oracle else OriginalJsOracle(config.old_repo_root)
     summary = run_closing_capture(
         targets=targets,
