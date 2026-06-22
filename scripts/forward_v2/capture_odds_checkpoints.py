@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from ullebets_v2.checkpoints.service import run_checkpoint_capture
+from ullebets_v2.config import V2Config
+from ullebets_v2.odds.oracle import OriginalJsOracle
+from ullebets_v2.odds.service import build_smoke_targets_for_league, load_replay_fixture_targets
+from ullebets_v2.safety import ensure_v2_database
+from ullebets_v2.storage.mongo import get_database
+from ullebets_v2.support.loaders import load_support_documents
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Capture V2 odds checkpoints into market_snapshots with strict prematch timing metadata.")
+    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures"], default="smoke-live")
+    parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--source-workflow", default="run-unibet-odds-checkpoints.yml")
+    parser.add_argument("--league")
+    parser.add_argument("--limit", type=int, default=25)
+    parser.add_argument("--max-days-ahead", type=int, default=7)
+    parser.add_argument("--checkpoint")
+    parser.add_argument("--date", dest="dates", action="append", default=[])
+    parser.add_argument("--now")
+    parser.add_argument("--leagues-path", type=Path)
+    parser.add_argument("--league-urls-path", type=Path)
+    parser.add_argument("--disable-oracle", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    config = V2Config.from_env(args.repo_root)
+    ensure_v2_database(config)
+    config.ensure_directories()
+    support_docs = load_support_documents(
+        leagues_path=args.leagues_path or (config.old_repo_root / "data" / "leagues-and-teams.json"),
+        league_urls_path=args.league_urls_path or (config.old_repo_root / "data" / "unibetLeagueUrls.json"),
+    )
+    if args.now:
+        from datetime import datetime
+
+        now = datetime.fromisoformat(args.now.replace("Z", "+00:00"))
+    else:
+        now = None
+
+    if args.mode == "replay-fixtures":
+        if not args.dates:
+            raise RuntimeError("--date is required in replay-fixtures mode.")
+        targets = load_replay_fixture_targets(
+            dates=args.dates,
+            support_docs=support_docs,
+            old_repo_root=config.old_repo_root,
+        )
+    else:
+        if not args.league:
+            raise RuntimeError("--league is required in smoke-live mode.")
+        targets = build_smoke_targets_for_league(
+            league_name=args.league,
+            support_docs=support_docs,
+            limit=args.limit,
+            max_days_ahead=args.max_days_ahead,
+            reference_time=now,
+        )
+
+    database = None if args.dry_run else get_database(config)
+    oracle = None if args.disable_oracle else OriginalJsOracle(config.old_repo_root)
+    summary = run_checkpoint_capture(
+        targets=targets,
+        support_docs=support_docs,
+        source_workflow=args.source_workflow,
+        database=database,
+        dry_run=args.dry_run,
+        checkpoint_filter=args.checkpoint,
+        oracle=oracle,
+        now=now,
+    )
+    print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

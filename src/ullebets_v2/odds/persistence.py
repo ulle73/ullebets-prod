@@ -3,15 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 
-def persist_odds_records(
+def persist_odds_data_records(
     database: Any,
     *,
     raw_docs: list[dict[str, Any]],
     event_link_docs: list[dict[str, Any]],
     market_offer_docs: list[dict[str, Any]],
-    parity_rows: list[dict[str, Any]],
-    audit_rows: list[dict[str, Any]],
-    health_rows: list[dict[str, Any]],
 ) -> dict[str, int]:
     raw_upserts = 0
     for row in raw_docs:
@@ -39,6 +36,30 @@ def persist_odds_records(
             upsert=True,
         )
         market_offer_upserts += 1 if result.upserted_id is not None else 0
+
+    return {
+        "raw_upserts": raw_upserts,
+        "event_link_upserts": event_link_upserts,
+        "market_offer_upserts": market_offer_upserts,
+    }
+
+
+def persist_odds_records(
+    database: Any,
+    *,
+    raw_docs: list[dict[str, Any]],
+    event_link_docs: list[dict[str, Any]],
+    market_offer_docs: list[dict[str, Any]],
+    parity_rows: list[dict[str, Any]],
+    audit_rows: list[dict[str, Any]],
+    health_rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    data_metrics = persist_odds_data_records(
+        database,
+        raw_docs=raw_docs,
+        event_link_docs=event_link_docs,
+        market_offer_docs=market_offer_docs,
+    )
 
     parity_upserts = 0
     for row in parity_rows:
@@ -72,9 +93,7 @@ def persist_odds_records(
         health_upserts += 1 if result.upserted_id is not None else 0
 
     return {
-        "raw_upserts": raw_upserts,
-        "event_link_upserts": event_link_upserts,
-        "market_offer_upserts": market_offer_upserts,
+        **data_metrics,
         "parity_upserts": parity_upserts,
         "audit_upserts": audit_upserts,
         "health_upserts": health_upserts,

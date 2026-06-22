@@ -261,6 +261,7 @@ def run_unibet_odds_ingest(
     transport: Transport | None = None,
     oracle: Any | None = None,
     fetched_at: datetime | None = None,
+    return_documents: bool = False,
 ) -> dict[str, Any]:
     now = fetched_at or utc_now()
     list_view_cache: dict[str, tuple[dict[str, Any], list[dict[str, Any]], str]] = {}
@@ -437,7 +438,17 @@ def run_unibet_odds_ingest(
         },
         "match_rows": match_rows,
     }
+    if return_documents:
+        summary["documents"] = {
+            "raw_docs": raw_docs,
+            "event_link_docs": event_link_docs,
+            "market_offer_docs": market_offer_docs,
+            "parity_rows": parity_rows,
+            "audit_rows": audit_rows,
+            "health_rows": health_rows,
+        }
     job_metrics = {key: value for key, value in summary.items() if key != "match_rows"}
+    job_metrics.pop("documents", None)
 
     if dry_run:
         return summary
