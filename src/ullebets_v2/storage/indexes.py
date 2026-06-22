@@ -171,7 +171,8 @@ def build_core_index_plan() -> list[dict[str, Any]]:
         {
             "collection": "raw_odds_kambi",
             "indexes": [
-                {"keys": [("payload_hash", 1)], "name": "payload_hash", "unique": True},
+                {"keys": [("raw_key", 1)], "name": "raw_key_unique", "unique": True},
+                {"keys": [("payload_hash", 1)], "name": "payload_hash"},
                 {"keys": [("event_id", 1), ("fetched_at", -1)], "name": "event_id_fetched_at"},
                 {"keys": [("match_key", 1), ("fetched_at", -1)], "name": "match_key_fetched_at"},
             ],
