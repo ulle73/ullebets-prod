@@ -162,6 +162,7 @@ def build_core_index_plan() -> list[dict[str, Any]]:
                 {"keys": [("entry_key", 1)], "name": "entry_key_unique", "unique": True},
                 {"keys": [("match_key", 1), ("snapshot_date", 1)], "name": "match_key_snapshot_date"},
                 {"keys": [("snapshot_date", 1), ("condition", 1), ("score", -1)], "name": "snapshot_condition_score"},
+                {"keys": [("snapshot_date", 1), ("outcome_status", 1)], "name": "snapshot_outcome_status"},
             ],
         },
         {
@@ -170,6 +171,7 @@ def build_core_index_plan() -> list[dict[str, Any]]:
                 {"keys": [("entry_key", 1)], "name": "entry_key_unique", "unique": True},
                 {"keys": [("league_key", 1), ("snapshot_date", 1)], "name": "league_key_snapshot_date"},
                 {"keys": [("snapshot_date", 1), ("ranking_bucket", 1), ("score", -1)], "name": "snapshot_bucket_score"},
+                {"keys": [("snapshot_date", 1), ("outcome_status", 1)], "name": "snapshot_outcome_status"},
             ],
         },
         {
