@@ -100,6 +100,7 @@ for (const tuple of tuples) {
         evDetails: result?.evDetails || {},
         primaryFormulaKey: selection?.formulaKey ?? null,
         primaryValueKey: selection?.valueKey ?? null,
+        sampleSize: result?.matches ?? null,
         homeTeam: match.homeTeam,
         awayTeam: match.awayTeam,
         actual: null,

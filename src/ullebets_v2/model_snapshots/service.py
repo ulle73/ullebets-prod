@@ -97,6 +97,7 @@ def build_model_snapshot_docs(
                 {
                     "selection_key": selection_key,
                     "match_key": match_key,
+                    "source_match_id": target_match.get("source_match_id"),
                     "offer_key": offer_key,
                     "bet_key": line.get("betKey"),
                     "event_id": row.get("v2_event_id"),
@@ -116,6 +117,7 @@ def build_model_snapshot_docs(
                     "ev_details": line.get("evDetails") or {},
                     "primary_formula_key": line.get("primaryFormulaKey"),
                     "primary_value_key": line.get("primaryValueKey"),
+                    "sample_size": line.get("sampleSize"),
                     "actual_value": None,
                     "settlement_result": None,
                     "win": None,
@@ -141,6 +143,7 @@ def run_model_snapshot_build(
     odds_oracle: Any | None = None,
     model_oracle: Any | None = None,
     fetched_at: datetime | None = None,
+    return_documents: bool = False,
 ) -> dict[str, Any]:
     captured_at = fetched_at or utc_now()
     odds_summary = run_unibet_odds_ingest(
@@ -266,6 +269,14 @@ def run_model_snapshot_build(
         },
         "match_rows": match_rows,
     }
+    if return_documents:
+        summary["documents"] = {
+            **documents,
+            "model_snapshot_docs": model_snapshot_docs,
+            "parity_rows": parity_rows,
+            "audit_rows": audit_rows,
+            "health_rows": health_rows,
+        }
     if dry_run:
         return summary
     if database is None:
