@@ -227,16 +227,20 @@ def build_core_index_plan() -> list[dict[str, Any]]:
             "collection": "closing_lines_v2",
             "indexes": [
                 {
-                    "keys": [("match_key", 1), ("offer_key", 1), ("closing_snapshot_time", 1)],
-                    "name": "match_offer_closing_time",
+                    "keys": [("closing_key", 1)],
+                    "name": "closing_key_unique",
                     "unique": True,
-                }
+                },
+                {"keys": [("match_key", 1), ("closing_snapshot_time", -1)], "name": "match_key_closing_time"},
+                {"keys": [("offer_key", 1)], "name": "offer_key"},
             ],
         },
         {
             "collection": "clv_tracking_v2",
             "indexes": [
-                {"keys": [("bet_key", 1)], "name": "bet_key_unique", "unique": True}
+                {"keys": [("tracking_key", 1)], "name": "tracking_key_unique", "unique": True},
+                {"keys": [("bet_key", 1)], "name": "bet_key"},
+                {"keys": [("clv_status", 1), ("closing_snapshot_time", -1)], "name": "clv_status_closing_time"},
             ],
         },
         {
