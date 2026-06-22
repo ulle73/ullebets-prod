@@ -258,3 +258,19 @@ def test_match_enrichment_reports_and_persistence_are_rerun_safe(tmp_path: Path)
     assert database["match_results_canonical"].count_documents() == 1
     assert database["parity_reports"].count_documents() == 1
     assert database["audit_reports"].count_documents() == 1
+
+
+def test_build_teamstats_source_rows_accepts_utf8_bom(tmp_path: Path) -> None:
+    source_dir = tmp_path / "teamstats"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    payload = {"full": [build_match_record()]}
+    (source_dir / "adelaide_united_home_match_stats.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8-sig",
+    )
+
+    rows = build_teamstats_source_rows(source_dir)
+
+    assert len(rows) == 1
+    assert rows[0]["source_role"] == "home"
+    assert len(rows[0]["matches"]) == 1

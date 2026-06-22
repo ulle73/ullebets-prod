@@ -15,7 +15,7 @@ STAT_KEY_ALIASES = {
 
 
 def load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def infer_source_role(filename: str) -> str | None:
