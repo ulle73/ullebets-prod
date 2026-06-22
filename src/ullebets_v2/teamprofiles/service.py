@@ -12,6 +12,12 @@ from ullebets_v2.teamprofiles.reports import (
     build_teamprofile_health_rows,
     build_teamprofile_parity_rows,
 )
+from ullebets_v2.teamprofiles.specials import (
+    assign_special_ranks,
+    build_raw_payload_lookups,
+    compute_profile_specials,
+    compute_specials_league_average,
+)
 
 
 PERIODS = ("ALL", "1ST", "2ND")
@@ -62,6 +68,8 @@ def build_teamprofile_docs(
     *,
     match_stats_canonical: list[dict[str, Any]],
     match_results_canonical: list[dict[str, Any]],
+    raw_incidents: list[dict[str, Any]],
+    raw_shotmaps: list[dict[str, Any]],
     support_docs: dict[str, Any],
     profile_date: str | None = None,
     generated_at: datetime | None = None,
@@ -69,6 +77,10 @@ def build_teamprofile_docs(
     captured_at = generated_at or utc_now()
     support_teams = {str(team["team_key"]): team for team in support_docs.get("teams", [])}
     support_leagues = {str(league["league_key"]): league for league in support_docs.get("leagues", [])}
+    incidents_by_match, shotmaps_by_match = build_raw_payload_lookups(
+        raw_incidents=raw_incidents,
+        raw_shotmaps=raw_shotmaps,
+    )
 
     filtered_results = [row for row in match_results_canonical if _include_result_row(row, profile_date)]
     if not filtered_results:
@@ -195,7 +207,12 @@ def build_teamprofile_docs(
             "generated_at": captured_at,
             "games": games,
             "statistics": statistics,
-            "specials": {},
+            "specials": compute_profile_specials(
+                games=games,
+                match_type=match_type,
+                incidents_by_match=incidents_by_match,
+                shotmaps_by_match=shotmaps_by_match,
+            ),
             "behaviour": {},
             "meta": {
                 "lagnamn": state["team_name"],
@@ -244,6 +261,10 @@ def build_teamprofile_docs(
                             _ensure_period_node(profile["statistics"]["leagueAverage"], stat_group, stat_key, period)["value"] = average_value
                         for rank, (index, _) in enumerate(sorted(values, key=lambda row: row[1], reverse=True), start=1):
                             _ensure_period_node(league_profiles[index]["statistics"], stat_group, stat_key, period)["rank"] = rank
+        assign_special_ranks(league_profiles)
+        specials_league_average = compute_specials_league_average(league_profiles)
+        for profile in league_profiles:
+            profile["specials"]["leagueAverage"] = specials_league_average
 
     return sorted(profile_docs, key=lambda row: (row["league_key"], row["team_key"], row["match_type"]))
 
@@ -252,20 +273,32 @@ def load_canonical_rows(
     database: Any,
     *,
     profile_date: str | None = None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     results = list(database["match_results_canonical"].find({}, projection={"_id": 0}))
     if profile_date is not None:
         results = [row for row in results if _include_result_row(row, profile_date)]
     match_keys = [str(row.get("match_key")) for row in results if row.get("match_key") is not None]
     if not match_keys:
-        return [], []
+        return [], [], [], []
     stats = list(
         database["match_stats_canonical"].find(
             {"match_key": {"$in": match_keys}},
             projection={"_id": 0},
         )
     )
-    return stats, results
+    raw_incidents = list(
+        database["raw_incidents"].find(
+            {"match_key": {"$in": match_keys}},
+            projection={"_id": 0},
+        )
+    )
+    raw_shotmaps = list(
+        database["raw_shotmaps"].find(
+            {"match_key": {"$in": match_keys}},
+            projection={"_id": 0},
+        )
+    )
+    return stats, results, raw_incidents, raw_shotmaps
 
 
 def run_teamprofile_build(
@@ -274,6 +307,8 @@ def run_teamprofile_build(
     support_docs: dict[str, Any],
     match_stats_canonical: list[dict[str, Any]] | None = None,
     match_results_canonical: list[dict[str, Any]] | None = None,
+    raw_incidents: list[dict[str, Any]] | None = None,
+    raw_shotmaps: list[dict[str, Any]] | None = None,
     profile_date: str | None = None,
     database: Any | None = None,
     dry_run: bool = False,
@@ -282,18 +317,29 @@ def run_teamprofile_build(
     captured_at = generated_at or utc_now()
     stats_rows = match_stats_canonical
     result_rows = match_results_canonical
-    if stats_rows is None or result_rows is None:
+    incident_rows = raw_incidents
+    shotmap_rows = raw_shotmaps
+    if stats_rows is None or result_rows is None or incident_rows is None or shotmap_rows is None:
         if database is None:
             stats_rows = stats_rows or []
             result_rows = result_rows or []
+            incident_rows = incident_rows or []
+            shotmap_rows = shotmap_rows or []
         else:
-            loaded_stats, loaded_results = load_canonical_rows(database, profile_date=profile_date)
+            loaded_stats, loaded_results, loaded_incidents, loaded_shotmaps = load_canonical_rows(
+                database,
+                profile_date=profile_date,
+            )
             stats_rows = loaded_stats if stats_rows is None else stats_rows
             result_rows = loaded_results if result_rows is None else result_rows
+            incident_rows = loaded_incidents if incident_rows is None else incident_rows
+            shotmap_rows = loaded_shotmaps if shotmap_rows is None else shotmap_rows
 
     profile_docs = build_teamprofile_docs(
         match_stats_canonical=stats_rows or [],
         match_results_canonical=result_rows or [],
+        raw_incidents=incident_rows or [],
+        raw_shotmaps=shotmap_rows or [],
         support_docs=support_docs,
         profile_date=profile_date,
         generated_at=captured_at,
@@ -322,6 +368,8 @@ def run_teamprofile_build(
         "profile_date": profile_date,
         "match_results": len(result_rows or []),
         "match_stats": len(stats_rows or []),
+        "raw_incidents": len(incident_rows or []),
+        "raw_shotmaps": len(shotmap_rows or []),
         "teamprofiles": len(profile_docs),
         "parity_reports": len(parity_rows),
         "audit_reports": len(audit_rows),

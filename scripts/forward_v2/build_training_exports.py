@@ -11,19 +11,16 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from ullebets_v2.config import V2Config
-from ullebets_v2.enrichment.replay import build_match_enrichment_documents, build_teamstats_source_rows
 from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.storage.mongo import get_database
 from ullebets_v2.support.loaders import load_support_documents
-from ullebets_v2.teamprofiles.service import run_teamprofile_build
+from ullebets_v2.training_exports.service import run_training_export_build
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build V2 teamprofiles from canonical enrichment rows.")
+    parser = argparse.ArgumentParser(description="Build V2 training exports from settled samples.")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    parser.add_argument("--profile-date")
-    parser.add_argument("--source-workflow", default="update-teamstats-and-teamprofiles.yml")
-    parser.add_argument("--teamstats-dir", type=Path)
+    parser.add_argument("--source-workflow", default="train-ml-models.yml")
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
     parser.add_argument("--dry-run", action="store_true")
@@ -40,27 +37,9 @@ def main() -> int:
         league_urls_path=args.league_urls_path or (config.old_repo_root / "data" / "unibetLeagueUrls.json"),
     )
     database = None if args.dry_run else get_database(config)
-    match_stats_canonical = None
-    match_results_canonical = None
-    raw_incidents = None
-    raw_shotmaps = None
-    if args.teamstats_dir:
-        docs = build_match_enrichment_documents(
-            source_rows=build_teamstats_source_rows(args.teamstats_dir),
-            support_docs=support_docs,
-        )
-        match_stats_canonical = docs["match_stats_canonical"]
-        match_results_canonical = docs["match_results"]
-        raw_incidents = docs["raw_incidents"]
-        raw_shotmaps = docs["raw_shotmaps"]
-    summary = run_teamprofile_build(
+    summary = run_training_export_build(
         source_workflow=args.source_workflow,
         support_docs=support_docs,
-        match_stats_canonical=match_stats_canonical,
-        match_results_canonical=match_results_canonical,
-        raw_incidents=raw_incidents,
-        raw_shotmaps=raw_shotmaps,
-        profile_date=args.profile_date,
         database=database,
         dry_run=args.dry_run,
     )
