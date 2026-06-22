@@ -247,7 +247,17 @@ def build_core_index_plan() -> list[dict[str, Any]]:
             "collection": "forward_bets_v2",
             "indexes": [
                 {"keys": [("prediction_key", 1)], "name": "prediction_key_unique", "unique": True},
+                {"keys": [("selection_key", 1)], "name": "selection_key"},
+                {"keys": [("export_mode", 1), ("saved_at", -1)], "name": "export_mode_saved_at"},
                 {"keys": [("match_start_time", 1)], "name": "match_start_time"},
+            ],
+        },
+        {
+            "collection": "prediction_exports_v2",
+            "indexes": [
+                {"keys": [("prediction_key", 1)], "name": "prediction_key_unique", "unique": True},
+                {"keys": [("export_mode", 1), ("run_id", 1)], "name": "export_mode_run_id"},
+                {"keys": [("event_date", 1), ("export_mode", 1)], "name": "event_date_export_mode"},
             ],
         },
         {
