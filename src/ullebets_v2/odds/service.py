@@ -15,7 +15,7 @@ from ullebets_v2.odds.discovery import (
 )
 from ullebets_v2.odds.fetch import Transport, fetch_event_odds_payload, fetch_list_view_payload
 from ullebets_v2.odds.mapper import map_unibet_odds
-from ullebets_v2.odds.naming import normalize_league_name
+from ullebets_v2.odds.naming import normalize_league_name, normalize_team_name
 from ullebets_v2.odds.persistence import persist_odds_records
 from ullebets_v2.odds.reports import (
     build_odds_audit_rows,
@@ -119,6 +119,153 @@ def load_fixture_targets_from_database(
     if limit is not None and limit > 0:
         return rows[:limit]
     return rows
+
+
+def _target_match_date(match: dict[str, Any]) -> str | None:
+    source_date = match.get("source_date")
+    if isinstance(source_date, str) and source_date.strip():
+        return source_date
+    start_time = match.get("start_time")
+    if isinstance(start_time, datetime):
+        return start_time.date().isoformat()
+    if isinstance(start_time, str):
+        parsed = _parse_match_time(start_time)
+        if parsed is not None:
+            return parsed.date().isoformat()
+    return None
+
+
+def _find_legacy_backtest_doc(
+    *,
+    legacy_backtest_database: Any | None,
+    match: dict[str, Any],
+) -> dict[str, Any] | None:
+    if legacy_backtest_database is None:
+        return None
+    match_date = _target_match_date(match)
+    if not match_date:
+        return None
+
+    candidates = list(
+        legacy_backtest_database["unibet-backtest"].find(
+            {"matchDate": match_date},
+            projection={"_id": 0},
+        )
+    )
+    if not candidates:
+        return None
+
+    source_match_id = match.get("source_match_id")
+    target_home = normalize_team_name(match.get("home_team_name"))
+    target_away = normalize_team_name(match.get("away_team_name"))
+    target_league = normalize_league_name(match.get("league_name"))
+
+    best_doc: dict[str, Any] | None = None
+    best_score = -1
+    for candidate in candidates:
+        score = 0
+        candidate_match_id = candidate.get("matchId")
+        if source_match_id is not None and candidate_match_id is not None and str(candidate_match_id) == str(source_match_id):
+            score += 100
+        if normalize_team_name(candidate.get("homeTeam")) == target_home:
+            score += 20
+        if normalize_team_name(candidate.get("awayTeam")) == target_away:
+            score += 20
+        if target_league and normalize_league_name(candidate.get("league")) == target_league:
+            score += 5
+        if score > best_score:
+            best_score = score
+            best_doc = candidate
+
+    return best_doc if best_score >= 40 else None
+
+
+def inspect_fixture_target_window_from_database(
+    *,
+    database: Any,
+    dates: list[str] | None = None,
+    max_days_ahead: int = 7,
+    reference_time: datetime | None = None,
+    league_key: str | None = None,
+    league_name: str | None = None,
+    empty_horizon_days: int = 35,
+) -> dict[str, Any]:
+    now = reference_time or utc_now()
+    selection_mode = "dates" if dates else "rolling_window"
+    context: dict[str, Any] = {
+        "target_source": "fixtures_canonical",
+        "selection_mode": selection_mode,
+        "league_key": league_key,
+        "league_name": league_name,
+    }
+    if dates:
+        available_rows = load_fixture_targets_from_database(
+            database=database,
+            dates=dates,
+            league_key=league_key,
+            league_name=league_name,
+        )
+        context.update(
+            {
+                "requested_dates": list(dates),
+                "available_target_match_count": len(available_rows),
+                "next_fixture_start_time": (
+                    available_rows[0]["start_time"].isoformat()
+                    if available_rows and isinstance(available_rows[0].get("start_time"), datetime)
+                    else None
+                ),
+                "empty_reason": None if available_rows else "no_fixtures_for_requested_dates",
+            }
+        )
+        return context
+
+    requested_window_days = max(0, max_days_ahead)
+    requested_rows = load_fixture_targets_from_database(
+        database=database,
+        max_days_ahead=requested_window_days,
+        reference_time=now,
+        league_key=league_key,
+        league_name=league_name,
+    )
+    inspection_horizon_days = max(requested_window_days, max(0, empty_horizon_days))
+    horizon_rows = load_fixture_targets_from_database(
+        database=database,
+        max_days_ahead=inspection_horizon_days,
+        reference_time=now,
+        league_key=league_key,
+        league_name=league_name,
+    )
+    requested_window_end = now + timedelta(days=requested_window_days)
+    later_rows = [
+        row
+        for row in horizon_rows
+        if isinstance(row.get("start_time"), datetime) and row["start_time"] > requested_window_end
+    ]
+    if requested_rows:
+        empty_reason = None
+    elif not horizon_rows:
+        empty_reason = "no_fixtures_in_source_horizon"
+    else:
+        empty_reason = "no_fixtures_in_requested_window_but_present_later"
+    context.update(
+        {
+            "window_start": now.isoformat(),
+            "window_end": requested_window_end.isoformat(),
+            "requested_max_days_ahead": requested_window_days,
+            "inspection_horizon_days": inspection_horizon_days,
+            "available_target_match_count": len(requested_rows),
+            "future_fixture_count_in_horizon": len(horizon_rows),
+            "future_fixture_count_after_requested_window": len(later_rows),
+            "next_fixture_start_time": (
+                horizon_rows[0]["start_time"].isoformat()
+                if horizon_rows and isinstance(horizon_rows[0].get("start_time"), datetime)
+                else None
+            ),
+            "next_fixture_match_key": str(horizon_rows[0].get("match_key")) if horizon_rows else None,
+            "empty_reason": empty_reason,
+        }
+    )
+    return context
 
 
 def build_smoke_targets_for_league(
@@ -296,6 +443,7 @@ def run_unibet_odds_ingest(
     dry_run: bool = False,
     transport: Transport | None = None,
     oracle: Any | None = None,
+    legacy_backtest_database: Any | None = None,
     fetched_at: datetime | None = None,
     return_documents: bool = False,
 ) -> dict[str, Any]:
@@ -318,27 +466,42 @@ def run_unibet_odds_ingest(
             "v2_offer_count": 0,
             "oracle_offer_count": 0,
             "oracle_available": oracle is not None,
+            "oracle_error": None,
+            "historical_source_checked": legacy_backtest_database is not None,
+            "historical_source_found": False,
+            "historical_event_id": None,
             "error": None,
         }
         try:
+            legacy_doc = _find_legacy_backtest_doc(
+                legacy_backtest_database=legacy_backtest_database,
+                match=match,
+            )
+            if legacy_doc is not None:
+                row["historical_source_found"] = True
+                row["historical_event_id"] = legacy_doc.get("eventId")
             oracle_event: dict[str, Any] | None = None
             if oracle is not None:
-                oracle_match = {
-                    "homeTeam": match.get("home_team_name"),
-                    "awayTeam": match.get("away_team_name"),
-                    "leagueName": match.get("league_name"),
-                    "timestamp": (
-                        match.get("start_time").isoformat()
-                        if isinstance(match.get("start_time"), datetime)
-                        else match.get("start_time")
-                    ),
-                }
-                oracle_event = oracle.lookup_event(oracle_match)
-                row["oracle_event_id"] = (
-                    str(oracle_event.get("eventId"))
-                    if isinstance(oracle_event, dict) and oracle_event.get("eventId") is not None
-                    else None
-                )
+                try:
+                    oracle_match = {
+                        "homeTeam": match.get("home_team_name"),
+                        "awayTeam": match.get("away_team_name"),
+                        "leagueName": match.get("league_name"),
+                        "timestamp": (
+                            match.get("start_time").isoformat()
+                            if isinstance(match.get("start_time"), datetime)
+                            else match.get("start_time")
+                        ),
+                    }
+                    oracle_event = oracle.lookup_event(oracle_match)
+                    row["oracle_event_id"] = (
+                        str(oracle_event.get("eventId"))
+                        if isinstance(oracle_event, dict) and oracle_event.get("eventId") is not None
+                        else None
+                    )
+                except Exception as exc:
+                    row["oracle_available"] = False
+                    row["oracle_error"] = {"type": type(exc).__name__, "message": str(exc)}
 
             league_doc = resolve_unibet_league(
                 support_docs,
@@ -409,23 +572,27 @@ def run_unibet_odds_ingest(
                     )
                 )
 
-                if oracle is not None:
-                    oracle_tuples = oracle.map_odds(
-                        odds_payload.get("betOffers", []),
-                        (
-                            str(oracle_event.get("homeTeam"))
-                            if isinstance(oracle_event, dict) and oracle_event.get("homeTeam")
-                            else discovered_event.home_team_name
-                        ),
-                        (
-                            str(oracle_event.get("awayTeam"))
-                            if isinstance(oracle_event, dict) and oracle_event.get("awayTeam")
-                            else discovered_event.away_team_name
-                        ),
-                    )
-                    row["oracle_tuples"] = oracle_tuples
-                    row["oracle_offer_count"] = len(oracle_tuples)
-                    row["oracle_tuple_hash"] = _tuple_hash(oracle_tuples)
+                if oracle is not None and row.get("oracle_available"):
+                    try:
+                        oracle_tuples = oracle.map_odds(
+                            odds_payload.get("betOffers", []),
+                            (
+                                str(oracle_event.get("homeTeam"))
+                                if isinstance(oracle_event, dict) and oracle_event.get("homeTeam")
+                                else discovered_event.home_team_name
+                            ),
+                            (
+                                str(oracle_event.get("awayTeam"))
+                                if isinstance(oracle_event, dict) and oracle_event.get("awayTeam")
+                                else discovered_event.away_team_name
+                            ),
+                        )
+                        row["oracle_tuples"] = oracle_tuples
+                        row["oracle_offer_count"] = len(oracle_tuples)
+                        row["oracle_tuple_hash"] = _tuple_hash(oracle_tuples)
+                    except Exception as exc:
+                        row["oracle_available"] = False
+                        row["oracle_error"] = {"type": type(exc).__name__, "message": str(exc)}
         except Exception as exc:
             row["error"] = {"type": type(exc).__name__, "message": str(exc)}
         match_rows.append(row)
@@ -460,6 +627,12 @@ def run_unibet_odds_ingest(
         "health_reports": len(health_rows),
         "matched_events": sum(1 for row in match_rows if row.get("v2_event_id")),
         "errors": sum(1 for row in match_rows if row.get("error")),
+        "oracle_errors": sum(1 for row in match_rows if row.get("oracle_error")),
+        "historical_source_missing": sum(
+            1
+            for row in match_rows
+            if row.get("historical_source_checked") and not row.get("historical_source_found")
+        ),
         "parity_status_counts": {
             status: sum(1 for row in parity_rows if row["parity_status"] == status)
             for status in sorted({row["parity_status"] for row in parity_rows})

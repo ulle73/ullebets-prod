@@ -45,6 +45,16 @@ def build_model_snapshot_parity_rows(
         ]
 
     line_errors = sum(len(row.get("model_errors", [])) for row in match_rows)
+    historical_source_missing = [
+        row["match_key"]
+        for row in match_rows
+        if row.get("historical_source_checked") and not row.get("historical_source_found")
+    ]
+    historical_source_available_unmatched = [
+        row["match_key"]
+        for row in match_rows
+        if row.get("historical_source_found") and not row.get("v2_event_id")
+    ]
     offerless_matches = [
         row["match_key"]
         for row in match_rows
@@ -57,7 +67,15 @@ def build_model_snapshot_parity_rows(
         and int(row.get("v2_offer_count", 0)) > 0
         and row.get("generated_line_count", 0) == 0
     ]
-    parity_status = "matched" if line_errors == 0 and not missing_matches else "mismatch"
+    blocking_issues = [f"missing_historical_odds_source:{match_key}" for match_key in historical_source_missing]
+    blocking_issues += [
+        f"historical_odds_source_available_but_v2_unmatched:{match_key}"
+        for match_key in historical_source_available_unmatched
+    ]
+    blocking_issues += [f"missing_model_lines:{match_key}" for match_key in missing_matches]
+    if line_errors:
+        blocking_issues.append("model_oracle_errors_present")
+    parity_status = "matched" if not blocking_issues else "mismatch"
     return [
         build_parity_report_row(
             workflow_entry={
@@ -78,12 +96,13 @@ def build_model_snapshot_parity_rows(
                 "target_match_count": len({row["match_key"] for row in model_snapshot_docs}),
                 "line_count": len(model_snapshot_docs),
                 "offerless_match_count": len(offerless_matches),
+                "historical_source_missing_count": len(historical_source_missing),
+                "historical_source_available_unmatched_count": len(historical_source_available_unmatched),
                 "snapshot_mode_counts": _count_by(model_snapshot_docs, "snapshot_mode"),
                 "direction_counts": _count_by(model_snapshot_docs, "direction"),
             },
             parity_status=parity_status,
-            blocking_issues=[f"missing_model_lines:{match_key}" for match_key in missing_matches]
-            + (["model_oracle_errors_present"] if line_errors else []),
+            blocking_issues=blocking_issues,
             audit_risks=[] if parity_status == "matched" else ["model_snapshot_generation_risk"],
             report_date=report_date or utc_now().date().isoformat(),
         )
@@ -118,6 +137,16 @@ def build_model_snapshot_audit_rows(
 
     invalid_count = sum(1 for row in model_snapshot_docs if row.get("invalid_for_model"))
     oracle_error_count = sum(len(row.get("model_errors", [])) for row in match_rows)
+    historical_source_missing_count = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_checked") and not row.get("historical_source_found")
+    )
+    historical_source_available_unmatched_count = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_found") and not row.get("v2_event_id")
+    )
     unmatched_count = sum(1 for row in match_rows if not row.get("v2_event_id"))
     offerless_match_count = sum(
         1
@@ -130,6 +159,10 @@ def build_model_snapshot_audit_rows(
         findings.append("post_start_model_rows_present")
     if oracle_error_count:
         findings.append("model_oracle_errors_present")
+    if historical_source_missing_count:
+        findings.append("historical_odds_source_missing")
+    if historical_source_available_unmatched_count:
+        findings.append("historical_odds_source_available_but_v2_unmatched")
     if unmatched_count:
         findings.append("unmatched_unibet_events_present")
     if offerless_match_count:
@@ -145,6 +178,8 @@ def build_model_snapshot_audit_rows(
                 "generated_line_count": len(model_snapshot_docs),
                 "invalid_for_model_count": invalid_count,
                 "oracle_error_count": oracle_error_count,
+                "historical_source_missing_count": historical_source_missing_count,
+                "historical_source_available_unmatched_count": historical_source_available_unmatched_count,
                 "unmatched_event_count": unmatched_count,
                 "offerless_match_count": offerless_match_count,
                 "direction_counts": _count_by(model_snapshot_docs, "direction"),
@@ -159,6 +194,7 @@ def build_model_snapshot_audit_rows(
 def build_model_snapshot_health_rows(
     *,
     target_matches: list[dict[str, Any]],
+    match_rows: list[dict[str, Any]],
     model_snapshot_docs: list[dict[str, Any]],
     oracle_error_count: int,
     report_date: str | None = None,
@@ -179,13 +215,30 @@ def build_model_snapshot_health_rows(
         ]
 
     invalid_count = sum(1 for row in model_snapshot_docs if row.get("invalid_for_model"))
+    historical_source_missing_count = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_checked") and not row.get("historical_source_found")
+    )
+    historical_source_available_unmatched_count = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_found") and not row.get("v2_event_id")
+    )
     matches_with_offers = sum(1 for row in target_matches if True)
     offerful_match_count = sum(
         1
         for row in target_matches
         if row.get("match_key") in {match_row["match_key"] for match_row in model_snapshot_docs}
     )
-    status = "ok" if invalid_count == 0 and oracle_error_count == 0 else "warn"
+    status = (
+        "ok"
+        if invalid_count == 0
+        and oracle_error_count == 0
+        and historical_source_missing_count == 0
+        and historical_source_available_unmatched_count == 0
+        else "warn"
+    )
     return [
         build_health_report_row(
             job_name="build_model_snapshots",
@@ -197,13 +250,15 @@ def build_model_snapshot_health_rows(
             )
             if status == "ok"
             else (
-                "Model snapshot generation completed with missing rows, oracle errors, or post-start timing."
+                "Model snapshot generation completed with missing rows, oracle errors, post-start timing, or missing historical odds coverage."
             ),
             metrics={
                 "target_match_count": len(target_matches),
                 "generated_line_count": len(model_snapshot_docs),
                 "invalid_for_model_count": invalid_count,
                 "oracle_error_count": oracle_error_count,
+                "historical_source_missing_count": historical_source_missing_count,
+                "historical_source_available_unmatched_count": historical_source_available_unmatched_count,
                 "offerful_match_count": offerful_match_count,
                 "matches_considered": matches_with_offers,
             },

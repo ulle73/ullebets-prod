@@ -45,6 +45,23 @@ class FakeDatabase(dict):
         return dict.__getitem__(self, collection_name)
 
 
+class FakeHistoricalCollection:
+    def __init__(self, docs: list[dict]) -> None:
+        self.docs = docs
+
+    def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
+        query = query or {}
+        rows = list(self.docs)
+        if "matchDate" in query:
+            rows = [row for row in rows if row.get("matchDate") == query["matchDate"]]
+        return rows
+
+
+class FakeHistoricalDatabase(dict):
+    def __getitem__(self, collection_name: str):
+        return dict.__getitem__(self, collection_name)
+
+
 class FakeOracle:
     def lookup_event(self, match_info: dict) -> dict:
         return {
@@ -55,6 +72,14 @@ class FakeOracle:
 
     def map_odds(self, bet_offers: list[dict], home_team: str, away_team: str) -> list[dict]:
         return map_unibet_odds(bet_offers, home_team, away_team)
+
+
+class BrokenOracle:
+    def lookup_event(self, match_info: dict) -> dict:  # noqa: ARG002
+        raise RuntimeError("legacy oracle unavailable")
+
+    def map_odds(self, bet_offers: list[dict], home_team: str, away_team: str) -> list[dict]:  # noqa: ARG002
+        raise RuntimeError("legacy mapper unavailable")
 
 
 def build_support_docs() -> dict:
@@ -316,3 +341,111 @@ def test_run_unibet_odds_ingest_dry_run_handles_empty_target_window() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_unibet_odds_ingest_dry_run_continues_when_legacy_oracle_fails() -> None:
+    summary = run_unibet_odds_ingest(
+        targets=[
+            {
+                "match_key": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-forward.yml",
+        dry_run=True,
+        transport=fake_transport,
+        oracle=BrokenOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["market_offers"] == 1
+    assert summary["errors"] == 0
+    assert summary["oracle_errors"] == 1
+    assert summary["parity_status_counts"] == {"missing_oracle": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+    assert summary["match_rows"][0]["oracle_error"]["message"] == "legacy oracle unavailable"
+
+
+def test_run_unibet_odds_ingest_marks_missing_historical_replay_source() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([])
+
+    summary = run_unibet_odds_ingest(
+        targets=[
+            {
+                "match_key": "match-legacy-gap",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-backtests.yml",
+        dry_run=True,
+        transport=fake_transport,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 0
+    assert summary["historical_source_missing"] == 1
+    assert summary["parity_status_counts"] == {"missing_oracle": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
+    assert summary["health_status_counts"] == {"warn": 1}
+    assert summary["match_rows"][0]["historical_source_checked"] is True
+    assert summary["match_rows"][0]["historical_source_found"] is False
+
+
+def test_run_unibet_odds_ingest_marks_unmatched_when_historical_source_exists() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection(
+        [
+            {
+                "matchDate": "2025-10-08",
+                "matchId": 14689178,
+                "league": "Premier League",
+                "homeTeam": "Arsenal",
+                "awayTeam": "Bournemouth",
+                "eventId": "evt-legacy",
+            }
+        ]
+    )
+
+    summary = run_unibet_odds_ingest(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-backtests.yml",
+        dry_run=True,
+        transport=fake_transport,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 0
+    assert summary["historical_source_missing"] == 0
+    assert summary["parity_status_counts"] == {"mismatch": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
+    assert summary["health_status_counts"] == {"warn": 1}
+    assert summary["match_rows"][0]["historical_source_found"] is True

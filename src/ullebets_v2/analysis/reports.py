@@ -19,6 +19,7 @@ def build_analysis_parity_rows(
     *,
     source_workflow: str,
     target_matches: list[dict[str, Any]],
+    match_rows: list[dict[str, Any]],
     model_snapshot_docs: list[dict[str, Any]],
     analysis_candidate_docs: list[dict[str, Any]],
     shortlist_docs: list[dict[str, Any]],
@@ -47,9 +48,30 @@ def build_analysis_parity_rows(
         ]
 
     invalid_count = sum(1 for row in model_snapshot_docs if row.get("invalid_for_model"))
-    parity_status = "matched" if oracle_error_count == 0 and invalid_count == 0 else "mismatch"
+    historical_source_missing = [
+        row["match_key"]
+        for row in match_rows
+        if row.get("historical_source_checked") and not row.get("historical_source_found")
+    ]
+    historical_source_available_unmatched = [
+        row["match_key"]
+        for row in match_rows
+        if row.get("historical_source_found") and not row.get("v2_event_id")
+    ]
+    parity_status = (
+        "matched"
+        if oracle_error_count == 0 and invalid_count == 0 and not historical_source_missing and not historical_source_available_unmatched
+        else "mismatch"
+    )
     blocking_issues: list[str] = []
     audit_risks: list[str] = []
+    if historical_source_missing:
+        blocking_issues.extend(f"missing_historical_odds_source:{match_key}" for match_key in historical_source_missing)
+    if historical_source_available_unmatched:
+        blocking_issues.extend(
+            f"historical_odds_source_available_but_v2_unmatched:{match_key}"
+            for match_key in historical_source_available_unmatched
+        )
     if oracle_error_count:
         blocking_issues.append("analysis_oracle_errors_present")
     if invalid_count:
@@ -78,6 +100,8 @@ def build_analysis_parity_rows(
                 "candidate_count": len(analysis_candidate_docs),
                 "qualifying_candidate_count": sum(1 for row in analysis_candidate_docs if row.get("passes_strategy_filters")),
                 "shortlist_count": len(shortlist_docs),
+                "historical_source_missing_count": len(historical_source_missing),
+                "historical_source_available_unmatched_count": len(historical_source_available_unmatched),
                 "strategy_counts": _count_by(analysis_candidate_docs, "strategy_id"),
             },
             parity_status=parity_status,
@@ -92,6 +116,7 @@ def build_analysis_audit_rows(
     *,
     source_workflow: str,
     target_matches: list[dict[str, Any]],
+    match_rows: list[dict[str, Any]],
     model_snapshot_docs: list[dict[str, Any]],
     analysis_candidate_docs: list[dict[str, Any]],
     shortlist_docs: list[dict[str, Any]],
@@ -118,9 +143,23 @@ def build_analysis_audit_rows(
         ]
 
     invalid_count = sum(1 for row in model_snapshot_docs if row.get("invalid_for_model"))
+    historical_source_missing_count = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_checked") and not row.get("historical_source_found")
+    )
+    historical_source_available_unmatched_count = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_found") and not row.get("v2_event_id")
+    )
     findings: list[str] = []
     if invalid_count:
         findings.append("post_start_model_rows_excluded")
+    if historical_source_missing_count:
+        findings.append("historical_odds_source_missing")
+    if historical_source_available_unmatched_count:
+        findings.append("historical_odds_source_available_but_v2_unmatched")
     if oracle_error_count:
         findings.append("analysis_oracle_errors_present")
     status = "ok" if not findings else "warn"
@@ -134,6 +173,8 @@ def build_analysis_audit_rows(
                 "model_snapshot_count": len(model_snapshot_docs),
                 "valid_model_snapshot_count": sum(1 for row in model_snapshot_docs if not row.get("invalid_for_model")),
                 "invalid_model_snapshot_count": invalid_count,
+                "historical_source_missing_count": historical_source_missing_count,
+                "historical_source_available_unmatched_count": historical_source_available_unmatched_count,
                 "candidate_count": len(analysis_candidate_docs),
                 "qualifying_candidate_count": sum(1 for row in analysis_candidate_docs if row.get("passes_strategy_filters")),
                 "shortlist_count": len(shortlist_docs),
@@ -150,6 +191,7 @@ def build_analysis_audit_rows(
 def build_analysis_health_rows(
     *,
     target_matches: list[dict[str, Any]],
+    match_rows: list[dict[str, Any]],
     analysis_candidate_docs: list[dict[str, Any]],
     shortlist_docs: list[dict[str, Any]],
     oracle_error_count: int,
@@ -166,7 +208,21 @@ def build_analysis_health_rows(
             )
         ]
 
-    status = "ok" if oracle_error_count == 0 else "warn"
+    historical_source_missing_count = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_checked") and not row.get("historical_source_found")
+    )
+    historical_source_available_unmatched_count = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_found") and not row.get("v2_event_id")
+    )
+    status = (
+        "ok"
+        if oracle_error_count == 0 and historical_source_missing_count == 0 and historical_source_available_unmatched_count == 0
+        else "warn"
+    )
     return [
         build_health_report_row(
             job_name="run_auto_analysis",
@@ -174,13 +230,15 @@ def build_analysis_health_rows(
             summary=(
                 "Auto-analysis produced persisted candidate and shortlist outputs."
                 if status == "ok"
-                else "Auto-analysis completed with oracle errors."
+                else "Auto-analysis completed with oracle errors or missing historical odds coverage."
             ),
             metrics={
                 "target_match_count": len(target_matches),
                 "candidate_count": len(analysis_candidate_docs),
                 "shortlist_count": len(shortlist_docs),
                 "oracle_error_count": oracle_error_count,
+                "historical_source_missing_count": historical_source_missing_count,
+                "historical_source_available_unmatched_count": historical_source_available_unmatched_count,
             },
             report_date=report_date or utc_now().date().isoformat(),
         )

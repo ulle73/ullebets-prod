@@ -125,6 +125,7 @@ def run_auto_analysis_pipeline(
     transport: Any | None = None,
     odds_oracle: Any | None = None,
     model_oracle: Any | None = None,
+    legacy_backtest_database: Any | None = None,
     fetched_at: datetime | None = None,
 ) -> dict[str, Any]:
     captured_at = fetched_at or utc_now()
@@ -141,6 +142,7 @@ def run_auto_analysis_pipeline(
         transport=transport,
         odds_oracle=odds_oracle,
         model_oracle=model_oracle,
+        legacy_backtest_database=legacy_backtest_database,
         fetched_at=captured_at,
         return_documents=True,
     )
@@ -243,6 +245,7 @@ def run_auto_analysis_pipeline(
     parity_rows = build_analysis_parity_rows(
         source_workflow=source_workflow,
         target_matches=targets,
+        match_rows=model_summary.get("match_rows", []),
         model_snapshot_docs=model_snapshot_docs,
         analysis_candidate_docs=analysis_candidate_docs,
         shortlist_docs=shortlist_docs,
@@ -252,6 +255,7 @@ def run_auto_analysis_pipeline(
     audit_rows = build_analysis_audit_rows(
         source_workflow=source_workflow,
         target_matches=targets,
+        match_rows=model_summary.get("match_rows", []),
         model_snapshot_docs=model_snapshot_docs,
         analysis_candidate_docs=analysis_candidate_docs,
         shortlist_docs=shortlist_docs,
@@ -261,6 +265,7 @@ def run_auto_analysis_pipeline(
     )
     health_rows = build_analysis_health_rows(
         target_matches=targets,
+        match_rows=model_summary.get("match_rows", []),
         analysis_candidate_docs=analysis_candidate_docs,
         shortlist_docs=shortlist_docs,
         oracle_error_count=oracle_error_count,

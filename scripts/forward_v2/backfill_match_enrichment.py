@@ -43,8 +43,8 @@ def main() -> int:
     ensure_v2_database(config)
     config.ensure_directories()
     support_docs = load_support_documents(
-        leagues_path=config.old_repo_root / "data" / "leagues-and-teams.json",
-        league_urls_path=config.old_repo_root / "data" / "unibetLeagueUrls.json",
+        leagues_path=config.default_leagues_path(),
+        league_urls_path=config.default_league_urls_path(),
     )
     database = None if args.dry_run else get_database(config)
     summary = run_match_enrichment_window(
@@ -61,4 +61,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -61,6 +61,7 @@ class V2Config:
     repo_root: Path
     env_file: Path
     old_repo_root: Path
+    support_dir: Path
     data_dir: Path
     raw_dir: Path
     normalized_dir: Path
@@ -84,6 +85,7 @@ class V2Config:
                 or dotenv_values.get("ULLEBETS_OLD_REPO_ROOT")
                 or r"C:\dev\frontend\ullebets-vecel"
             ),
+            support_dir=resolved_root / "data" / "support",
             data_dir=data_dir,
             raw_dir=data_dir / "raw",
             normalized_dir=data_dir / "normalized",
@@ -93,8 +95,21 @@ class V2Config:
             mongo_db=os.getenv("MONGODB_DB") or dotenv_values.get("MONGODB_DB") or "ullebets_v2",
         )
 
+    def resolve_support_file(self, filename: str) -> Path:
+        local_path = self.support_dir / filename
+        if local_path.exists():
+            return local_path
+        return self.old_repo_root / "data" / filename
+
+    def default_leagues_path(self) -> Path:
+        return self.resolve_support_file("leagues-and-teams.json")
+
+    def default_league_urls_path(self) -> Path:
+        return self.resolve_support_file("unibetLeagueUrls.json")
+
     def ensure_directories(self) -> None:
         for path in (
+            self.support_dir,
             self.data_dir,
             self.raw_dir,
             self.normalized_dir,

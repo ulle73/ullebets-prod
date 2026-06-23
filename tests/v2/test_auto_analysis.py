@@ -5,7 +5,12 @@ from datetime import UTC, datetime
 from ullebets_v2.analysis.service import run_auto_analysis_pipeline
 
 from tests.v2.test_model_snapshots import FakeModelOracle
-from tests.v2.test_odds_ingest import build_support_docs, fake_transport
+from tests.v2.test_odds_ingest import (
+    FakeHistoricalCollection,
+    FakeHistoricalDatabase,
+    build_support_docs,
+    fake_transport,
+)
 
 
 class FakeAnalysisOracle:
@@ -163,3 +168,50 @@ def test_run_auto_analysis_pipeline_dry_run_handles_empty_target_window() -> Non
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_auto_analysis_pipeline_marks_historical_source_gap_as_mismatch() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection(
+        [
+            {
+                "matchDate": "2025-10-08",
+                "matchId": 14689178,
+                "league": "Premier League",
+                "homeTeam": "Arsenal",
+                "awayTeam": "Bournemouth",
+                "eventId": "evt-legacy",
+            }
+        ]
+    )
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        analysis_oracle=FakeAnalysisOracle(),
+        dry_run=True,
+        transport=fake_transport,
+        model_oracle=FakeModelOracle(),
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 0
+    assert summary["model_snapshots"] == 0
+    assert summary["analysis_candidates"] == 0
+    assert summary["parity_status_counts"] == {"mismatch": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
+    assert summary["health_status_counts"] == {"warn": 1}

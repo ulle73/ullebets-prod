@@ -33,8 +33,8 @@ def main() -> int:
     ensure_v2_database(config)
     config.ensure_directories()
     support_docs = load_support_documents(
-        leagues_path=args.leagues_path or (config.old_repo_root / "data" / "leagues-and-teams.json"),
-        league_urls_path=args.league_urls_path or (config.old_repo_root / "data" / "unibetLeagueUrls.json"),
+        leagues_path=args.leagues_path or config.default_leagues_path(),
+        league_urls_path=args.league_urls_path or config.default_league_urls_path(),
     )
     database = None if args.dry_run else get_database(config)
     summary = run_training_export_build(

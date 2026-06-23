@@ -14,12 +14,13 @@ from ullebets_v2.config import V2Config
 from ullebets_v2.odds.oracle import OriginalJsOracle
 from ullebets_v2.odds.service import (
     build_smoke_targets_for_league,
+    inspect_fixture_target_window_from_database,
     load_fixture_targets_from_database,
     load_replay_fixture_targets,
     run_unibet_odds_ingest,
 )
 from ullebets_v2.safety import ensure_v2_database
-from ullebets_v2.storage.mongo import get_database
+from ullebets_v2.storage.mongo import get_database, get_named_database
 from ullebets_v2.support.loaders import load_support_documents
 
 
@@ -56,11 +57,12 @@ def main() -> int:
     config.ensure_directories()
 
     support_docs = load_support_documents(
-        leagues_path=args.leagues_path or (config.old_repo_root / "data" / "leagues-and-teams.json"),
-        league_urls_path=args.league_urls_path or (config.old_repo_root / "data" / "unibetLeagueUrls.json"),
+        leagues_path=args.leagues_path or config.default_leagues_path(),
+        league_urls_path=args.league_urls_path or config.default_league_urls_path(),
     )
 
     read_database = None
+    target_window = None
     if args.mode == "replay-fixtures":
         if not args.dates:
             raise RuntimeError("--date is required in replay-fixtures mode.")
@@ -73,6 +75,12 @@ def main() -> int:
     elif args.mode == "fixture-db":
         source_workflow = args.source_workflow or "run-unibet-backtests.yml"
         read_database = get_database(config)
+        target_window = inspect_fixture_target_window_from_database(
+            database=read_database,
+            dates=args.dates or None,
+            max_days_ahead=args.max_days_ahead,
+            league_name=args.league,
+        )
         targets = load_fixture_targets_from_database(
             database=read_database,
             dates=args.dates or None,
@@ -92,6 +100,7 @@ def main() -> int:
         )
 
     database = None if args.dry_run else (read_database or get_database(config))
+    legacy_backtest_database = get_named_database(config, "app") if args.mode == "replay-fixtures" else None
     oracle = None if args.disable_oracle else OriginalJsOracle(config.old_repo_root)
     summary = run_unibet_odds_ingest(
         targets=targets,
@@ -100,7 +109,13 @@ def main() -> int:
         database=database,
         dry_run=args.dry_run,
         oracle=oracle,
+        legacy_backtest_database=legacy_backtest_database,
     )
+    if target_window is not None:
+        target_window["selected_target_match_count"] = len(targets)
+        summary["target_window"] = target_window
+        if not targets:
+            summary["empty_reason"] = target_window.get("empty_reason")
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
     return 0
 

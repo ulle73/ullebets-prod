@@ -80,12 +80,24 @@ def build_odds_parity_rows(
         ]
 
     oracle_rows = [row for row in match_rows if row.get("oracle_available")]
+    historical_source_missing = [
+        row["match_key"]
+        for row in match_rows
+        if row.get("historical_source_checked") and not row.get("historical_source_found")
+    ]
+    historical_source_available_unmatched = [
+        row["match_key"]
+        for row in match_rows
+        if row.get("historical_source_found") and not row.get("v2_event_id")
+    ]
     counts_v2 = {
         "target_match_count": len(match_rows),
         "event_link_count": sum(1 for row in match_rows if row.get("v2_event_id")),
         "offer_count": sum(int(row.get("v2_offer_count", 0)) for row in match_rows),
         "event_fingerprint": _event_fingerprint(match_rows, "v2_event_id"),
         "tuple_fingerprint": _tuple_fingerprint(match_rows, "v2_tuples"),
+        "historical_source_missing_count": len(historical_source_missing),
+        "historical_source_available_unmatched_count": len(historical_source_available_unmatched),
     }
     counts_old = {
         "target_match_count": len(oracle_rows),
@@ -95,7 +107,16 @@ def build_odds_parity_rows(
         "tuple_fingerprint": _tuple_fingerprint(oracle_rows, "oracle_tuples") if oracle_rows else None,
     }
 
-    if not oracle_rows:
+    if historical_source_missing:
+        parity_status = "missing_oracle"
+        blocking_issues = [f"historical_odds_source_missing:{match_key}" for match_key in historical_source_missing]
+    elif historical_source_available_unmatched:
+        parity_status = "mismatch"
+        blocking_issues = [
+            f"historical_odds_source_available_but_v2_unmatched:{match_key}"
+            for match_key in historical_source_available_unmatched
+        ]
+    elif not oracle_rows:
         parity_status = "missing_oracle"
         blocking_issues = ["original_js_oracle_unavailable"]
     else:
@@ -164,9 +185,22 @@ def build_odds_audit_rows(
 
     source_errors = [row for row in match_rows if row.get("error")]
     unmatched = [row for row in match_rows if not row.get("v2_event_id")]
+    historical_source_missing = [
+        row for row in match_rows if row.get("historical_source_checked") and not row.get("historical_source_found")
+    ]
+    historical_source_available_unmatched = [
+        row for row in match_rows if row.get("historical_source_found") and not row.get("v2_event_id")
+    ]
     empty_offers = [row for row in match_rows if row.get("v2_event_id") and not row.get("v2_offer_count")]
     status = "ok" if not source_errors and not unmatched and not empty_offers else "warn"
     findings: list[str] = []
+    if historical_source_missing:
+        findings.extend(f"historical_source_missing:{row['match_key']}" for row in historical_source_missing)
+    if historical_source_available_unmatched:
+        findings.extend(
+            f"historical_source_available_but_v2_unmatched:{row['match_key']}"
+            for row in historical_source_available_unmatched
+        )
     if source_errors:
         findings.extend(f"source_error:{row['match_key']}" for row in source_errors)
     if unmatched:
@@ -185,6 +219,8 @@ def build_odds_audit_rows(
                 "unmatched_event_count": len(unmatched),
                 "empty_offer_count": len(empty_offers),
                 "source_error_count": len(source_errors),
+                "historical_source_missing_count": len(historical_source_missing),
+                "historical_source_available_unmatched_count": len(historical_source_available_unmatched),
                 "raw_doc_count": len(raw_docs),
                 "list_view_doc_count": sum(1 for row in raw_docs if row.get("payload_kind") == "list_view"),
                 "event_odds_doc_count": sum(1 for row in raw_docs if row.get("payload_kind") == "event_odds"),
@@ -220,6 +256,16 @@ def build_odds_health_rows(
     matched = sum(1 for row in match_rows if row.get("v2_event_id"))
     errors = sum(1 for row in match_rows if row.get("error"))
     empty_offers = sum(1 for row in match_rows if row.get("v2_event_id") and not row.get("v2_offer_count"))
+    historical_source_missing = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_checked") and not row.get("historical_source_found")
+    )
+    historical_source_available_unmatched = sum(
+        1
+        for row in match_rows
+        if row.get("historical_source_found") and not row.get("v2_event_id")
+    )
     status = "ok" if matched > 0 and errors == 0 and empty_offers == 0 else "warn"
     return [
         build_health_report_row(
@@ -228,13 +274,15 @@ def build_odds_health_rows(
             summary=(
                 "Odds ingest discovered events and normalized offer sets."
                 if status == "ok"
-                else "Odds ingest completed with missing event links, source errors, or empty offer sets."
+                else "Odds ingest completed with missing event links, source errors, empty offer sets, or missing historical replay coverage."
             ),
             metrics={
                 "target_match_count": len(match_rows),
                 "matched_event_count": matched,
                 "error_count": errors,
                 "empty_offer_count": empty_offers,
+                "historical_source_missing_count": historical_source_missing,
+                "historical_source_available_unmatched_count": historical_source_available_unmatched,
             },
             report_date=report_date or utc_now().date().isoformat(),
         )

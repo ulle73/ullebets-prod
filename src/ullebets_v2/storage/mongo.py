@@ -19,6 +19,11 @@ def get_database(config: V2Config) -> Database:
     return client[config.mongo_db]
 
 
+def get_named_database(config: V2Config, db_name: str) -> Database:
+    client = build_mongo_client(config)
+    return client[db_name]
+
+
 def ping_database(config: V2Config) -> dict:
     database = get_database(config)
     return database.command("ping")

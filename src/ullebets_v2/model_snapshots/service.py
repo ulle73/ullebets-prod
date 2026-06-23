@@ -142,6 +142,7 @@ def run_model_snapshot_build(
     transport: Any | None = None,
     odds_oracle: Any | None = None,
     model_oracle: Any | None = None,
+    legacy_backtest_database: Any | None = None,
     fetched_at: datetime | None = None,
     return_documents: bool = False,
 ) -> dict[str, Any]:
@@ -153,6 +154,7 @@ def run_model_snapshot_build(
         dry_run=True,
         transport=transport,
         oracle=odds_oracle,
+        legacy_backtest_database=legacy_backtest_database,
         fetched_at=captured_at,
         return_documents=True,
     )
@@ -236,6 +238,7 @@ def run_model_snapshot_build(
     oracle_error_count = sum(len(row.get("model_errors", [])) for row in match_rows)
     health_rows = build_model_snapshot_health_rows(
         target_matches=targets,
+        match_rows=match_rows,
         model_snapshot_docs=model_snapshot_docs,
         oracle_error_count=oracle_error_count,
         report_date=report_date,

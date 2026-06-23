@@ -58,8 +58,8 @@ def main() -> int:
     config.ensure_directories()
 
     support_docs = load_support_documents(
-        leagues_path=config.old_repo_root / "data" / "leagues-and-teams.json",
-        league_urls_path=config.old_repo_root / "data" / "unibetLeagueUrls.json",
+        leagues_path=config.default_leagues_path(),
+        league_urls_path=config.default_league_urls_path(),
     )
     dates = resolve_dates(args)
     source_dir = config.old_repo_root / "matches-for-date"
