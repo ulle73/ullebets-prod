@@ -71,6 +71,7 @@ def main() -> int:
             dates=args.dates,
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
+            legacy_match_database=get_named_database(config, "app"),
         )
     elif args.mode == "fixture-db":
         source_workflow = args.source_workflow or "run-unibet-backtests.yml"

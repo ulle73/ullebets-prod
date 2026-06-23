@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
-from ullebets_v2.odds.service import inspect_fixture_target_window_from_database, load_fixture_targets_from_database
+from ullebets_v2.odds.service import (
+    inspect_fixture_target_window_from_database,
+    load_fixture_targets_from_database,
+    load_replay_fixture_targets,
+)
 
 
 class FakeCollection:
@@ -56,6 +61,40 @@ def build_database() -> FakeDatabase:
     return database
 
 
+def build_legacy_match_database() -> FakeDatabase:
+    database = FakeDatabase()
+    database["match-for-date"] = FakeCollection(
+        [
+            {
+                "full": [
+                    {
+                        "date": "2025-11-21",
+                        "savedAt": "2025-11-20T22:00:00Z",
+                        "matches": [
+                            {
+                                "id": 14689178,
+                                "startTimestamp": 1763748000,
+                                "season": {"id": 1},
+                                "status": {"type": "notstarted"},
+                                "tournament": {
+                                    "uniqueTournament": {
+                                        "name": "Premier League",
+                                        "slug": "premier-league",
+                                        "id": 1,
+                                    }
+                                },
+                                "homeTeam": {"id": 1, "name": "Arsenal"},
+                                "awayTeam": {"id": 2, "name": "Bournemouth"},
+                            }
+                        ],
+                    }
+                ]
+            }
+        ]
+    )
+    return database
+
+
 def test_load_fixture_targets_from_database_filters_by_dates_and_sorts() -> None:
     targets = load_fixture_targets_from_database(
         database=build_database(),
@@ -102,3 +141,46 @@ def test_inspect_fixture_target_window_from_database_flags_empty_source_horizon(
     assert context["available_target_match_count"] == 0
     assert context["future_fixture_count_in_horizon"] == 0
     assert context["empty_reason"] == "no_fixtures_in_source_horizon"
+
+
+def test_load_replay_fixture_targets_falls_back_to_legacy_match_database(tmp_path: Path) -> None:
+    old_repo_root = tmp_path / "old-repo"
+    (old_repo_root / "matches-for-date").mkdir(parents=True, exist_ok=True)
+    support_docs = {
+        "leagues": [
+            {
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "league_id": 1,
+                "league_slug": "premier-league",
+            }
+        ],
+        "teams": [
+            {
+                "league_key": "premier-league",
+                "team_key": "premier-league:1",
+                "team_id": 1,
+                "team_name": "Arsenal",
+                "team_slug": "arsenal",
+            },
+            {
+                "league_key": "premier-league",
+                "team_key": "premier-league:2",
+                "team_id": 2,
+                "team_name": "Bournemouth",
+                "team_slug": "bournemouth",
+            },
+        ],
+    }
+
+    targets = load_replay_fixture_targets(
+        dates=["2025-11-21"],
+        support_docs=support_docs,
+        old_repo_root=old_repo_root,
+        legacy_match_database=build_legacy_match_database(),
+    )
+
+    assert len(targets) == 1
+    assert targets[0]["match_key"] == "sofascore:14689178"
+    assert targets[0]["source_date"] == "2025-11-21"
+    assert targets[0]["league_name"] == "Premier League"

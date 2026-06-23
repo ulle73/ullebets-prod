@@ -15,7 +15,7 @@ from ullebets_v2.config import V2Config
 from ullebets_v2.odds.oracle import OriginalJsOracle
 from ullebets_v2.odds.service import build_smoke_targets_for_league, load_fixture_targets_from_database, load_replay_fixture_targets
 from ullebets_v2.safety import ensure_v2_database
-from ullebets_v2.storage.mongo import get_database
+from ullebets_v2.storage.mongo import get_database, get_named_database
 from ullebets_v2.support.loaders import load_support_documents
 
 
@@ -61,6 +61,7 @@ def main() -> int:
             dates=args.dates,
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
+            legacy_match_database=get_named_database(config, "app"),
         )
     elif args.mode == "fixture-db":
         read_database = get_database(config)

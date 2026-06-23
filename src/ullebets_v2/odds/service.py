@@ -68,18 +68,38 @@ def load_replay_fixture_targets(
     dates: list[str],
     support_docs: dict[str, Any],
     old_repo_root: Path,
+    legacy_match_database: Any | None = None,
 ) -> list[dict[str, Any]]:
     targets: list[dict[str, Any]] = []
     source_dir = old_repo_root / "matches-for-date"
     for date_str in dates:
         source_path = source_dir / f"fixtures-{date_str}.json"
-        if not source_path.exists():
-            continue
-        payload = load_fixture_payload(source_path)
+        if source_path.exists():
+            payload = load_fixture_payload(source_path)
+            source_path_for_docs = source_path
+        else:
+            payload = None
+            if legacy_match_database is not None:
+                for doc in legacy_match_database["match-for-date"].find({}, projection={"_id": 0, "full": 1}):
+                    full = doc.get("full") or []
+                    if not full:
+                        continue
+                    entry = full[0]
+                    if str(entry.get("date") or "") != date_str:
+                        continue
+                    payload = {
+                        "date": date_str,
+                        "savedAt": entry.get("savedAt"),
+                        "matches": list(entry.get("matches") or []),
+                    }
+                    break
+            if payload is None:
+                continue
+            source_path_for_docs = source_path
         docs = build_fixture_documents(
             payload=payload,
             support_docs=support_docs,
-            source_path=source_path,
+            source_path=source_path_for_docs,
         )
         targets.extend(docs["canonical"])
     return targets
