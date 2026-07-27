@@ -17,7 +17,7 @@ from ullebets_v2.enrichment.service import run_live_match_enrichment_window, run
 from ullebets_v2.fixtures.replay import iter_target_dates
 from ullebets_v2.odds.service import load_replay_fixture_targets
 from ullebets_v2.safety import ensure_v2_database
-from ullebets_v2.storage.mongo import get_database, get_named_database
+from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 from ullebets_v2.support.loaders import load_support_documents
 
 
@@ -66,7 +66,7 @@ def main() -> int:
             support_docs=support_docs,
             source_workflow=args.source_workflow,
             dates=dates,
-            legacy_teamstats_database=get_named_database(config, "app"),
+            legacy_teamstats_database=get_legacy_app_database(config),
             database=write_database,
             dry_run=args.dry_run,
         )
@@ -86,7 +86,7 @@ def main() -> int:
                 dates=dates,
                 support_docs=support_docs,
                 old_repo_root=config.old_repo_root,
-                legacy_match_database=get_named_database(config, "app"),
+                legacy_match_database=get_legacy_app_database(config),
             )
 
         summary = run_live_match_enrichment_window(

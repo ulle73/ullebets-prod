@@ -11,6 +11,8 @@ from ullebets_v2.parity.workflow_matrix import WORKFLOW_PARITY_MATRIX
 REQUIRED_ENV_KEYS = [
     "MONGODB_URI",
     "MONGODB_DB",
+    "LEGACY_APP_MONGODB_DB",
+    "LEGACY_UNIBET_MONGODB_DB",
     "ULLEBETS_OLD_REPO_ROOT",
     "RAPIDAPI_KEYS",
     "RAPIDAPI_SPORTAPI7_BASE_URL",
@@ -182,5 +184,7 @@ def inspect_env_example(env_file: Path) -> dict[str, Any]:
         "required_keys": REQUIRED_ENV_KEYS,
         "missing_required_keys": missing_required,
         "mongo_db": values.get("MONGODB_DB"),
+        "legacy_app_db": values.get("LEGACY_APP_MONGODB_DB") or values.get("SOURCE_MONGODB_DB"),
+        "legacy_unibet_db": values.get("LEGACY_UNIBET_MONGODB_DB"),
         "legacy_repo_root": values.get("ULLEBETS_OLD_REPO_ROOT"),
     }

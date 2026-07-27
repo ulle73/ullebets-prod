@@ -24,7 +24,7 @@ from ullebets_v2.odds.service import (
     load_replay_fixture_targets,
 )
 from ullebets_v2.safety import ensure_v2_database
-from ullebets_v2.storage.mongo import get_database, get_named_database
+from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 from ullebets_v2.support.loaders import load_support_documents
 
 
@@ -80,7 +80,7 @@ def main() -> int:
             dates=args.dates,
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
-            legacy_match_database=get_named_database(config, "app"),
+            legacy_match_database=get_legacy_app_database(config),
         )
         run_date = args.run_date or args.dates[0]
     elif args.mode == "fixture-db":
@@ -112,7 +112,7 @@ def main() -> int:
 
     fetched_at = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else None
     database = None if args.dry_run else (read_database or get_database(config))
-    legacy_backtest_database = get_named_database(config, "app") if args.mode == "replay-fixtures" else None
+    legacy_backtest_database = get_legacy_app_database(config) if args.mode == "replay-fixtures" else None
     odds_oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_odds_oracle else None
     model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
     if args.disable_analysis_oracle:

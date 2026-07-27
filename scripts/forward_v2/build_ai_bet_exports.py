@@ -24,7 +24,7 @@ from ullebets_v2.odds.service import (
 )
 from ullebets_v2.prediction_exports.service import run_prediction_export_pipeline
 from ullebets_v2.safety import ensure_v2_database
-from ullebets_v2.storage.mongo import get_database, get_named_database
+from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 from ullebets_v2.support.loaders import load_support_documents
 
 
@@ -90,9 +90,9 @@ def main() -> int:
             dates=args.dates,
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
-            legacy_match_database=get_named_database(config, "app"),
+            legacy_match_database=get_legacy_app_database(config),
         )
-        legacy_backtest_database = get_named_database(config, "app")
+        legacy_backtest_database = get_legacy_app_database(config)
         run_date = args.run_date or args.dates[0]
     elif args.target_mode == "fixture-db":
         read_database = get_database(config)

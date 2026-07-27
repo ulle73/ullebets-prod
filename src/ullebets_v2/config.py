@@ -61,6 +61,8 @@ class V2Config:
     repo_root: Path
     env_file: Path
     old_repo_root: Path
+    legacy_app_db: str
+    legacy_unibet_db: str
     support_dir: Path
     data_dir: Path
     raw_dir: Path
@@ -85,6 +87,18 @@ class V2Config:
                 or dotenv_values.get("ULLEBETS_OLD_REPO_ROOT")
                 or r"C:\dev\frontend\ullebets-vecel"
             ),
+            legacy_app_db=(
+                os.getenv("LEGACY_APP_MONGODB_DB")
+                or os.getenv("SOURCE_MONGODB_DB")
+                or dotenv_values.get("LEGACY_APP_MONGODB_DB")
+                or dotenv_values.get("SOURCE_MONGODB_DB")
+                or "app"
+            ),
+            legacy_unibet_db=(
+                os.getenv("LEGACY_UNIBET_MONGODB_DB")
+                or dotenv_values.get("LEGACY_UNIBET_MONGODB_DB")
+                or "ullebets_unibet"
+            ),
             support_dir=resolved_root / "data" / "support",
             data_dir=data_dir,
             raw_dir=data_dir / "raw",
@@ -94,6 +108,24 @@ class V2Config:
             mongo_uri=os.getenv("MONGODB_URI") or dotenv_values.get("MONGODB_URI"),
             mongo_db=os.getenv("MONGODB_DB") or dotenv_values.get("MONGODB_DB") or "ullebets_v2",
         )
+
+    def database_roles(self) -> dict[str, str]:
+        return {
+            "target": self.mongo_db,
+            "legacy_app": self.legacy_app_db,
+            "legacy_unibet": self.legacy_unibet_db,
+        }
+
+    def database_role_conflicts(self) -> list[str]:
+        roles = self.database_roles()
+        conflicts: list[str] = []
+        if roles["target"] == roles["legacy_app"]:
+            conflicts.append("target_matches_legacy_app")
+        if roles["target"] == roles["legacy_unibet"]:
+            conflicts.append("target_matches_legacy_unibet")
+        if roles["legacy_app"] == roles["legacy_unibet"]:
+            conflicts.append("legacy_app_matches_legacy_unibet")
+        return conflicts
 
     def resolve_support_file(self, filename: str) -> Path:
         local_path = self.support_dir / filename

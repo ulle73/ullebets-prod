@@ -17,7 +17,7 @@ from ullebets_v2.parity.reports import build_audit_report_row, build_health_repo
 from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.source_connectivity.service import run_source_connectivity_audit
 from ullebets_v2.storage.indexes import build_core_index_plan
-from ullebets_v2.storage.mongo import get_database, ping_database
+from ullebets_v2.storage.mongo import get_database, list_database_names, ping_database
 from ullebets_v2.verification.automation import inspect_env_example, inspect_workflow_directory
 
 
@@ -45,6 +45,7 @@ def _build_contract_findings(
     *,
     workflow_report: dict,
     env_report: dict,
+    database_role_report: dict,
     old_repo_exists: bool,
 ) -> tuple[str, list[str]]:
     findings: list[str] = []
@@ -58,9 +59,27 @@ def _build_contract_findings(
         findings.append("missing_env_example_keys")
     if env_report.get("mongo_db") != "ullebets_v2":
         findings.append("env_example_mongodb_db_not_v2")
+    if database_role_report["conflicts"]:
+        findings.append("database_role_conflicts")
     if not old_repo_exists:
         findings.append("legacy_repo_root_missing")
     return ("ok" if not findings else "warn"), findings
+
+
+def _build_database_role_report(config: V2Config, *, visible_databases: list[str] | None = None) -> dict[str, object]:
+    roles = config.database_roles()
+    visible = set(visible_databases or [])
+    return {
+        "target_db": roles["target"],
+        "legacy_app_db": roles["legacy_app"],
+        "legacy_unibet_db": roles["legacy_unibet"],
+        "conflicts": config.database_role_conflicts(),
+        "role_names_are_distinct": not config.database_role_conflicts(),
+        "visible_role_databases": [name for name in roles.values() if name in visible],
+        "target_db_exists": roles["target"] in visible if visible_databases is not None else None,
+        "legacy_app_db_exists": roles["legacy_app"] in visible if visible_databases is not None else None,
+        "legacy_unibet_db_exists": roles["legacy_unibet"] in visible if visible_databases is not None else None,
+    }
 
 
 def main() -> int:
@@ -71,15 +90,18 @@ def main() -> int:
 
     workflow_report = inspect_workflow_directory(config.repo_root / ".github" / "workflows")
     env_report = inspect_env_example(config.repo_root / ".env.example")
+    database_role_report = _build_database_role_report(config)
     contract_status, contract_findings = _build_contract_findings(
         workflow_report=workflow_report,
         env_report=env_report,
+        database_role_report=database_role_report,
         old_repo_exists=config.old_repo_root.exists(),
     )
 
     payload: dict[str, object] = {
         "overall_status": contract_status,
         "mongo_db": config.mongo_db,
+        "database_roles": database_role_report,
         "repo_root": str(config.repo_root),
         "env_file": str(config.env_file),
         "old_repo_root": str(config.old_repo_root),
@@ -98,6 +120,7 @@ def main() -> int:
                 "workflow_missing_count": len(workflow_report["missing_parity_files"]) + len(workflow_report["missing_helper_files"]),
                 "workflow_invalid_content_count": len(workflow_report.get("invalid_content_files", [])),
                 "env_missing_count": len(env_report["missing_required_keys"]),
+                "database_role_conflict_count": len(database_role_report["conflicts"]),
                 "old_repo_root_exists": config.old_repo_root.exists(),
             },
         ),
@@ -110,6 +133,7 @@ def main() -> int:
                 "workflow_missing_count": len(workflow_report["missing_parity_files"]) + len(workflow_report["missing_helper_files"]),
                 "workflow_invalid_content_count": len(workflow_report.get("invalid_content_files", [])),
                 "env_missing_count": len(env_report["missing_required_keys"]),
+                "database_role_conflict_count": len(database_role_report["conflicts"]),
                 "workflow_existing_count": workflow_report["existing_workflow_count"],
             },
         ),
@@ -121,6 +145,8 @@ def main() -> int:
 
     if args.ping_db:
         payload["ping"] = ping_database(config)
+        visible_databases = list_database_names(config)
+        payload["database_roles"] = _build_database_role_report(config, visible_databases=visible_databases)
 
     if args.check_fixture_db and database is not None:
         payload["fixture_window"] = inspect_fixture_target_window_from_database(

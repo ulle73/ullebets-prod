@@ -45,6 +45,8 @@ def test_env_example_covers_required_v2_keys() -> None:
     assert report["exists"] is True
     assert report["missing_required_keys"] == []
     assert report["mongo_db"] == "ullebets_v2"
+    assert report["legacy_app_db"] == "app"
+    assert report["legacy_unibet_db"] == "ullebets_unibet"
     assert report["legacy_repo_root"] == "./.deps/original-backend"
 
 
@@ -62,3 +64,7 @@ def test_healthcheck_v2_cli_reports_clean_contract() -> None:
     assert payload["workflow_files"]["missing_parity_files"] == []
     assert payload["workflow_files"]["invalid_content_files"] == []
     assert payload["env_example"]["missing_required_keys"] == []
+    assert payload["database_roles"]["target_db"] == "ullebets_v2"
+    assert payload["database_roles"]["legacy_app_db"] == "app"
+    assert payload["database_roles"]["legacy_unibet_db"] == "ullebets_unibet"
+    assert payload["database_roles"]["role_names_are_distinct"] is True
