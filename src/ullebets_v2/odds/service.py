@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from ullebets_v2.fixtures.replay import build_fixture_documents, load_fixture_payload
+from ullebets_v2.fixtures.replay import build_fixture_documents, build_support_lookup, load_fixture_payload
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
 from ullebets_v2.odds.discovery import (
     build_list_view_raw_doc,
@@ -22,7 +22,7 @@ from ullebets_v2.odds.reports import (
     build_odds_health_rows,
     build_odds_parity_rows,
 )
-from ullebets_v2.support.schemas import stable_json_hash
+from ullebets_v2.support.schemas import stable_json_hash, slugify
 
 
 def utc_now() -> datetime:
@@ -102,6 +102,128 @@ def load_replay_fixture_targets(
             source_path=source_path_for_docs,
         )
         targets.extend(docs["canonical"])
+    return targets
+
+
+def _legacy_target_match_confidence(
+    *,
+    league_found: bool,
+    home_found: bool,
+    away_found: bool,
+) -> str:
+    if league_found and home_found and away_found:
+        return "support_names"
+    if league_found:
+        return "league_only"
+    return "unmatched"
+
+
+def _fallback_legacy_team_key(league_key: str, team_name: Any, *, side: str) -> str:
+    normalized = slugify(str(team_name)) if team_name else f"unknown-{side}"
+    return f"{league_key}:{normalized or f'unknown-{side}'}"
+
+
+def _legacy_target_start_time(legacy_doc: dict[str, Any]) -> datetime | None:
+    for field_name in ("startTime", "matchStartTime", "kickoffAt"):
+        parsed = _parse_match_time(legacy_doc.get(field_name))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def load_legacy_backtest_targets(
+    *,
+    dates: list[str],
+    support_docs: dict[str, Any],
+    legacy_backtest_database: Any | None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    if legacy_backtest_database is None or not dates:
+        return []
+
+    rows = list(
+        legacy_backtest_database["unibet-backtest"].find(
+            {"matchDate": {"$in": list(dates)}},
+            projection={"_id": 0},
+        )
+    )
+    lookup = build_support_lookup(support_docs)
+    selected_by_match_key: dict[str, dict[str, Any]] = {}
+
+    for legacy_doc in rows:
+        match_date = str(legacy_doc.get("matchDate") or "").strip()
+        if not match_date:
+            continue
+        league_name = legacy_doc.get("league")
+        normalized_league = slugify(str(league_name)) if league_name else "unknown-league"
+        league_doc = lookup.leagues_by_slug.get(normalized_league) or lookup.leagues_by_name.get(normalized_league)
+        league_key = str(league_doc["league_key"]) if league_doc else normalized_league
+
+        home_team_name = legacy_doc.get("homeTeam")
+        away_team_name = legacy_doc.get("awayTeam")
+        home_team = lookup.teams_by_league_and_name.get((league_key, slugify(str(home_team_name)))) if home_team_name else None
+        away_team = lookup.teams_by_league_and_name.get((league_key, slugify(str(away_team_name)))) if away_team_name else None
+
+        home_team_key = (
+            str(home_team["team_key"])
+            if home_team and home_team.get("team_key")
+            else _fallback_legacy_team_key(league_key, home_team_name, side="home")
+        )
+        away_team_key = (
+            str(away_team["team_key"])
+            if away_team and away_team.get("team_key")
+            else _fallback_legacy_team_key(league_key, away_team_name, side="away")
+        )
+        identity_key = "|".join([league_key, match_date, home_team_key, away_team_key])
+        source_match_id = legacy_doc.get("matchId")
+        event_id = legacy_doc.get("eventId")
+        match_key = (
+            f"sofascore:{source_match_id}"
+            if source_match_id is not None
+            else f"legacy-unibet:{event_id}"
+            if event_id is not None
+            else f"legacy-unibet:{identity_key}"
+        )
+        updated_at = _parse_match_time(legacy_doc.get("updatedAt")) or _parse_match_time(legacy_doc.get("generatedAt"))
+        selection_time = updated_at or datetime.min.replace(tzinfo=UTC)
+        candidate = {
+            "match_key": match_key,
+            "identity_key": identity_key,
+            "source_match_id": source_match_id,
+            "source_type": "legacy_unibet_backtest",
+            "source_date": match_date,
+            "start_time": _legacy_target_start_time(legacy_doc),
+            "league_key": league_key,
+            "league_id": league_doc.get("league_id") if league_doc else None,
+            "league_name": league_doc.get("league_name") if league_doc else league_name,
+            "home_team_key": home_team_key,
+            "away_team_key": away_team_key,
+            "home_team_name": home_team_name,
+            "away_team_name": away_team_name,
+            "mapping_confidence": _legacy_target_match_confidence(
+                league_found=league_doc is not None,
+                home_found=home_team is not None,
+                away_found=away_team is not None,
+            ),
+            "legacy_event_id": str(event_id) if event_id is not None else None,
+            "_selection_time": selection_time,
+        }
+        previous = selected_by_match_key.get(match_key)
+        if previous is None or candidate["_selection_time"] > previous["_selection_time"]:
+            selected_by_match_key[match_key] = candidate
+
+    targets = sorted(
+        [
+            {key: value for key, value in row.items() if key != "_selection_time"}
+            for row in selected_by_match_key.values()
+        ],
+        key=lambda row: (
+            str(row.get("source_date") or ""),
+            str(row.get("match_key") or ""),
+        ),
+    )
+    if limit is not None and limit > 0:
+        return targets[:limit]
     return targets
 
 

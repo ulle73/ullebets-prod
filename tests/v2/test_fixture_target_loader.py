@@ -6,8 +6,10 @@ from pathlib import Path
 from ullebets_v2.odds.service import (
     inspect_fixture_target_window_from_database,
     load_fixture_targets_from_database,
+    load_legacy_backtest_targets,
     load_replay_fixture_targets,
 )
+from tests.v2.test_odds_ingest import build_legacy_backtest_doc
 
 
 class FakeCollection:
@@ -20,6 +22,9 @@ class FakeCollection:
         if "source_date" in query:
             allowed = set(query["source_date"]["$in"])
             rows = [row for row in rows if row.get("source_date") in allowed]
+        if "matchDate" in query:
+            allowed = set(query["matchDate"]["$in"])
+            rows = [row for row in rows if row.get("matchDate") in allowed]
         if "start_time" in query:
             start = query["start_time"]["$gte"]
             end = query["start_time"]["$lte"]
@@ -92,6 +97,12 @@ def build_legacy_match_database() -> FakeDatabase:
             }
         ]
     )
+    return database
+
+
+def build_legacy_backtest_database() -> FakeDatabase:
+    database = FakeDatabase()
+    database["unibet-backtest"] = FakeCollection([build_legacy_backtest_doc()])
     return database
 
 
@@ -184,3 +195,45 @@ def test_load_replay_fixture_targets_falls_back_to_legacy_match_database(tmp_pat
     assert targets[0]["match_key"] == "sofascore:14689178"
     assert targets[0]["source_date"] == "2025-11-21"
     assert targets[0]["league_name"] == "Premier League"
+
+
+def test_load_legacy_backtest_targets_builds_canonical_targets_without_fixture_replay() -> None:
+    support_docs = {
+        "leagues": [
+            {
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "league_id": 1,
+                "league_slug": "premier-league",
+            }
+        ],
+        "teams": [
+            {
+                "league_key": "premier-league",
+                "team_key": "premier-league:arsenal",
+                "team_name": "Arsenal",
+                "team_slug": "arsenal",
+            },
+            {
+                "league_key": "premier-league",
+                "team_key": "premier-league:bournemouth",
+                "team_name": "Bournemouth",
+                "team_slug": "bournemouth",
+            },
+        ],
+    }
+
+    targets = load_legacy_backtest_targets(
+        dates=["2025-10-08"],
+        support_docs=support_docs,
+        legacy_backtest_database=build_legacy_backtest_database(),
+    )
+
+    assert len(targets) == 1
+    assert targets[0]["match_key"] == "sofascore:14689178"
+    assert targets[0]["source_type"] == "legacy_unibet_backtest"
+    assert targets[0]["source_date"] == "2025-10-08"
+    assert targets[0]["league_key"] == "premier-league"
+    assert targets[0]["home_team_key"] == "premier-league:arsenal"
+    assert targets[0]["away_team_key"] == "premier-league:bournemouth"
+    assert targets[0]["mapping_confidence"] == "support_names"
