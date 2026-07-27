@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from ullebets_v2.config import V2Config
+from ullebets_v2.model_snapshots.ephemeral import build_ephemeral_model_read_database
 from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle, V2JsModelOracle
 from ullebets_v2.model_snapshots.runtime_parity import run_model_snapshot_runtime_parity_audit
 from ullebets_v2.odds.service import load_legacy_backtest_targets, load_replay_fixture_targets
@@ -30,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source-workflow")
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
+    parser.add_argument("--teamstats-dir", type=Path)
     parser.add_argument(
         "--use-original-model-oracle",
         action="store_true",
@@ -52,7 +54,6 @@ def main() -> int:
         leagues_path=args.leagues_path or config.default_leagues_path(),
         league_urls_path=args.league_urls_path or config.default_league_urls_path(),
     )
-    read_database = get_database(config)
     legacy_app_database = get_legacy_app_database(config)
     if args.target_source == "legacy-backtest":
         targets = load_legacy_backtest_targets(
@@ -68,6 +69,17 @@ def main() -> int:
             old_repo_root=config.old_repo_root,
             legacy_match_database=legacy_app_database,
         )
+    teamstats_dir = args.teamstats_dir or (config.old_repo_root / "data" / "teamstats")
+    if args.use_original_model_oracle:
+        read_database = get_database(config)
+    elif teamstats_dir.exists():
+        read_database = build_ephemeral_model_read_database(
+            teamstats_dir=teamstats_dir,
+            support_docs=support_docs,
+            targets=targets,
+        )
+    else:
+        read_database = get_database(config)
 
     source_workflow = args.source_workflow or (
         "run-unibet-backtests.yml"

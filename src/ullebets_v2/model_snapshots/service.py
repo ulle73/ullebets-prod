@@ -11,7 +11,7 @@ from ullebets_v2.model_snapshots.reports import (
     build_model_snapshot_parity_rows,
 )
 from ullebets_v2.odds.persistence import persist_odds_data_records
-from ullebets_v2.odds.service import _find_legacy_backtest_doc, _parse_match_time, run_unibet_odds_ingest
+from ullebets_v2.odds.service import _build_legacy_tuples, _find_legacy_backtest_doc, _parse_match_time, run_unibet_odds_ingest
 
 
 def utc_now() -> datetime:
@@ -331,6 +331,7 @@ def run_model_snapshot_build(
     odds_oracle: Any | None = None,
     model_oracle: Any | None = None,
     legacy_backtest_database: Any | None = None,
+    use_legacy_snapshot_lines: bool = True,
     fetched_at: datetime | None = None,
     return_documents: bool = False,
 ) -> dict[str, Any]:
@@ -366,6 +367,7 @@ def run_model_snapshot_build(
             row["generated_line_count"] = 0
             match_rows.append(row)
             continue
+        legacy_snapshot = None
         if legacy_backtest_database is not None and row.get("historical_source_found"):
             legacy_doc = _find_legacy_backtest_doc(
                 legacy_backtest_database=legacy_backtest_database,
@@ -379,14 +381,14 @@ def run_model_snapshot_build(
                 if legacy_doc is not None
                 else None
             )
-            if legacy_snapshot is None:
+            if legacy_snapshot is None and use_legacy_snapshot_lines:
                 row["model_errors"] = [
                     {
                         "message": "missing_legacy_snapshot_lines_for_mode",
                         "snapshot_mode": snapshot_mode,
                     }
                 ]
-            else:
+            elif legacy_snapshot is not None and use_legacy_snapshot_lines:
                 row["generated_lines"] = _build_legacy_generated_lines(
                     match_key=match_key,
                     target_match=target,
@@ -399,23 +401,32 @@ def run_model_snapshot_build(
                     row["snapshot_time_source_override"] = legacy_snapshot.get("snapshot_time_source")
                 row["model_source_override"] = legacy_snapshot.get("model_source")
                 row["legacy_selection_source"] = legacy_snapshot.get("selection_source")
-            row["generated_line_count"] = len(row["generated_lines"])
-            match_rows.append(row)
-            continue
-        offer_docs = offers_by_match.get(match_key, [])
-        oracle_input = [
-            {
-                "statKey": offer.get("stat_key"),
-                "scope": offer.get("scope"),
-                "period": offer.get("period"),
-                "line": offer.get("line"),
-                "odds": {
-                    "over": offer.get("over_odds"),
-                    "under": offer.get("under_odds"),
-                },
-            }
-            for offer in offer_docs
-        ]
+                row["generated_line_count"] = len(row["generated_lines"])
+                match_rows.append(row)
+                continue
+
+        if legacy_snapshot is not None and not use_legacy_snapshot_lines:
+            oracle_input = _build_legacy_tuples(list(legacy_snapshot.get("lines") or []))
+            snapshot_time_override = legacy_snapshot.get("snapshot_time")
+            if isinstance(snapshot_time_override, datetime):
+                row["snapshot_time_override"] = snapshot_time_override
+                row["snapshot_time_source_override"] = legacy_snapshot.get("snapshot_time_source")
+            row["legacy_selection_source"] = legacy_snapshot.get("selection_source")
+        else:
+            offer_docs = offers_by_match.get(match_key, [])
+            oracle_input = [
+                {
+                    "statKey": offer.get("stat_key"),
+                    "scope": offer.get("scope"),
+                    "period": offer.get("period"),
+                    "line": offer.get("line"),
+                    "odds": {
+                        "over": offer.get("over_odds"),
+                        "under": offer.get("under_odds"),
+                    },
+                }
+                for offer in offer_docs
+            ]
         if oracle_input and model_oracle is not None:
             built = model_oracle.build_match_lines(
                 match_info={

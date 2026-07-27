@@ -212,6 +212,7 @@ def test_build_match_enrichment_documents_normalizes_stats_and_artifacts(tmp_pat
     assert len(docs["raw_incidents"]) == 2
     assert len(docs["raw_shotmaps"]) == 2
     assert len(docs["raw_results"]) == 2
+    assert len(docs["fixtures_canonical"]) == 1
 
     total_shots_all = next(
         row
@@ -240,6 +241,8 @@ def test_build_match_enrichment_documents_normalizes_stats_and_artifacts(tmp_pat
     assert possession_total == []
     assert docs["match_results"][0]["home_score"] == 2
     assert docs["match_results"][0]["away_score"] == 1
+    assert docs["fixtures_canonical"][0]["match_key"] == "sofascore:14671649"
+    assert docs["fixtures_canonical"][0]["start_time"] == datetime(2025, 11, 21, 8, 35, tzinfo=UTC)
 
 
 def test_build_teamstats_source_rows_from_database_uses_import_meta() -> None:

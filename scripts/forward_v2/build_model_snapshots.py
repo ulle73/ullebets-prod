@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from ullebets_v2.config import V2Config
+from ullebets_v2.model_snapshots.ephemeral import build_ephemeral_model_read_database
 from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle, V2JsModelOracle
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
 from ullebets_v2.odds.oracle import OriginalJsOracle
@@ -18,6 +19,7 @@ from ullebets_v2.odds.service import (
     build_smoke_targets_for_league,
     inspect_fixture_target_window_from_database,
     load_fixture_targets_from_database,
+    load_legacy_backtest_targets,
     load_replay_fixture_targets,
 )
 from ullebets_v2.safety import ensure_v2_database
@@ -27,7 +29,7 @@ from ullebets_v2.support.loaders import load_support_documents
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build directed V2 model snapshot rows using the unchanged legacy JS EV engine.")
-    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "fixture-db"], default="smoke-live")
+    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "fixture-db", "legacy-backtest"], default="smoke-live")
     parser.add_argument("--snapshot-mode", choices=["backtest", "forward"], default="forward")
     parser.add_argument("--snapshot-label", default="CURRENT")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -38,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--date", dest="dates", action="append", default=[])
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
+    parser.add_argument("--teamstats-dir", type=Path)
     odds_oracle_group = parser.add_mutually_exclusive_group()
     odds_oracle_group.add_argument(
         "--use-original-odds-oracle",
@@ -78,6 +81,16 @@ def main() -> int:
             old_repo_root=config.old_repo_root,
             legacy_match_database=get_legacy_app_database(config),
         )
+    elif args.mode == "legacy-backtest":
+        if not args.dates:
+            raise RuntimeError("--date is required in legacy-backtest mode.")
+        source_workflow = args.source_workflow or "run-unibet-backtests.yml"
+        targets = load_legacy_backtest_targets(
+            dates=args.dates,
+            support_docs=support_docs,
+            legacy_backtest_database=get_legacy_app_database(config),
+            limit=args.limit if args.limit > 0 else None,
+        )
     elif args.mode == "fixture-db":
         source_workflow = args.source_workflow or (
             "run-unibet-backtests.yml" if args.snapshot_mode == "backtest" else "run-unibet-forward.yml"
@@ -108,9 +121,22 @@ def main() -> int:
         )
 
     database = None if args.dry_run else (read_database or get_database(config))
-    legacy_backtest_database = get_legacy_app_database(config) if args.mode == "replay-fixtures" else None
+    legacy_backtest_database = get_legacy_app_database(config) if args.mode in {"replay-fixtures", "legacy-backtest"} else None
     odds_oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_odds_oracle else None
     model_read_database = read_database or database
+    teamstats_dir = args.teamstats_dir or (config.old_repo_root / "data" / "teamstats")
+    if (
+        not args.use_original_model_oracle
+        and args.mode == "legacy-backtest"
+        and teamstats_dir.exists()
+    ):
+        model_read_database = build_ephemeral_model_read_database(
+            teamstats_dir=teamstats_dir,
+            support_docs=support_docs,
+            targets=targets,
+        )
+    elif model_read_database is None:
+        model_read_database = get_database(config)
     if args.disable_model_oracle:
         model_oracle = None
     elif args.use_original_model_oracle or args.mode == "replay-fixtures":
@@ -130,6 +156,7 @@ def main() -> int:
         odds_oracle=odds_oracle,
         model_oracle=model_oracle,
         legacy_backtest_database=legacy_backtest_database,
+        use_legacy_snapshot_lines=args.mode != "legacy-backtest",
     )
     if target_window is not None:
         target_window["selected_target_match_count"] = len(targets)

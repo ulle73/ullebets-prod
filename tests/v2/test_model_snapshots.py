@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import UTC, datetime
+import json
+from pathlib import Path
 
 from ullebets_v2.enrichment.replay import build_match_enrichment_documents
+from ullebets_v2.model_snapshots.ephemeral import build_ephemeral_model_read_database
 from ullebets_v2.model_snapshots.oracle import V2JsModelOracle
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
 from ullebets_v2.support.schemas import build_support_documents
@@ -106,6 +109,17 @@ def build_v2_model_history_match() -> dict:
             ]
         },
     }
+
+
+def write_v2_model_teamstats_source(tmp_path: Path) -> Path:
+    source_dir = tmp_path / "teamstats"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    payload = {"full": [build_v2_model_history_match()]}
+    (source_dir / "arsenal_home_match_stats.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+    return source_dir
 
 
 def test_run_model_snapshot_build_dry_run_builds_directed_lines() -> None:
@@ -215,6 +229,56 @@ def test_v2_js_model_oracle_builds_lines_from_v2_profiles_and_raw_history() -> N
     assert all(row["betKey"].startswith("future-arsenal-bournemouth|arsenal|bournemouth|totalShots|total|ALL|") for row in built["lines"])
     assert all(row["homeTeam"] == "Arsenal" for row in built["lines"])
     assert all(row["awayTeam"] == "Bournemouth" for row in built["lines"])
+
+
+def test_ephemeral_model_read_database_bootstraps_v2_oracle_from_teamstats_dir(tmp_path: Path) -> None:
+    support_docs = build_v2_model_support_docs()
+    teamstats_dir = write_v2_model_teamstats_source(tmp_path)
+    target = {
+        "match_key": "future-arsenal-bournemouth",
+        "source_match_id": "future-arsenal-bournemouth",
+        "source_date": "2026-06-22",
+        "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+        "league_key": "premier-league",
+        "league_name": "Premier League",
+        "home_team_key": "premier-league:100",
+        "away_team_key": "premier-league:101",
+        "home_team_name": "Arsenal",
+        "away_team_name": "Bournemouth",
+    }
+    read_database = build_ephemeral_model_read_database(
+        teamstats_dir=teamstats_dir,
+        support_docs=support_docs,
+        targets=[target],
+        generated_at=datetime(2026, 6, 21, 12, 0, tzinfo=UTC),
+    )
+    oracle = V2JsModelOracle(read_database, support_docs)
+
+    built = oracle.build_match_lines(
+        match_info={
+            "matchId": target["source_match_id"],
+            "matchKey": target["match_key"],
+            "homeTeam": target["home_team_name"],
+            "awayTeam": target["away_team_name"],
+            "homeTeamKey": target["home_team_key"],
+            "awayTeamKey": target["away_team_key"],
+            "sourceDate": target["source_date"],
+            "startTime": target["start_time"],
+        },
+        offers=[
+            {
+                "statKey": "totalShots",
+                "scope": "total",
+                "period": "ALL",
+                "line": 20.5,
+                "odds": {"over": 1.82, "under": 2.02},
+            }
+        ],
+    )
+
+    assert built["errors"] == []
+    assert len(built["lines"]) == 2
+    assert {row["direction"] for row in built["lines"]} == {"over", "under"}
 
 
 def test_run_model_snapshot_build_dry_run_handles_empty_target_window() -> None:
@@ -369,6 +433,43 @@ def test_run_model_snapshot_build_replays_historical_backtest_lines() -> None:
     model_snapshot_doc = summary["documents"]["model_snapshot_docs"][0]
     assert model_snapshot_doc["invalid_for_model"] is False
     assert model_snapshot_doc["snapshot_time_source"] == "legacy_doc.generatedAt"
+
+
+def test_run_model_snapshot_build_can_route_legacy_snapshot_tuples_through_model_oracle() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    summary = run_model_snapshot_build(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-backtests.yml",
+        snapshot_mode="backtest",
+        dry_run=True,
+        legacy_backtest_database=historical_database,
+        model_oracle=FakeModelOracle(),
+        use_legacy_snapshot_lines=False,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+        return_documents=True,
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 3
+    assert summary["oracle_error_count"] == 0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["match_rows"][0]["generated_line_count"] == 3
+    assert summary["documents"]["model_snapshot_docs"][0]["snapshot_time_source"] == "legacy_doc.generatedAt"
+    assert {row["primary_ev"] for row in summary["documents"]["model_snapshot_docs"]} == {7.25, -1.5}
 
 
 def test_run_model_snapshot_build_replays_latest_forward_snapshot() -> None:

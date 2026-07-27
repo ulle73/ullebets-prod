@@ -282,11 +282,13 @@ def build_match_enrichment_documents(
     support_docs: dict[str, Any],
 ) -> dict[str, list[dict[str, Any]]]:
     support_lookup = build_support_lookup(support_docs)
+    support_leagues = {str(league["league_key"]): league for league in support_docs.get("leagues", [])}
     raw_match_statistics: list[dict[str, Any]] = []
     raw_incidents: list[dict[str, Any]] = []
     raw_shotmaps: list[dict[str, Any]] = []
     raw_results: list[dict[str, Any]] = []
     match_results_by_key: dict[str, dict[str, Any]] = {}
+    fixtures_by_key: dict[str, dict[str, Any]] = {}
     match_stats_by_key: dict[tuple[str, str, str, str], dict[str, Any]] = {}
 
     for source_row in source_rows:
@@ -296,11 +298,33 @@ def build_match_enrichment_documents(
             source_date = str(match.get("date") or "")
             fetched_at = parse_iso_datetime(match.get("savedAt"))
             context = _resolve_match_context(match, support_lookup)
+            league_doc = support_leagues.get(str(context["league_key"]), {})
+            start_timestamp = match.get("timestamp")
+            start_time = datetime.fromtimestamp(int(start_timestamp), tz=UTC) if start_timestamp else None
+            fixture_doc = {
+                "match_key": match_key,
+                "source_match_id": source_match_id,
+                "source_date": source_date,
+                "start_time": start_time,
+                "league_key": context["league_key"],
+                "league_id": league_doc.get("league_id"),
+                "league_name": league_doc.get("league_name"),
+                "home_team_key": context["home_team_key"],
+                "away_team_key": context["away_team_key"],
+                "home_team_name": match.get("homeTeamName"),
+                "away_team_name": match.get("awayTeamName"),
+                "mapping_confidence": context["mapping_confidence"],
+                "fetched_at": fetched_at,
+            }
+            existing_fixture = fixtures_by_key.get(match_key)
+            if existing_fixture is None or fetched_at >= existing_fixture["fetched_at"]:
+                fixtures_by_key[match_key] = fixture_doc
             result_doc = {
                 "match_key": match_key,
                 "source_match_id": source_match_id,
                 "source_date": source_date,
                 "fetched_at": fetched_at,
+                "start_time": start_time,
                 "league_key": context["league_key"],
                 "home_team_key": context["home_team_key"],
                 "away_team_key": context["away_team_key"],
@@ -401,6 +425,8 @@ def build_match_enrichment_documents(
 
     match_results = list(match_results_by_key.values())
     match_results.sort(key=lambda row: (row["source_date"], row["match_key"]))
+    fixtures_canonical = list(fixtures_by_key.values())
+    fixtures_canonical.sort(key=lambda row: (row["source_date"], row["match_key"]))
     match_stats_canonical = list(match_stats_by_key.values())
     match_stats_canonical.sort(
         key=lambda row: (row["match_key"], row["stat_key"], row["period"], row["scope"])
@@ -412,5 +438,6 @@ def build_match_enrichment_documents(
         "raw_shotmaps": raw_shotmaps,
         "raw_results": raw_results,
         "match_results": match_results,
+        "fixtures_canonical": fixtures_canonical,
         "match_stats_canonical": match_stats_canonical,
     }
