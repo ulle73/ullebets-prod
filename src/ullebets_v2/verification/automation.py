@@ -26,16 +26,6 @@ REQUIRED_ENV_KEYS = [
 ]
 
 HELPER_WORKFLOW_FILES = ["v2-healthcheck.yml", "v2-python-job.yml"]
-LEGACY_REPO_REQUIRED_WORKFLOWS = {
-    "ai-bets-daily.yml",
-    "ai-user-closing.yml",
-    "ai-user-combos.yml",
-    "ai-user-daily.yml",
-    "run-auto-analysis-checkpoints.yml",
-    "run-unibet-backtests.yml",
-    "run-unibet-forward.yml",
-    "v2-healthcheck.yml",
-}
 FORBIDDEN_DIRECT_WORKFLOW_FRAGMENTS = ["npm ", "pnpm ", "yarn ", "node ", "pages/api", "next "]
 HELPER_WORKFLOW_RULES = {
     "v2-healthcheck.yml": {
@@ -56,6 +46,140 @@ HELPER_WORKFLOW_RULES = {
         "forbidden_fragments": [],
     },
 }
+WORKFLOW_CONTENT_RULES = {
+    "update-teamstats-and-teamprofiles.yml": {
+        "required_fragments": ["--fixture-source db"],
+        "forbidden_fragments": [],
+    },
+}
+DEFAULT_WORKFLOW_LEGACY_CONTRACT = {
+    "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+    "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+    "expected_checkout_legacy_repo": False,
+    "notes": [],
+}
+WORKFLOW_LEGACY_CONTRACTS = {
+    "import-fixtures-rolling.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Workflow runs live fixture ingest; replay fixtures still support legacy repo and app parity reads."],
+    },
+    "import-fixtures-dplus7.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Workflow runs live fixture ingest; replay fixtures still support legacy repo and app parity reads."],
+    },
+    "update-teamstats-and-teamprofiles.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Live enrichment is V2-native; replay enrichment still uses legacy teamstats and match sources for parity."],
+    },
+    "backfill-teamstats-from-date.yml": {
+        "default_runtime": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": True,
+        "notes": ["Backfill currently replays legacy teamstats files and app records as read-only reference sources."],
+    },
+    "verify-teamstats-db.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Verification runs on V2 collections only."],
+    },
+    "dump-matchups.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Matchup builders read V2 fixtures and profiles only."],
+    },
+    "enrich-matchups-results.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Settlement uses V2 canonical stats and derived matchup outputs."],
+    },
+    "run-unibet-backtests.yml": {
+        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": True,
+        "notes": ["Default snapshot build still depends on the original JS model oracle; replay parity also reads legacy app history."],
+    },
+    "run-unibet-forward.yml": {
+        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": True,
+        "notes": ["Forward snapshot build still depends on the original JS model oracle; replay parity also reads legacy app history."],
+    },
+    "run-unibet-closing.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Closing capture runs natively in fixture-db mode; replay parity can still read legacy fixtures and odds history."],
+    },
+    "run-unibet-odds-checkpoints.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Checkpoint capture runs natively in fixture-db mode; replay parity can still read legacy fixtures and odds history."],
+    },
+    "correct-backtests-daily.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Snapshot settlement uses V2 canonical match stats and stored snapshots only."],
+    },
+    "run-auto-analysis-checkpoints.yml": {
+        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": True,
+        "notes": ["Auto-analysis still depends on the original JS model oracle in default runtime; replay parity also reads legacy app history."],
+    },
+    "ai-bets-daily.yml": {
+        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": True,
+        "notes": ["Daily export still depends on the original JS model oracle in default runtime."],
+    },
+    "ai-user-combos.yml": {
+        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": True,
+        "notes": ["Combo export still depends on the original JS model oracle in default runtime."],
+    },
+    "ai-user-daily.yml": {
+        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": True,
+        "notes": ["User daily export still depends on the original JS model oracle in default runtime."],
+    },
+    "ai-user-closing.yml": {
+        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": True,
+        "notes": ["User closing export still depends on the original JS model oracle in default runtime."],
+    },
+    "update-opta.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Support sync is intended to run V2-native from versioned support files and external ranking feeds."],
+    },
+    "train-ml-models.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Training export uses V2 settled snapshots and derived training collections."],
+    },
+    "debug-rapidapi-endpoints.yml": {
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Connectivity audit hits configured HTTP sources only."],
+    },
+}
 
 
 def expected_parity_workflow_files() -> list[str]:
@@ -64,6 +188,18 @@ def expected_parity_workflow_files() -> list[str]:
 
 def _workflow_entry_by_name() -> dict[str, dict[str, Any]]:
     return {str(entry["old_workflow"]): entry for entry in WORKFLOW_PARITY_MATRIX}
+
+
+def _workflow_legacy_contract(file_name: str) -> dict[str, Any]:
+    contract = WORKFLOW_LEGACY_CONTRACTS.get(file_name)
+    if contract is None:
+        return dict(DEFAULT_WORKFLOW_LEGACY_CONTRACT)
+    return {
+        "default_runtime": dict(contract["default_runtime"]),
+        "parity_or_replay": dict(contract["parity_or_replay"]),
+        "expected_checkout_legacy_repo": bool(contract["expected_checkout_legacy_repo"]),
+        "notes": list(contract["notes"]),
+    }
 
 
 def _expected_scripts_for_workflow(file_name: str) -> list[str]:
@@ -82,12 +218,18 @@ def _inspect_parity_workflow_file(workflow_path: Path) -> dict[str, Any]:
     file_name = workflow_path.name
     text = workflow_path.read_text(encoding="utf-8")
     expected_scripts = _expected_scripts_for_workflow(file_name)
+    legacy_contract = _workflow_legacy_contract(file_name)
+    content_rules = WORKFLOW_CONTENT_RULES.get(file_name, {"required_fragments": [], "forbidden_fragments": []})
     missing_scripts = [script for script in expected_scripts if f"scripts/forward_v2/{script}" not in text]
+    missing_required_fragments = [
+        fragment for fragment in content_rules["required_fragments"] if fragment not in text
+    ]
+    forbidden_fragments = [fragment for fragment in content_rules["forbidden_fragments"] if fragment in text]
     source_workflow_flag_present = f"--source-workflow {file_name}" in text
     dry_run_flag_present = "--dry-run" in text
     uses_reusable_runner = "uses: ./.github/workflows/v2-python-job.yml" in text
     checkout_legacy_repo = _extract_checkout_legacy_repo_setting(text)
-    requires_legacy_repo = file_name in LEGACY_REPO_REQUIRED_WORKFLOWS
+    requires_legacy_repo = bool(legacy_contract["expected_checkout_legacy_repo"])
     direct_legacy_fragments = [fragment for fragment in FORBIDDEN_DIRECT_WORKFLOW_FRAGMENTS if fragment in text]
 
     findings: list[str] = []
@@ -103,6 +245,10 @@ def _inspect_parity_workflow_file(workflow_path: Path) -> dict[str, Any]:
         findings.append("missing_legacy_repo_checkout")
     if direct_legacy_fragments:
         findings.append("contains_direct_legacy_commands")
+    if missing_required_fragments:
+        findings.append("missing_required_workflow_fragments")
+    if forbidden_fragments:
+        findings.append("contains_forbidden_workflow_fragments")
 
     return {
         "file": file_name,
@@ -115,6 +261,17 @@ def _inspect_parity_workflow_file(workflow_path: Path) -> dict[str, Any]:
         "uses_reusable_runner": uses_reusable_runner,
         "requires_legacy_repo": requires_legacy_repo,
         "checkout_legacy_repo": checkout_legacy_repo,
+        "required_fragments": list(content_rules["required_fragments"]),
+        "missing_required_fragments": missing_required_fragments,
+        "forbidden_fragments": forbidden_fragments,
+        "legacy_contract": legacy_contract,
+        "expected_checkout_legacy_repo": legacy_contract["expected_checkout_legacy_repo"],
+        "default_runtime_uses_old_repo": legacy_contract["default_runtime"]["old_repo"],
+        "default_runtime_uses_legacy_app_db": legacy_contract["default_runtime"]["legacy_app_db"],
+        "default_runtime_uses_legacy_unibet_db": legacy_contract["default_runtime"]["legacy_unibet_db"],
+        "parity_or_replay_uses_old_repo": legacy_contract["parity_or_replay"]["old_repo"],
+        "parity_or_replay_uses_legacy_app_db": legacy_contract["parity_or_replay"]["legacy_app_db"],
+        "parity_or_replay_uses_legacy_unibet_db": legacy_contract["parity_or_replay"]["legacy_unibet_db"],
         "direct_legacy_fragments": direct_legacy_fragments,
         "findings": findings,
     }
@@ -172,6 +329,80 @@ def inspect_workflow_directory(workflow_dir: Path) -> dict[str, Any]:
         "existing_workflow_count": len(existing),
         "file_reports": file_reports,
         "invalid_content_files": invalid_content_files,
+    }
+
+
+def summarize_legacy_dependency_contract(*, workflow_report: dict[str, Any], old_repo_exists: bool) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for report in workflow_report.get("file_reports", []):
+        if report.get("kind") != "parity":
+            continue
+        contract = dict(report.get("legacy_contract") or _workflow_legacy_contract(str(report["file"])))
+        default_runtime = dict(contract["default_runtime"])
+        parity_or_replay = dict(contract["parity_or_replay"])
+        findings: list[str] = []
+        if default_runtime["old_repo"]:
+            findings.append("default_runtime_depends_on_old_repo")
+        if default_runtime["legacy_app_db"]:
+            findings.append("default_runtime_depends_on_legacy_app_db")
+        if default_runtime["legacy_unibet_db"]:
+            findings.append("default_runtime_depends_on_legacy_unibet_db")
+        if contract["expected_checkout_legacy_repo"] and report.get("checkout_legacy_repo") != "true":
+            findings.append("workflow_missing_required_legacy_repo_checkout")
+        if default_runtime["old_repo"] and not old_repo_exists:
+            findings.append("old_repo_missing_for_default_runtime")
+        rows.append(
+            {
+                "old_workflow": report["file"],
+                "v2_job": _workflow_entry_by_name().get(str(report["file"]), {}).get("v2_job"),
+                "status": "ok" if not findings else "warn",
+                "default_runtime": default_runtime,
+                "parity_or_replay": parity_or_replay,
+                "expected_checkout_legacy_repo": contract["expected_checkout_legacy_repo"],
+                "workflow_checkout_legacy_repo": report.get("checkout_legacy_repo"),
+                "notes": list(contract["notes"]),
+                "findings": findings,
+            }
+        )
+
+    default_runtime_blockers = [
+        row
+        for row in rows
+        if any(bool(value) for value in row["default_runtime"].values())
+    ]
+    checkout_mismatches = [
+        row for row in rows if "workflow_missing_required_legacy_repo_checkout" in row["findings"]
+    ]
+    old_repo_runtime_blockers = [row for row in rows if row["default_runtime"]["old_repo"]]
+    optional_only_rows = [
+        row
+        for row in rows
+        if not any(bool(value) for value in row["default_runtime"].values())
+        and any(bool(value) for value in row["parity_or_replay"].values())
+    ]
+    native_ready_rows = [
+        row
+        for row in rows
+        if not any(bool(value) for value in row["default_runtime"].values())
+    ]
+    return {
+        "status": "ok" if not default_runtime_blockers and not checkout_mismatches else "warn",
+        "old_repo_exists": old_repo_exists,
+        "workflow_count": len(rows),
+        "native_ready_workflow_count": len(native_ready_rows),
+        "default_runtime_blocker_count": len(default_runtime_blockers),
+        "default_runtime_old_repo_blocker_count": len(old_repo_runtime_blockers),
+        "default_runtime_legacy_app_db_blocker_count": sum(
+            1 for row in rows if row["default_runtime"]["legacy_app_db"]
+        ),
+        "default_runtime_legacy_unibet_db_blocker_count": sum(
+            1 for row in rows if row["default_runtime"]["legacy_unibet_db"]
+        ),
+        "optional_legacy_support_count": len(optional_only_rows),
+        "checkout_mismatch_count": len(checkout_mismatches),
+        "default_runtime_blocking_workflows": [row["old_workflow"] for row in default_runtime_blockers],
+        "checkout_mismatch_workflows": [row["old_workflow"] for row in checkout_mismatches],
+        "rows": rows,
     }
 
 

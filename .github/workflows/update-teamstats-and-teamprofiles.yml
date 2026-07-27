@@ -35,6 +35,7 @@ jobs:
         fi
         python scripts/forward_v2/ingest_match_enrichment.py \
           --mode live \
+          --fixture-source db \
           --date "$TARGET" \
           --source-workflow update-teamstats-and-teamprofiles.yml \
           --dry-run

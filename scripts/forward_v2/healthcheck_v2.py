@@ -18,7 +18,11 @@ from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.source_connectivity.service import run_source_connectivity_audit
 from ullebets_v2.storage.indexes import build_core_index_plan
 from ullebets_v2.storage.mongo import get_database, list_database_names, ping_database
-from ullebets_v2.verification.automation import inspect_env_example, inspect_workflow_directory
+from ullebets_v2.verification.automation import (
+    inspect_env_example,
+    inspect_workflow_directory,
+    summarize_legacy_dependency_contract,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,6 +50,7 @@ def _build_contract_findings(
     workflow_report: dict,
     env_report: dict,
     database_role_report: dict,
+    legacy_dependency_report: dict,
     old_repo_exists: bool,
 ) -> tuple[str, list[str]]:
     findings: list[str] = []
@@ -61,8 +66,12 @@ def _build_contract_findings(
         findings.append("env_example_mongodb_db_not_v2")
     if database_role_report["conflicts"]:
         findings.append("database_role_conflicts")
-    if not old_repo_exists:
-        findings.append("legacy_repo_root_missing")
+    if legacy_dependency_report["default_runtime_blocker_count"]:
+        findings.append("default_runtime_has_legacy_dependencies")
+    if legacy_dependency_report["checkout_mismatch_count"]:
+        findings.append("workflow_legacy_checkout_mismatches")
+    if not old_repo_exists and legacy_dependency_report["default_runtime_old_repo_blocker_count"]:
+        findings.append("legacy_repo_missing_for_default_runtime")
     return ("ok" if not findings else "warn"), findings
 
 
@@ -91,10 +100,15 @@ def main() -> int:
     workflow_report = inspect_workflow_directory(config.repo_root / ".github" / "workflows")
     env_report = inspect_env_example(config.repo_root / ".env.example")
     database_role_report = _build_database_role_report(config)
+    legacy_dependency_report = summarize_legacy_dependency_contract(
+        workflow_report=workflow_report,
+        old_repo_exists=config.old_repo_root.exists(),
+    )
     contract_status, contract_findings = _build_contract_findings(
         workflow_report=workflow_report,
         env_report=env_report,
         database_role_report=database_role_report,
+        legacy_dependency_report=legacy_dependency_report,
         old_repo_exists=config.old_repo_root.exists(),
     )
 
@@ -112,6 +126,7 @@ def main() -> int:
         "workflow_parity_count": len(materialize_parity_rows()),
         "workflow_files": workflow_report,
         "env_example": env_report,
+        "legacy_dependency_contract": legacy_dependency_report,
         "health_contract": build_health_report_row(
             job_name="healthcheck_v2",
             status=contract_status,
@@ -122,6 +137,8 @@ def main() -> int:
                 "env_missing_count": len(env_report["missing_required_keys"]),
                 "database_role_conflict_count": len(database_role_report["conflicts"]),
                 "old_repo_root_exists": config.old_repo_root.exists(),
+                "default_runtime_legacy_blocker_count": legacy_dependency_report["default_runtime_blocker_count"],
+                "legacy_checkout_mismatch_count": legacy_dependency_report["checkout_mismatch_count"],
             },
         ),
         "audit_contract": build_audit_report_row(
@@ -135,6 +152,8 @@ def main() -> int:
                 "env_missing_count": len(env_report["missing_required_keys"]),
                 "database_role_conflict_count": len(database_role_report["conflicts"]),
                 "workflow_existing_count": workflow_report["existing_workflow_count"],
+                "default_runtime_legacy_blocker_count": legacy_dependency_report["default_runtime_blocker_count"],
+                "legacy_checkout_mismatch_count": legacy_dependency_report["checkout_mismatch_count"],
             },
         ),
     }

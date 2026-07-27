@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date")
     parser.add_argument("--end-date")
     parser.add_argument("--mode", choices=("replay", "live"), default="replay")
-    parser.add_argument("--fixture-source", choices=("replay", "db"), default="replay")
+    parser.add_argument("--fixture-source", choices=("replay", "db"), default="db")
     parser.add_argument("--source-workflow", default="update-teamstats-and-teamprofiles.yml")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()

@@ -26,6 +26,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 180
+      checkout_legacy_repo: true
       run_command: |
         END="${{ inputs.end_date }}"
         if [ -z "$END" ]; then
