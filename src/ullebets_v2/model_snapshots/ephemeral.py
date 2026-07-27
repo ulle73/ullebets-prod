@@ -55,6 +55,20 @@ def _filter_source_rows_for_targets(
     return filtered or source_rows
 
 
+def build_ephemeral_match_enrichment_documents(
+    *,
+    teamstats_dir: Path,
+    support_docs: dict[str, Any],
+    targets: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    source_rows = build_teamstats_source_rows(teamstats_dir)
+    selected_source_rows = _filter_source_rows_for_targets(source_rows, targets)
+    return build_match_enrichment_documents(
+        source_rows=selected_source_rows,
+        support_docs=support_docs,
+    )
+
+
 class InMemoryReadCollection:
     def __init__(self, docs: Iterable[dict[str, Any]]) -> None:
         self.docs = [deepcopy(doc) for doc in docs]
@@ -103,11 +117,10 @@ def build_ephemeral_model_read_database(
     targets: list[dict[str, Any]],
     generated_at: datetime | None = None,
 ) -> InMemoryReadDatabase:
-    source_rows = build_teamstats_source_rows(teamstats_dir)
-    selected_source_rows = _filter_source_rows_for_targets(source_rows, targets)
-    docs = build_match_enrichment_documents(
-        source_rows=selected_source_rows,
+    docs = build_ephemeral_match_enrichment_documents(
+        teamstats_dir=teamstats_dir,
         support_docs=support_docs,
+        targets=targets,
     )
     target_dates = sorted({date_str for row in targets if (date_str := _target_source_date(row))})
     profile_docs: list[dict[str, Any]] = []

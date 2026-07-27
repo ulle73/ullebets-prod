@@ -10,18 +10,26 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from ullebets_v2.clv_tracking.service import run_clv_tracking_refresh
+from ullebets_v2.clv_tracking.service import (
+    build_legacy_reference_closing_line_docs,
+    load_legacy_clv_reference_docs,
+    load_legacy_tracking_source_docs,
+    run_clv_tracking_refresh,
+)
 from ullebets_v2.config import V2Config
 from ullebets_v2.safety import ensure_v2_database
-from ullebets_v2.storage.mongo import get_database
+from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Refresh V2 CLV tracking rows from forward_bets_v2 and closing_lines_v2.")
+    parser.add_argument("--mode", choices=["paths-or-db", "legacy-result-loop"], default="paths-or-db")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--tracked-bets-path", type=Path)
     parser.add_argument("--model-snapshots-path", type=Path)
     parser.add_argument("--closing-lines-path", type=Path)
+    parser.add_argument("--legacy-source", choices=["all", "result-loop", "shortlist"], default="all")
+    parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -42,10 +50,35 @@ def main() -> int:
     tracked_bet_docs = _load_json_rows(args.tracked_bets_path) if args.tracked_bets_path else None
     model_snapshot_docs = _load_json_rows(args.model_snapshots_path) if args.model_snapshots_path else None
     closing_line_docs = _load_json_rows(args.closing_lines_path) if args.closing_lines_path else None
+    legacy_clv_reference_docs = None
+    if args.mode == "legacy-result-loop":
+        legacy_app_database = get_legacy_app_database(config)
+        legacy_clv_reference_docs = load_legacy_clv_reference_docs(
+            legacy_app_database,
+            limit=args.limit if args.limit > 0 else None,
+        )
+        tracking_keys = {
+            str(row["tracking_key"])
+            for row in legacy_clv_reference_docs
+            if row.get("tracking_key") is not None
+        }
+        include_sources = (
+            {"result-loop", "shortlist"}
+            if args.legacy_source == "all"
+            else {args.legacy_source}
+        )
+        tracked_bet_docs = load_legacy_tracking_source_docs(
+            legacy_app_database,
+            tracking_keys=tracking_keys,
+            include_sources=include_sources,
+        )
+        closing_line_docs = build_legacy_reference_closing_line_docs(legacy_clv_reference_docs)
+        model_snapshot_docs = None
     summary = run_clv_tracking_refresh(
         tracked_bet_docs=tracked_bet_docs,
         model_snapshot_docs=model_snapshot_docs,
         closing_line_docs=closing_line_docs,
+        legacy_clv_reference_docs=legacy_clv_reference_docs,
         database=database,
         dry_run=args.dry_run,
     )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from ullebets_v2.settlement.reports import build_settlement_parity_rows
 from ullebets_v2.settlement.rules import settle_line
 from ullebets_v2.settlement.service import run_model_snapshot_settlement
 
@@ -174,3 +175,56 @@ def test_run_model_snapshot_settlement_dry_run_treats_historical_source_gap_as_n
     assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_build_settlement_parity_rows_flags_real_legacy_settlement_mismatches() -> None:
+    parity_rows = build_settlement_parity_rows(
+        source_workflow="correct-backtests-daily.yml",
+        model_snapshot_docs=[
+            {
+                "selection_key": "sel-legacy-mismatch",
+                "match_key": "match-legacy-mismatch",
+                "bet_key": "bet-legacy-mismatch",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 9.5,
+                "selected_odds": 1.95,
+                "legacy_actual_value": 8,
+                "legacy_settlement_result": "loss",
+                "legacy_win": False,
+            }
+        ],
+        settled_docs=[
+            {
+                "selection_key": "sel-legacy-mismatch",
+                "match_key": "match-legacy-mismatch",
+                "bet_key": "bet-legacy-mismatch",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 9.5,
+                "selected_odds": 1.95,
+                "settlement_status": "settled",
+                "settlement_result": "win",
+                "actual_value": 11,
+                "win": True,
+                "legacy_actual_value": 8,
+                "legacy_settlement_result": "loss",
+                "legacy_win": False,
+            }
+        ],
+        report_date="2026-06-22",
+    )
+
+    row = parity_rows[0]
+    assert row["parity_status"] == "mismatch"
+    assert row["counts_v2"]["legacy_comparable_count"] == 1
+    assert row["counts_v2"]["legacy_actual_mismatch_count"] == 1
+    assert row["counts_v2"]["legacy_result_mismatch_count"] == 1
+    assert row["counts_v2"]["legacy_win_mismatch_count"] == 1
+    assert "legacy_actual_mismatches_present" in row["blocking_issues"]
+    assert "legacy_result_mismatches_present" in row["blocking_issues"]
+    assert "legacy_win_mismatches_present" in row["blocking_issues"]

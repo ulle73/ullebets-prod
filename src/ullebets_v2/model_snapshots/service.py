@@ -225,6 +225,61 @@ def _build_legacy_generated_lines(
     return generated_lines
 
 
+def _line_signature_for_legacy_reference(line: dict[str, Any]) -> tuple[str, str, str, float, str] | None:
+    direction = _normalize_legacy_direction(line.get("condition")) or str(line.get("direction") or "").lower()
+    stat_key = str(line.get("statKey") or line.get("stat_key") or "")
+    scope = str(line.get("scope") or "")
+    period = str(line.get("period") or "")
+    if not stat_key or not scope or not period or direction not in {"over", "under"}:
+        return None
+    try:
+        line_value = float(line.get("line") if line.get("line") is not None else line.get("line_value"))
+    except (TypeError, ValueError):
+        return None
+    return (stat_key, scope, period, line_value, direction)
+
+
+def _attach_legacy_reference_settlement(
+    *,
+    generated_lines: list[dict[str, Any]],
+    legacy_reference_lines: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    reference_by_bet_key: dict[str, dict[str, Any]] = {}
+    reference_by_signature: dict[tuple[str, str, str, float, str], dict[str, Any]] = {}
+    for row in legacy_reference_lines:
+        signature = _line_signature_for_legacy_reference(row)
+        if signature is not None:
+            reference_by_signature[signature] = row
+        bet_key = str(row.get("betKey") or "")
+        if bet_key:
+            reference_by_bet_key[bet_key] = row
+
+    enriched: list[dict[str, Any]] = []
+    for line in generated_lines:
+        bet_key = str(line.get("betKey") or "")
+        reference = reference_by_bet_key.get(bet_key)
+        if reference is None:
+            signature = _line_signature_for_legacy_reference(line)
+            if signature is not None:
+                reference = reference_by_signature.get(signature)
+        if reference is None:
+            enriched.append(line)
+            continue
+        enriched.append(
+            {
+                **line,
+                "legacyActualValue": reference.get("actual"),
+                "legacySettlementResult": _infer_legacy_settlement_result(
+                    actual_value=reference.get("actual"),
+                    line_value=line.get("line"),
+                    win=reference.get("win"),
+                ),
+                "legacyWin": reference.get("win"),
+            }
+        )
+    return enriched
+
+
 def build_model_snapshot_docs(
     *,
     target_matches: list[dict[str, Any]],
@@ -446,6 +501,11 @@ def run_model_snapshot_build(
             )
             row["generated_lines"] = built.get("lines", []) if isinstance(built, dict) else []
             row["model_errors"] = built.get("errors", []) if isinstance(built, dict) else [{"message": "invalid_model_oracle_response"}]
+            if legacy_snapshot is not None:
+                row["generated_lines"] = _attach_legacy_reference_settlement(
+                    generated_lines=row["generated_lines"],
+                    legacy_reference_lines=legacy_snapshot.get("legacy_reference_lines") or legacy_snapshot.get("lines") or [],
+                )
         elif oracle_input:
             row["model_errors"] = [{"message": "model_oracle_required"}]
         row["generated_line_count"] = len(row["generated_lines"])

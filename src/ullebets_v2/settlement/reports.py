@@ -20,13 +20,60 @@ def _historical_source_gap_missing_actual_count(settled_docs: list[dict[str, Any
         1
         for row in settled_docs
         if row.get("settlement_status") == "missing_actual"
+        and row.get("actual_source_status") == "stat_not_in_canonical_source"
         and (
-            row.get("actual_source_status") == "stat_not_in_canonical_source"
-            or row.get("legacy_actual_value") is not None
+            row.get("legacy_actual_value") is not None
             or row.get("legacy_settlement_result") is not None
             or row.get("legacy_win") is not None
         )
     )
+
+
+def _legacy_settlement_mismatch_counts(settled_docs: list[dict[str, Any]]) -> dict[str, int]:
+    actual_mismatch = 0
+    result_mismatch = 0
+    win_mismatch = 0
+    comparable = 0
+    for row in settled_docs:
+        legacy_actual = row.get("legacy_actual_value")
+        legacy_result = row.get("legacy_settlement_result")
+        legacy_win = row.get("legacy_win")
+        if legacy_actual is None and legacy_result is None and legacy_win is None:
+            continue
+
+        is_historical_gap = (
+            row.get("settlement_status") == "missing_actual"
+            and row.get("actual_source_status") == "stat_not_in_canonical_source"
+        )
+        if is_historical_gap:
+            continue
+
+        row_actual = row.get("actual_value")
+        row_result = row.get("settlement_result")
+        row_win = row.get("win")
+        row_comparable = False
+
+        if legacy_actual is not None and row_actual is not None:
+            row_comparable = True
+            if row_actual != legacy_actual:
+                actual_mismatch += 1
+        if legacy_result is not None and row_result is not None:
+            row_comparable = True
+            if row_result != legacy_result:
+                result_mismatch += 1
+        if legacy_win is not None and row_win is not None:
+            row_comparable = True
+            if row_win != legacy_win:
+                win_mismatch += 1
+
+        if row_comparable:
+            comparable += 1
+    return {
+        "legacy_comparable_count": comparable,
+        "legacy_actual_mismatch_count": actual_mismatch,
+        "legacy_result_mismatch_count": result_mismatch,
+        "legacy_win_mismatch_count": win_mismatch,
+    }
 
 
 def build_settlement_parity_rows(
@@ -59,15 +106,28 @@ def build_settlement_parity_rows(
 
     status_counts = _count_by(settled_docs, "settlement_status")
     historical_gap_count = _historical_source_gap_missing_actual_count(settled_docs)
+    legacy_mismatches = _legacy_settlement_mismatch_counts(settled_docs)
     blocking_missing_actual_count = max(0, status_counts.get("missing_actual", 0) - historical_gap_count)
     parity_status = "matched"
     blocking_issues: list[str] = []
-    if blocking_missing_actual_count or status_counts.get("rule_error", 0):
+    if (
+        blocking_missing_actual_count
+        or status_counts.get("rule_error", 0)
+        or legacy_mismatches["legacy_actual_mismatch_count"]
+        or legacy_mismatches["legacy_result_mismatch_count"]
+        or legacy_mismatches["legacy_win_mismatch_count"]
+    ):
         parity_status = "mismatch"
         if blocking_missing_actual_count:
             blocking_issues.append("missing_actual_values_present")
         if status_counts.get("rule_error", 0):
             blocking_issues.append("rule_errors_present")
+        if legacy_mismatches["legacy_actual_mismatch_count"]:
+            blocking_issues.append("legacy_actual_mismatches_present")
+        if legacy_mismatches["legacy_result_mismatch_count"]:
+            blocking_issues.append("legacy_result_mismatches_present")
+        if legacy_mismatches["legacy_win_mismatch_count"]:
+            blocking_issues.append("legacy_win_mismatches_present")
 
     audit_risks: list[str] = []
     if historical_gap_count:
@@ -98,6 +158,7 @@ def build_settlement_parity_rows(
                 "status_counts": status_counts,
                 "historical_source_gap_missing_actual_count": historical_gap_count,
                 "blocking_missing_actual_count": blocking_missing_actual_count,
+                **legacy_mismatches,
                 "result_bucket_counts": _count_by(settled_docs, "settlement_result"),
             },
             parity_status=parity_status,
@@ -129,6 +190,7 @@ def build_settlement_audit_rows(
     status_counts = _count_by(settled_docs, "settlement_status")
     result_counts = _count_by(settled_docs, "settlement_result")
     historical_gap_count = _historical_source_gap_missing_actual_count(settled_docs)
+    legacy_mismatches = _legacy_settlement_mismatch_counts(settled_docs)
     blocking_missing_actual_count = max(0, status_counts.get("missing_actual", 0) - historical_gap_count)
     findings: list[str] = []
     if status_counts.get("pending_result", 0):
@@ -139,7 +201,19 @@ def build_settlement_audit_rows(
         findings.append("missing_actual_values_present")
     if status_counts.get("rule_error", 0):
         findings.append("rule_errors_present")
-    status = "ok" if not (blocking_missing_actual_count or status_counts.get("rule_error", 0)) else "warn"
+    if legacy_mismatches["legacy_actual_mismatch_count"]:
+        findings.append("legacy_actual_mismatches_present")
+    if legacy_mismatches["legacy_result_mismatch_count"]:
+        findings.append("legacy_result_mismatches_present")
+    if legacy_mismatches["legacy_win_mismatch_count"]:
+        findings.append("legacy_win_mismatches_present")
+    status = "ok" if not (
+        blocking_missing_actual_count
+        or status_counts.get("rule_error", 0)
+        or legacy_mismatches["legacy_actual_mismatch_count"]
+        or legacy_mismatches["legacy_result_mismatch_count"]
+        or legacy_mismatches["legacy_win_mismatch_count"]
+    ) else "warn"
     return [
         build_audit_report_row(
             audit_type="model_snapshot_settlement",
@@ -153,6 +227,7 @@ def build_settlement_audit_rows(
                 "historical_source_gap_missing_actual_count": historical_gap_count,
                 "blocking_missing_actual_count": blocking_missing_actual_count,
                 "rule_error_count": status_counts.get("rule_error", 0),
+                **legacy_mismatches,
                 "invalid_for_model_count": sum(1 for row in settled_docs if row.get("invalid_for_model")),
                 "result_bucket_counts": result_counts,
             },

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from ullebets_v2.clv_tracking.service import run_clv_tracking_refresh
+from ullebets_v2.clv_tracking.reports import build_clv_tracking_parity_rows
+from ullebets_v2.clv_tracking.service import (
+    build_legacy_reference_closing_line_docs,
+    run_clv_tracking_refresh,
+)
 
 
 def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds() -> None:
@@ -146,3 +150,185 @@ def test_run_clv_tracking_refresh_dry_run_handles_empty_input() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_build_legacy_reference_closing_line_docs_groups_over_and_under_rows() -> None:
+    docs = build_legacy_reference_closing_line_docs(
+        [
+            {
+                "tracking_key": "sel-over",
+                "match_key": "sofascore:1",
+                "source_match_id": "1",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Chelsea",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 10.5,
+                "opening_odds": 2.0,
+                "opening_observed_at": "2026-06-22T09:00:00Z",
+                "latest_observed_odds": 1.9,
+                "latest_observed_at": "2026-06-22T09:50:00Z",
+                "closing_odds": 1.8,
+                "closing_observed_at": "2026-06-22T09:55:00Z",
+                "prematch_observation_count": 3,
+                "price_history": [
+                    {"odds": 2.0, "observedAt": "2026-06-22T09:00:00Z"},
+                    {"odds": 1.9, "observedAt": "2026-06-22T09:50:00Z"},
+                    {"odds": 1.8, "observedAt": "2026-06-22T09:55:00Z"},
+                ],
+            },
+            {
+                "tracking_key": "sel-under",
+                "match_key": "sofascore:1",
+                "source_match_id": "1",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Chelsea",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "under",
+                "line_value": 10.5,
+                "opening_odds": 1.9,
+                "opening_observed_at": "2026-06-22T09:00:00Z",
+                "latest_observed_odds": 2.0,
+                "latest_observed_at": "2026-06-22T09:50:00Z",
+                "closing_odds": 2.1,
+                "closing_observed_at": "2026-06-22T09:55:00Z",
+                "prematch_observation_count": 3,
+                "price_history": [
+                    {"odds": 1.9, "observedAt": "2026-06-22T09:00:00Z"},
+                    {"odds": 2.0, "observedAt": "2026-06-22T09:50:00Z"},
+                    {"odds": 2.1, "observedAt": "2026-06-22T09:55:00Z"},
+                ],
+            },
+        ]
+    )
+
+    assert len(docs) == 1
+    doc = docs[0]
+    assert doc["opening_over_odds"] == 2.0
+    assert doc["opening_under_odds"] == 1.9
+    assert doc["closing_over_odds"] == 1.8
+    assert doc["closing_under_odds"] == 2.1
+    assert len(doc["price_history"]) == 3
+
+
+def test_run_clv_tracking_refresh_dry_run_matches_legacy_shortlist_reference() -> None:
+    legacy_reference_docs = [
+        {
+            "tracking_key": "1:Arsenal::Chelsea::cornerKicks::total::ALL::10.5::over::all::false",
+            "match_key": "sofascore:1",
+            "source_match_id": "1",
+            "event_id": "evt-1",
+            "event_url": "https://www.unibet.se/betting/sports/event/evt-1",
+            "league_name": "Premier League",
+            "home_team_name": "Arsenal",
+            "away_team_name": "Chelsea",
+            "stat_key": "cornerKicks",
+            "period": "ALL",
+            "scope": "total",
+            "direction": "over",
+            "line_value": 10.5,
+            "saved_odds": 2.0,
+            "opening_odds": 2.0,
+            "opening_observed_at": "2026-06-22T09:00:00Z",
+            "latest_observed_odds": 1.9,
+            "latest_observed_at": "2026-06-22T09:50:00Z",
+            "closing_odds": 1.8,
+            "closing_observed_at": "2026-06-22T09:55:00Z",
+            "clv_pct": 11.1,
+            "implied_edge_delta": 5.56,
+            "beat_closing_line": True,
+            "prematch_observation_count": 3,
+            "price_history": [
+                {"odds": 2.0, "observedAt": "2026-06-22T09:00:00Z"},
+                {"odds": 1.9, "observedAt": "2026-06-22T09:50:00Z"},
+                {"odds": 1.8, "observedAt": "2026-06-22T09:55:00Z"},
+            ],
+            "legacy_status": "closed",
+            "created_at": "2026-06-22T10:00:00Z",
+        }
+    ]
+    summary = run_clv_tracking_refresh(
+        tracked_bet_docs=[
+            {
+                "matchId": "1",
+                "homeTeamName": "Arsenal",
+                "awayTeamName": "Chelsea",
+                "leagueName": "Premier League",
+                "headline": "Över 10.5 Hörnor",
+                "bet": {
+                    "key": "Arsenal::Chelsea::cornerKicks::total::ALL::10.5::over::all::false",
+                    "statKey": "cornerKicks",
+                    "line": 10.5,
+                    "direction": "over",
+                    "scope": "total",
+                    "period": "ALL",
+                    "odds": 2.0,
+                    "homeTeam": "Arsenal",
+                    "awayTeam": "Chelsea",
+                },
+                "createdAt": "2026-06-22T09:00:00Z",
+                "match_start_time": "2026-06-22T10:00:00Z",
+                "trackingSource": "shortlist",
+            }
+        ],
+        closing_line_docs=build_legacy_reference_closing_line_docs(legacy_reference_docs),
+        legacy_clv_reference_docs=legacy_reference_docs,
+        dry_run=True,
+        refreshed_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+    doc = summary["clv_docs"][0]
+    assert doc["tracking_key"] == legacy_reference_docs[0]["tracking_key"]
+    assert doc["clv_pct"] == 11.1
+    assert doc["beat_closing_line"] is True
+
+
+def test_build_clv_tracking_parity_rows_flags_legacy_metric_mismatches() -> None:
+    parity_rows = build_clv_tracking_parity_rows(
+        tracked_bet_docs=[{"tracking_key": "sel-1"}],
+        clv_docs=[
+            {
+                "tracking_key": "sel-1",
+                "saved_odds": 2.0,
+                "opening_odds": 2.0,
+                "latest_observed_odds": 1.8,
+                "closing_odds": 1.8,
+                "clv_pct": 11.1,
+                "implied_edge_delta": 5.56,
+                "beat_closing_line": True,
+                "prematch_observation_count": 2,
+                "clv_status": "tracked",
+            }
+        ],
+        legacy_reference_docs=[
+            {
+                "tracking_key": "sel-1",
+                "saved_odds": 2.0,
+                "opening_odds": 2.0,
+                "latest_observed_odds": 1.8,
+                "closing_odds": 1.7,
+                "clv_pct": 17.6,
+                "implied_edge_delta": 8.82,
+                "beat_closing_line": True,
+                "prematch_observation_count": 2,
+            }
+        ],
+        report_date="2026-06-22",
+    )
+
+    row = parity_rows[0]
+    assert row["parity_status"] == "mismatch"
+    assert row["counts_v2"]["legacy_comparable_count"] == 1
+    assert row["counts_v2"]["legacy_closing_odds_mismatch_count"] == 1
+    assert row["counts_v2"]["legacy_clv_pct_mismatch_count"] == 1
+    assert row["counts_v2"]["legacy_implied_edge_delta_mismatch_count"] == 1
+    assert "legacy_closing_odds_mismatches_present" in row["blocking_issues"]
