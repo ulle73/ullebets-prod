@@ -15,12 +15,14 @@ from ullebets_v2.analysis import InternalAnalysisOracle
 from ullebets_v2.analysis.oracle import OriginalJsAutoAnalysisOracle
 from ullebets_v2.analysis.service import run_auto_analysis_pipeline
 from ullebets_v2.config import V2Config
-from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle
+from ullebets_v2.model_snapshots.ephemeral import build_ephemeral_model_read_database
+from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle, V2JsModelOracle
 from ullebets_v2.odds.oracle import OriginalJsOracle
 from ullebets_v2.odds.service import (
     build_smoke_targets_for_league,
     inspect_fixture_target_window_from_database,
     load_fixture_targets_from_database,
+    load_legacy_backtest_targets,
     load_replay_fixture_targets,
 )
 from ullebets_v2.safety import ensure_v2_database
@@ -30,7 +32,7 @@ from ullebets_v2.support.loaders import load_support_documents
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run V2 auto-analysis using canonical model snapshots and the legacy JS ranking policy.")
-    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "fixture-db"], default="smoke-live")
+    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "legacy-backtest", "fixture-db"], default="smoke-live")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--source-workflow", default="run-auto-analysis-checkpoints.yml")
     parser.add_argument("--league")
@@ -48,6 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--now", help="Optional ISO timestamp override for deterministic replay.")
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
+    parser.add_argument("--teamstats-dir", type=Path)
     odds_oracle_group = parser.add_mutually_exclusive_group()
     odds_oracle_group.add_argument(
         "--use-original-odds-oracle",
@@ -56,6 +59,7 @@ def parse_args() -> argparse.Namespace:
     )
     odds_oracle_group.add_argument("--disable-odds-oracle", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--disable-model-oracle", action="store_true")
+    parser.add_argument("--use-original-model-oracle", action="store_true")
     parser.add_argument("--disable-analysis-oracle", action="store_true")
     parser.add_argument("--use-original-analysis-oracle", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -82,6 +86,17 @@ def main() -> int:
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
             legacy_match_database=get_legacy_app_database(config),
+        )
+        run_date = args.run_date or args.dates[0]
+    elif args.mode == "legacy-backtest":
+        if not args.dates:
+            raise RuntimeError("--date is required in legacy-backtest mode.")
+        targets = load_legacy_backtest_targets(
+            dates=args.dates,
+            support_docs=support_docs,
+            legacy_backtest_database=get_legacy_app_database(config),
+            legacy_match_database=get_legacy_app_database(config),
+            limit=args.limit if args.limit > 0 else None,
         )
         run_date = args.run_date or args.dates[0]
     elif args.mode == "fixture-db":
@@ -114,9 +129,29 @@ def main() -> int:
     fetched_at = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else None
     snapshot_read_database = read_database or (get_database(config) if args.snapshot_source == "db" else None)
     database = None if args.dry_run else (read_database or get_database(config))
-    legacy_backtest_database = get_legacy_app_database(config) if args.mode == "replay-fixtures" else None
+    legacy_backtest_database = get_legacy_app_database(config) if args.mode in {"replay-fixtures", "legacy-backtest"} else None
     odds_oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_odds_oracle else None
-    model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
+    teamstats_dir = args.teamstats_dir or (config.old_repo_root / "data" / "teamstats")
+    model_read_database = snapshot_read_database
+    if (
+        not args.use_original_model_oracle
+        and args.mode == "legacy-backtest"
+        and teamstats_dir.exists()
+    ):
+        model_read_database = build_ephemeral_model_read_database(
+            teamstats_dir=teamstats_dir,
+            support_docs=support_docs,
+            targets=targets,
+            generated_at=fetched_at,
+        )
+    if args.disable_model_oracle:
+        model_oracle = None
+    elif args.use_original_model_oracle or args.mode == "replay-fixtures":
+        model_oracle = OriginalJsModelOracle(config.old_repo_root)
+    elif model_read_database is not None:
+        model_oracle = V2JsModelOracle(model_read_database, support_docs)
+    else:
+        model_oracle = None
     if args.disable_analysis_oracle:
         analysis_oracle = False
     elif args.use_original_analysis_oracle:
@@ -140,6 +175,7 @@ def main() -> int:
         odds_oracle=odds_oracle,
         model_oracle=model_oracle,
         legacy_backtest_database=legacy_backtest_database,
+        use_legacy_snapshot_lines=args.mode != "legacy-backtest",
         fetched_at=fetched_at,
         snapshot_source=args.snapshot_source,
         snapshot_read_database=snapshot_read_database,

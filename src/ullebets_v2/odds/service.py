@@ -131,11 +131,102 @@ def _legacy_target_start_time(legacy_doc: dict[str, Any]) -> datetime | None:
     return None
 
 
+def _legacy_match_candidate_score(
+    *,
+    source_match_id: Any,
+    home_team_name: Any,
+    away_team_name: Any,
+    candidate_match_id: Any,
+    candidate_home_team_name: Any,
+    candidate_away_team_name: Any,
+) -> int:
+    score = 0
+    if source_match_id is not None and candidate_match_id is not None and str(source_match_id) == str(candidate_match_id):
+        score += 100
+    if home_team_name and normalize_team_name(candidate_home_team_name) == normalize_team_name(home_team_name):
+        score += 20
+    if away_team_name and normalize_team_name(candidate_away_team_name) == normalize_team_name(away_team_name):
+        score += 20
+    return score
+
+
+def _resolve_legacy_target_start_time(
+    *,
+    legacy_doc: dict[str, Any],
+    legacy_match_database: Any | None,
+) -> datetime | None:
+    direct = _legacy_target_start_time(legacy_doc)
+    if direct is not None or legacy_match_database is None:
+        return direct
+
+    match_date = str(legacy_doc.get("matchDate") or "").strip()
+    if not match_date:
+        return None
+    source_match_id = legacy_doc.get("matchId")
+    home_team_name = legacy_doc.get("homeTeam")
+    away_team_name = legacy_doc.get("awayTeam")
+
+    best_score = -1
+    best_timestamp: int | None = None
+
+    for doc in legacy_match_database["match-for-date"].find({}, projection={"_id": 0, "full": 1}):
+        full = doc.get("full") or []
+        if not full:
+            continue
+        entry = full[0]
+        if str(entry.get("date") or "") != match_date:
+            continue
+        for row in entry.get("matches") or []:
+            score = _legacy_match_candidate_score(
+                source_match_id=source_match_id,
+                home_team_name=home_team_name,
+                away_team_name=away_team_name,
+                candidate_match_id=row.get("id") or row.get("matchId"),
+                candidate_home_team_name=(row.get("homeTeam") or {}).get("name"),
+                candidate_away_team_name=(row.get("awayTeam") or {}).get("name"),
+            )
+            timestamp = row.get("startTimestamp") or row.get("timestamp")
+            if score > best_score and timestamp:
+                best_score = score
+                best_timestamp = int(timestamp)
+        if best_score >= 100 and best_timestamp is not None:
+            return datetime.fromtimestamp(best_timestamp, tz=UTC)
+
+    if best_timestamp is not None and best_score >= 40:
+        return datetime.fromtimestamp(best_timestamp, tz=UTC)
+
+    projection = {"_id": 0, "full": 1, "matches": 1}
+    for doc in legacy_match_database["teamstats"].find({}, projection=projection):
+        rows = doc.get("full") if isinstance(doc.get("full"), list) else doc.get("matches")
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if str(row.get("date") or "") != match_date:
+                continue
+            score = _legacy_match_candidate_score(
+                source_match_id=source_match_id,
+                home_team_name=home_team_name,
+                away_team_name=away_team_name,
+                candidate_match_id=row.get("matchId") or row.get("id"),
+                candidate_home_team_name=row.get("homeTeamName"),
+                candidate_away_team_name=row.get("awayTeamName"),
+            )
+            timestamp = row.get("timestamp") or row.get("startTimestamp")
+            if score > best_score and timestamp:
+                best_score = score
+                best_timestamp = int(timestamp)
+
+    if best_timestamp is None or best_score < 40:
+        return None
+    return datetime.fromtimestamp(best_timestamp, tz=UTC)
+
+
 def load_legacy_backtest_targets(
     *,
     dates: list[str],
     support_docs: dict[str, Any],
     legacy_backtest_database: Any | None,
+    legacy_match_database: Any | None = None,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     if legacy_backtest_database is None or not dates:
@@ -192,7 +283,10 @@ def load_legacy_backtest_targets(
             "source_match_id": source_match_id,
             "source_type": "legacy_unibet_backtest",
             "source_date": match_date,
-            "start_time": _legacy_target_start_time(legacy_doc),
+            "start_time": _resolve_legacy_target_start_time(
+                legacy_doc=legacy_doc,
+                legacy_match_database=legacy_match_database,
+            ),
             "league_key": league_key,
             "league_id": league_doc.get("league_id") if league_doc else None,
             "league_name": league_doc.get("league_name") if league_doc else league_name,

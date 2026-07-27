@@ -89,6 +89,7 @@ def main() -> int:
             dates=args.dates,
             support_docs=support_docs,
             legacy_backtest_database=get_legacy_app_database(config),
+            legacy_match_database=get_legacy_app_database(config),
             limit=args.limit if args.limit > 0 else None,
         )
     elif args.mode == "fixture-db":

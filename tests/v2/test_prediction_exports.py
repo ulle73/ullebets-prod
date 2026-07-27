@@ -247,3 +247,40 @@ def test_run_prediction_export_pipeline_replays_historical_backtest_without_live
     assert summary["prediction_exports"] == 1
     assert summary["forward_bets"] == 1
     assert summary["parity_status_counts"] == {"matched": 1}
+
+
+def test_run_prediction_export_pipeline_can_route_legacy_snapshot_tuples_through_model_oracle() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    summary = run_prediction_export_pipeline(
+        export_mode="daily",
+        source_workflow="ai-bets-daily.yml",
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        dry_run=True,
+        strategy_id="balanced",
+        snapshot_mode="backtest",
+        analysis_oracle=FakeAnalysisOracle(),
+        model_oracle=FakeModelOracle(),
+        legacy_backtest_database=historical_database,
+        use_legacy_snapshot_lines=False,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["analysis_candidates"] == 3
+    assert summary["source_candidates"] == 1
+    assert summary["prediction_exports"] == 1
+    assert summary["forward_bets"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}

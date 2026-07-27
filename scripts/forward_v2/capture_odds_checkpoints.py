@@ -17,6 +17,7 @@ from ullebets_v2.odds.service import (
     build_smoke_targets_for_league,
     inspect_fixture_target_window_from_database,
     load_fixture_targets_from_database,
+    load_legacy_backtest_targets,
     load_replay_fixture_targets,
 )
 from ullebets_v2.safety import ensure_v2_database
@@ -26,7 +27,7 @@ from ullebets_v2.support.loaders import load_support_documents
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Capture V2 odds checkpoints into market_snapshots with strict prematch timing metadata.")
-    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "fixture-db"], default="smoke-live")
+    parser.add_argument("--mode", choices=["smoke-live", "replay-fixtures", "legacy-backtest", "fixture-db"], default="smoke-live")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--source-workflow", default="run-unibet-odds-checkpoints.yml")
     parser.add_argument("--league")
@@ -75,6 +76,16 @@ def main() -> int:
             old_repo_root=config.old_repo_root,
             legacy_match_database=get_legacy_app_database(config),
         )
+    elif args.mode == "legacy-backtest":
+        if not args.dates:
+            raise RuntimeError("--date is required in legacy-backtest mode.")
+        targets = load_legacy_backtest_targets(
+            dates=args.dates,
+            support_docs=support_docs,
+            legacy_backtest_database=get_legacy_app_database(config),
+            legacy_match_database=get_legacy_app_database(config),
+            limit=args.limit if args.limit > 0 else None,
+        )
     elif args.mode == "fixture-db":
         read_database = get_database(config)
         target_window = inspect_fixture_target_window_from_database(
@@ -105,7 +116,7 @@ def main() -> int:
 
     database = None if args.dry_run else (read_database or get_database(config))
     oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_oracle else None
-    legacy_backtest_database = get_legacy_app_database(config) if args.mode == "replay-fixtures" else None
+    legacy_backtest_database = get_legacy_app_database(config) if args.mode in {"replay-fixtures", "legacy-backtest"} else None
     summary = run_checkpoint_capture(
         targets=targets,
         support_docs=support_docs,

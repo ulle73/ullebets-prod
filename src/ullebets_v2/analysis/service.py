@@ -175,6 +175,7 @@ def run_auto_analysis_pipeline(
     odds_oracle: Any | None = None,
     model_oracle: Any | None = None,
     legacy_backtest_database: Any | None = None,
+    use_legacy_snapshot_lines: bool = True,
     fetched_at: datetime | None = None,
     snapshot_source: str = "build",
     snapshot_read_database: Any | None = None,
@@ -217,6 +218,7 @@ def run_auto_analysis_pipeline(
             odds_oracle=odds_oracle,
             model_oracle=model_oracle,
             legacy_backtest_database=legacy_backtest_database,
+            use_legacy_snapshot_lines=use_legacy_snapshot_lines,
             fetched_at=captured_at,
             return_documents=True,
         )

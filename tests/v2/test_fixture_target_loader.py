@@ -103,6 +103,35 @@ def build_legacy_match_database() -> FakeDatabase:
 def build_legacy_backtest_database() -> FakeDatabase:
     database = FakeDatabase()
     database["unibet-backtest"] = FakeCollection([build_legacy_backtest_doc()])
+    database["match-for-date"] = FakeCollection(
+        [
+            {
+                "full": [
+                    {
+                        "date": "2025-10-08",
+                        "savedAt": "2025-10-08T09:00:00Z",
+                        "matches": [
+                            {
+                                "id": 14689178,
+                                "startTimestamp": 1759946400,
+                                "season": {"id": 1},
+                                "status": {"type": "notstarted"},
+                                "tournament": {
+                                    "uniqueTournament": {
+                                        "name": "Premier League",
+                                        "slug": "premier-league",
+                                        "id": 1,
+                                    }
+                                },
+                                "homeTeam": {"id": 1, "name": "Arsenal"},
+                                "awayTeam": {"id": 2, "name": "Bournemouth"},
+                            }
+                        ],
+                    }
+                ]
+            }
+        ]
+    )
     return database
 
 
@@ -227,6 +256,7 @@ def test_load_legacy_backtest_targets_builds_canonical_targets_without_fixture_r
         dates=["2025-10-08"],
         support_docs=support_docs,
         legacy_backtest_database=build_legacy_backtest_database(),
+        legacy_match_database=build_legacy_backtest_database(),
     )
 
     assert len(targets) == 1
@@ -237,3 +267,4 @@ def test_load_legacy_backtest_targets_builds_canonical_targets_without_fixture_r
     assert targets[0]["home_team_key"] == "premier-league:arsenal"
     assert targets[0]["away_team_key"] == "premier-league:bournemouth"
     assert targets[0]["mapping_confidence"] == "support_names"
+    assert targets[0]["start_time"] == datetime(2025, 10, 8, 18, 0, tzinfo=UTC)

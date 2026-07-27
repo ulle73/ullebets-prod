@@ -60,6 +60,7 @@ def main() -> int:
             dates=args.dates,
             support_docs=support_docs,
             legacy_backtest_database=legacy_app_database,
+            legacy_match_database=legacy_app_database,
             limit=args.limit,
         )
     else:

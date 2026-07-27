@@ -16,6 +16,7 @@ from ullebets_v2.odds.service import (
     build_smoke_targets_for_league,
     inspect_fixture_target_window_from_database,
     load_fixture_targets_from_database,
+    load_legacy_backtest_targets,
     load_replay_fixture_targets,
     run_unibet_odds_ingest,
 )
@@ -28,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Ingest Unibet/Kambi raw odds and normalized market offers into V2.")
     parser.add_argument(
         "--mode",
-        choices=["replay-fixtures", "smoke-live", "fixture-db"],
+        choices=["replay-fixtures", "legacy-backtest", "smoke-live", "fixture-db"],
         default="smoke-live",
     )
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -79,6 +80,17 @@ def main() -> int:
             old_repo_root=config.old_repo_root,
             legacy_match_database=get_legacy_app_database(config),
         )
+    elif args.mode == "legacy-backtest":
+        if not args.dates:
+            raise RuntimeError("--date is required in legacy-backtest mode.")
+        source_workflow = args.source_workflow or "run-unibet-backtests.yml"
+        targets = load_legacy_backtest_targets(
+            dates=args.dates,
+            support_docs=support_docs,
+            legacy_backtest_database=get_legacy_app_database(config),
+            legacy_match_database=get_legacy_app_database(config),
+            limit=args.limit if args.limit > 0 else None,
+        )
     elif args.mode == "fixture-db":
         source_workflow = args.source_workflow or "run-unibet-backtests.yml"
         read_database = get_database(config)
@@ -107,7 +119,7 @@ def main() -> int:
         )
 
     database = None if args.dry_run else (read_database or get_database(config))
-    legacy_backtest_database = get_legacy_app_database(config) if args.mode == "replay-fixtures" else None
+    legacy_backtest_database = get_legacy_app_database(config) if args.mode in {"replay-fixtures", "legacy-backtest"} else None
     oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_oracle else None
     summary = run_unibet_odds_ingest(
         targets=targets,
