@@ -241,6 +241,8 @@ def run_prediction_export_pipeline(
     model_oracle: Any | None = None,
     legacy_backtest_database: Any | None = None,
     fetched_at: datetime | None = None,
+    snapshot_source: str = "build",
+    snapshot_read_database: Any | None = None,
 ) -> dict[str, Any]:
     generated_at = fetched_at or utc_now()
     analysis_summary: dict[str, Any] | None = None
@@ -266,6 +268,8 @@ def run_prediction_export_pipeline(
             model_oracle=model_oracle,
             legacy_backtest_database=legacy_backtest_database,
             fetched_at=generated_at,
+            snapshot_source=snapshot_source,
+            snapshot_read_database=snapshot_read_database,
         )
         analysis_run_doc = analysis_summary.get("analysis_run")
         analysis_candidate_docs = analysis_summary.get("analysis_candidate_docs", [])

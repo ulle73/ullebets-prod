@@ -47,8 +47,28 @@ HELPER_WORKFLOW_RULES = {
     },
 }
 WORKFLOW_CONTENT_RULES = {
+    "ai-bets-daily.yml": {
+        "required_fragments": ["--snapshot-source db"],
+        "forbidden_fragments": [],
+    },
+    "ai-user-closing.yml": {
+        "required_fragments": ["--snapshot-source db"],
+        "forbidden_fragments": [],
+    },
+    "ai-user-combos.yml": {
+        "required_fragments": ["--snapshot-source db"],
+        "forbidden_fragments": [],
+    },
+    "ai-user-daily.yml": {
+        "required_fragments": ["--snapshot-source db"],
+        "forbidden_fragments": [],
+    },
     "backfill-teamstats-from-date.yml": {
         "required_fragments": ["--source-mode db"],
+        "forbidden_fragments": [],
+    },
+    "run-auto-analysis-checkpoints.yml": {
+        "required_fragments": ["--snapshot-source db"],
         "forbidden_fragments": [],
     },
     "update-teamstats-and-teamprofiles.yml": {
@@ -136,34 +156,34 @@ WORKFLOW_LEGACY_CONTRACTS = {
         "notes": ["Snapshot settlement uses V2 canonical match stats and stored snapshots only."],
     },
     "run-auto-analysis-checkpoints.yml": {
-        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
-        "expected_checkout_legacy_repo": True,
-        "notes": ["Auto-analysis still depends on the original JS model oracle in default runtime; replay parity also reads legacy app history."],
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Default auto-analysis consumes stored V2 model snapshots; replay/build mode can still use the legacy app history and JS model oracle for parity."],
     },
     "ai-bets-daily.yml": {
-        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
-        "expected_checkout_legacy_repo": True,
-        "notes": ["Daily export still depends on the original JS model oracle in default runtime."],
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Default daily export consumes stored V2 model snapshots through the V2 analysis pipeline; replay/build mode still supports legacy parity inputs."],
     },
     "ai-user-combos.yml": {
-        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
-        "expected_checkout_legacy_repo": True,
-        "notes": ["Combo export still depends on the original JS model oracle in default runtime."],
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Default combo export consumes stored V2 model snapshots through the V2 analysis pipeline; replay/build mode still supports legacy parity inputs."],
     },
     "ai-user-daily.yml": {
-        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
-        "expected_checkout_legacy_repo": True,
-        "notes": ["User daily export still depends on the original JS model oracle in default runtime."],
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Default user-daily export consumes stored V2 model snapshots through the V2 analysis pipeline; replay/build mode still supports legacy parity inputs."],
     },
     "ai-user-closing.yml": {
-        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
-        "expected_checkout_legacy_repo": True,
-        "notes": ["User closing export still depends on the original JS model oracle in default runtime."],
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Default user-closing export consumes stored V2 model snapshots through the V2 analysis pipeline; replay/build mode still supports legacy parity inputs."],
     },
     "update-opta.yml": {
         "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},

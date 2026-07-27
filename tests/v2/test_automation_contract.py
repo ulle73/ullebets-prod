@@ -88,6 +88,24 @@ def test_workflow_directory_flags_missing_required_workflow_fragment() -> None:
     assert "missing_required_workflow_fragments" in flagged["update-teamstats-and-teamprofiles.yml"]["findings"]
 
 
+def test_workflow_directory_flags_missing_analysis_snapshot_source_fragment() -> None:
+    workflow_dir = repo_root() / ".github" / "workflows"
+    workflow_path = workflow_dir / "run-auto-analysis-checkpoints.yml"
+    original_bytes = workflow_path.read_bytes()
+    original = original_bytes.decode("utf-8")
+    try:
+        mutated = original.replace("--snapshot-source db ", "", 1)
+        workflow_path.write_text(mutated, encoding="utf-8")
+        report = inspect_workflow_directory(workflow_dir)
+    finally:
+        workflow_path.write_bytes(original_bytes)
+
+    flagged = {row["file"]: row for row in report["file_reports"]}
+    assert "run-auto-analysis-checkpoints.yml" in report["invalid_content_files"]
+    assert flagged["run-auto-analysis-checkpoints.yml"]["status"] == "warn"
+    assert "missing_required_workflow_fragments" in flagged["run-auto-analysis-checkpoints.yml"]["findings"]
+
+
 def test_env_example_covers_required_v2_keys() -> None:
     report = inspect_env_example(repo_root() / ".env.example")
     assert report["exists"] is True
@@ -134,3 +152,5 @@ def test_legacy_dependency_contract_summarizes_native_vs_legacy_workflows() -> N
     assert rows["run-unibet-closing.yml"]["default_runtime"]["old_repo"] is False
     assert rows["backfill-teamstats-from-date.yml"]["default_runtime"]["legacy_app_db"] is False
     assert rows["backfill-teamstats-from-date.yml"]["parity_or_replay"]["legacy_app_db"] is True
+    assert rows["run-auto-analysis-checkpoints.yml"]["default_runtime"]["old_repo"] is False
+    assert rows["ai-bets-daily.yml"]["default_runtime"]["old_repo"] is False

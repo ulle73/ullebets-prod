@@ -23,9 +23,8 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 45
-      checkout_legacy_repo: true
       run_command: |
-        ARGS=(--mode combos --target-mode fixture-db --source-workflow ai-user-combos.yml --dry-run)
+        ARGS=(--mode combos --target-mode fixture-db --snapshot-source db --source-workflow ai-user-combos.yml --dry-run)
         if [ -n "${{ inputs.date }}" ]; then
           ARGS+=(--date "${{ inputs.date }}")
         fi

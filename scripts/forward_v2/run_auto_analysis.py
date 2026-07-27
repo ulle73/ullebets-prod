@@ -44,6 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint-target-days", type=int)
     parser.add_argument("--snapshot-mode", choices=["backtest", "forward"], default="forward")
     parser.add_argument("--snapshot-label", default="CURRENT")
+    parser.add_argument("--snapshot-source", choices=["build", "db"], default="build")
     parser.add_argument("--now", help="Optional ISO timestamp override for deterministic replay.")
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
@@ -111,6 +112,7 @@ def main() -> int:
         run_date = args.run_date
 
     fetched_at = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else None
+    snapshot_read_database = read_database or (get_database(config) if args.snapshot_source == "db" else None)
     database = None if args.dry_run else (read_database or get_database(config))
     legacy_backtest_database = get_legacy_app_database(config) if args.mode == "replay-fixtures" else None
     odds_oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_odds_oracle else None
@@ -139,6 +141,8 @@ def main() -> int:
         model_oracle=model_oracle,
         legacy_backtest_database=legacy_backtest_database,
         fetched_at=fetched_at,
+        snapshot_source=args.snapshot_source,
+        snapshot_read_database=snapshot_read_database,
     )
     if target_window is not None:
         target_window["selected_target_match_count"] = len(targets)

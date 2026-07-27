@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from ullebets_v2.analysis.service import run_auto_analysis_pipeline
+from ullebets_v2.model_snapshots.service import run_model_snapshot_build
 
 from tests.v2.test_model_snapshots import FakeModelOracle
 from tests.v2.test_odds_ingest import (
@@ -12,6 +13,27 @@ from tests.v2.test_odds_ingest import (
     build_support_docs,
     fake_transport,
 )
+
+
+class FakeReadCollection:
+    def __init__(self, docs: list[dict]) -> None:
+        self.docs = docs
+
+    def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
+        query = query or {}
+        rows = list(self.docs)
+        for key, value in query.items():
+            if isinstance(value, dict) and "$in" in value:
+                allowed = {str(item) for item in value["$in"]}
+                rows = [row for row in rows if str(row.get(key)) in allowed]
+            else:
+                rows = [row for row in rows if row.get(key) == value]
+        return rows
+
+
+class FakeReadDatabase(dict):
+    def __getitem__(self, collection_name: str) -> FakeReadCollection:
+        return dict.__getitem__(self, collection_name)
 
 
 class FakeAnalysisOracle:
@@ -117,6 +139,33 @@ class FakeAnalysisOracle:
         }
 
 
+def build_stored_model_snapshot_docs() -> list[dict]:
+    summary = run_model_snapshot_build(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-forward.yml",
+        snapshot_mode="forward",
+        snapshot_label="CURRENT",
+        dry_run=True,
+        transport=fake_transport,
+        odds_oracle=None,
+        model_oracle=FakeModelOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+        return_documents=True,
+    )
+    return summary["documents"]["model_snapshot_docs"]
+
+
 def test_run_auto_analysis_pipeline_dry_run_builds_candidates_and_shortlist() -> None:
     summary = run_auto_analysis_pipeline(
         targets=[
@@ -197,6 +246,45 @@ def test_run_auto_analysis_pipeline_uses_internal_oracle_by_default() -> None:
     }
     assert first_candidate["headline"] == "Over 3.5 Hornor"
     assert first_candidate["trackingKey"] == "match-1:match-1|cornerKicks|total|ALL|over|3.5"
+
+
+def test_run_auto_analysis_pipeline_can_read_stored_model_snapshots_from_db() -> None:
+    read_database = FakeReadDatabase(
+        {
+            "model_snapshots": FakeReadCollection(build_stored_model_snapshot_docs()),
+        }
+    )
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        dry_run=True,
+        snapshot_source="db",
+        snapshot_read_database=read_database,
+    )
+
+    assert summary["snapshot_source"] == "db"
+    assert summary["matched_events"] == 1
+    assert summary["raw_docs"] == 0
+    assert summary["market_offers"] == 0
+    assert summary["model_snapshots"] == 2
+    assert summary["valid_model_snapshots"] == 2
+    assert summary["analysis_candidates"] == 2
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
 
 
 def test_run_auto_analysis_pipeline_dry_run_handles_empty_target_window() -> None:

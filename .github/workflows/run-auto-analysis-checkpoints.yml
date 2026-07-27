@@ -36,9 +36,8 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 60
-      checkout_legacy_repo: true
       run_command: |
-        ARGS=(--mode fixture-db --source-workflow run-auto-analysis-checkpoints.yml --strategy "${{ inputs.strategy || 'balanced' }}" --dry-run)
+        ARGS=(--mode fixture-db --snapshot-source db --source-workflow run-auto-analysis-checkpoints.yml --strategy "${{ inputs.strategy || 'balanced' }}" --dry-run)
         if [ -n "${{ inputs.checkpoint }}" ]; then
           ARGS+=(--checkpoint-key "${{ inputs.checkpoint }}")
         fi

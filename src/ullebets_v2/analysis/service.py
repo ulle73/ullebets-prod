@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from collections import Counter
 from typing import Any
 
 from ullebets_v2.analysis.internal_oracle import InternalAnalysisOracle
@@ -36,6 +37,53 @@ def _select_valid_model_snapshots(model_snapshot_docs: list[dict[str, Any]]) -> 
     valid = [row for row in model_snapshot_docs if not row.get("invalid_for_model")]
     invalid_count = len(model_snapshot_docs) - len(valid)
     return valid, invalid_count
+
+
+def load_model_snapshot_docs_from_database(
+    database: Any,
+    *,
+    targets: list[dict[str, Any]],
+    snapshot_mode: str,
+    snapshot_label: str,
+) -> list[dict[str, Any]]:
+    match_keys = sorted(
+        {
+            str(target.get("match_key") or "")
+            for target in targets
+            if str(target.get("match_key") or "")
+        }
+    )
+    if not match_keys:
+        return []
+    query = {
+        "match_key": {"$in": match_keys},
+        "snapshot_mode": snapshot_mode,
+        "snapshot_label": snapshot_label,
+    }
+    docs = list(database["model_snapshots"].find(query, projection={"_id": 0}))
+    docs.sort(key=lambda row: (str(row.get("match_key") or ""), str(row.get("selection_key") or "")))
+    return docs
+
+
+def _build_snapshot_match_rows_from_database(
+    *,
+    targets: list[dict[str, Any]],
+    model_snapshot_docs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    counts_by_match = Counter(str(row.get("match_key") or "") for row in model_snapshot_docs)
+    rows: list[dict[str, Any]] = []
+    for target in targets:
+        match_key = str(target.get("match_key") or "")
+        generated_line_count = counts_by_match.get(match_key, 0)
+        rows.append(
+            {
+                "match_key": match_key,
+                "v2_event_id": "stored_model_snapshots" if generated_line_count else None,
+                "generated_line_count": generated_line_count,
+                "model_errors": [],
+            }
+        )
+    return rows
 
 
 def _build_analysis_candidate_docs(
@@ -128,27 +176,54 @@ def run_auto_analysis_pipeline(
     model_oracle: Any | None = None,
     legacy_backtest_database: Any | None = None,
     fetched_at: datetime | None = None,
+    snapshot_source: str = "build",
+    snapshot_read_database: Any | None = None,
 ) -> dict[str, Any]:
     captured_at = fetched_at or utc_now()
     effective_run_date = _coerce_iso_date(run_date, captured_at)
     learning_profile_applied = bool(learning_profile)
-    model_summary = run_model_snapshot_build(
-        targets=targets,
-        support_docs=support_docs,
-        source_workflow=source_workflow,
-        snapshot_mode=snapshot_mode,
-        snapshot_label=snapshot_label,
-        database=None,
-        dry_run=True,
-        transport=transport,
-        odds_oracle=odds_oracle,
-        model_oracle=model_oracle,
-        legacy_backtest_database=legacy_backtest_database,
-        fetched_at=captured_at,
-        return_documents=True,
-    )
-    documents = model_summary.get("documents", {})
-    model_snapshot_docs: list[dict[str, Any]] = documents.get("model_snapshot_docs", [])
+    loaded_snapshots_from_db = snapshot_source == "db"
+    model_summary: dict[str, Any] | None = None
+    if loaded_snapshots_from_db:
+        read_database = snapshot_read_database or database
+        if read_database is None:
+            raise RuntimeError("snapshot_read_database or database is required when snapshot_source='db'.")
+        documents = {
+            "raw_docs": [],
+            "event_link_docs": [],
+            "market_offer_docs": [],
+        }
+        model_snapshot_docs = load_model_snapshot_docs_from_database(
+            read_database,
+            targets=targets,
+            snapshot_mode=snapshot_mode,
+            snapshot_label=snapshot_label,
+        )
+        match_rows = _build_snapshot_match_rows_from_database(
+            targets=targets,
+            model_snapshot_docs=model_snapshot_docs,
+        )
+        matched_events = len({str(row.get("match_key") or "") for row in model_snapshot_docs})
+    else:
+        model_summary = run_model_snapshot_build(
+            targets=targets,
+            support_docs=support_docs,
+            source_workflow=source_workflow,
+            snapshot_mode=snapshot_mode,
+            snapshot_label=snapshot_label,
+            database=None,
+            dry_run=True,
+            transport=transport,
+            odds_oracle=odds_oracle,
+            model_oracle=model_oracle,
+            legacy_backtest_database=legacy_backtest_database,
+            fetched_at=captured_at,
+            return_documents=True,
+        )
+        documents = model_summary.get("documents", {})
+        model_snapshot_docs = documents.get("model_snapshot_docs", [])
+        match_rows = model_summary.get("match_rows", [])
+        matched_events = model_summary.get("matched_events", 0)
     valid_model_snapshots, invalid_snapshot_count = _select_valid_model_snapshots(model_snapshot_docs)
 
     run_key = build_analysis_run_key(
@@ -247,7 +322,7 @@ def run_auto_analysis_pipeline(
     parity_rows = build_analysis_parity_rows(
         source_workflow=source_workflow,
         target_matches=targets,
-        match_rows=model_summary.get("match_rows", []),
+        match_rows=match_rows,
         model_snapshot_docs=model_snapshot_docs,
         analysis_candidate_docs=analysis_candidate_docs,
         shortlist_docs=shortlist_docs,
@@ -257,7 +332,7 @@ def run_auto_analysis_pipeline(
     audit_rows = build_analysis_audit_rows(
         source_workflow=source_workflow,
         target_matches=targets,
-        match_rows=model_summary.get("match_rows", []),
+        match_rows=match_rows,
         model_snapshot_docs=model_snapshot_docs,
         analysis_candidate_docs=analysis_candidate_docs,
         shortlist_docs=shortlist_docs,
@@ -267,7 +342,7 @@ def run_auto_analysis_pipeline(
     )
     health_rows = build_analysis_health_rows(
         target_matches=targets,
-        match_rows=model_summary.get("match_rows", []),
+        match_rows=match_rows,
         analysis_candidate_docs=analysis_candidate_docs,
         shortlist_docs=shortlist_docs,
         oracle_error_count=oracle_error_count,
@@ -277,10 +352,11 @@ def run_auto_analysis_pipeline(
     summary: dict[str, Any] = {
         "job": "run_auto_analysis",
         "captured_at": captured_at.isoformat(),
+        "snapshot_source": snapshot_source,
         "run_id": analysis_run_doc.get("run_id"),
         "run_key": analysis_run_doc.get("run_key"),
         "target_matches": len(targets),
-        "matched_events": model_summary.get("matched_events", 0),
+        "matched_events": matched_events,
         "raw_docs": len(documents.get("raw_docs", [])),
         "event_links": len(documents.get("event_link_docs", [])),
         "market_offers": len(documents.get("market_offer_docs", [])),
@@ -334,19 +410,32 @@ def run_auto_analysis_pipeline(
         if key not in {"analysis_run", "analysis_snapshot", "analysis_candidate_docs"}
     }
     try:
-        odds_metrics = persist_odds_data_records(
-            database,
-            raw_docs=documents.get("raw_docs", []),
-            event_link_docs=documents.get("event_link_docs", []),
-            market_offer_docs=documents.get("market_offer_docs", []),
-        )
-        model_metrics = persist_model_snapshot_records(
-            database,
-            model_snapshot_docs=model_snapshot_docs,
-            parity_rows=documents.get("parity_rows", []),
-            audit_rows=documents.get("audit_rows", []),
-            health_rows=documents.get("health_rows", []),
-        )
+        if loaded_snapshots_from_db:
+            odds_metrics = {
+                "raw_odds_upserts": 0,
+                "event_link_upserts": 0,
+                "market_offer_upserts": 0,
+            }
+            model_metrics = {
+                "model_snapshot_upserts": 0,
+                "parity_upserts": 0,
+                "audit_upserts": 0,
+                "health_upserts": 0,
+            }
+        else:
+            odds_metrics = persist_odds_data_records(
+                database,
+                raw_docs=documents.get("raw_docs", []),
+                event_link_docs=documents.get("event_link_docs", []),
+                market_offer_docs=documents.get("market_offer_docs", []),
+            )
+            model_metrics = persist_model_snapshot_records(
+                database,
+                model_snapshot_docs=model_snapshot_docs,
+                parity_rows=documents.get("parity_rows", []),
+                audit_rows=documents.get("audit_rows", []),
+                health_rows=documents.get("health_rows", []),
+            )
         analysis_metrics = persist_analysis_records(
             database,
             analysis_run_doc=analysis_run_doc,
