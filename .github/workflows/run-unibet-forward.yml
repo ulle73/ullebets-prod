@@ -21,7 +21,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 60
-      checkout_legacy_repo: true
+      checkout_legacy_repo: false
       run_command: |
         python scripts/forward_v2/build_model_snapshots.py \
           --mode fixture-db \

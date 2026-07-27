@@ -23,7 +23,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 60
-      checkout_legacy_repo: true
+      checkout_legacy_repo: false
       run_command: |
         ARGS=(--mode fixture-db --snapshot-mode backtest --source-workflow run-unibet-backtests.yml --max-days-ahead 7 --dry-run)
         if [ -n "${{ inputs.date }}" ]; then

@@ -126,16 +126,16 @@ WORKFLOW_LEGACY_CONTRACTS = {
         "notes": ["Settlement uses V2 canonical stats and derived matchup outputs."],
     },
     "run-unibet-backtests.yml": {
-        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
-        "expected_checkout_legacy_repo": True,
-        "notes": ["Default snapshot build still depends on the original JS model oracle; replay parity also reads legacy app history."],
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Default snapshot build uses the V2-owned JS model runtime over V2 collections; replay parity can still read the old repo and legacy app history explicitly."],
     },
     "run-unibet-forward.yml": {
-        "default_runtime": {"old_repo": True, "legacy_app_db": False, "legacy_unibet_db": False},
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
-        "expected_checkout_legacy_repo": True,
-        "notes": ["Forward snapshot build still depends on the original JS model oracle; replay parity also reads legacy app history."],
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Forward snapshot build uses the V2-owned JS model runtime over V2 collections; replay parity can still read the old repo and legacy app history explicitly."],
     },
     "run-unibet-closing.yml": {
         "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},

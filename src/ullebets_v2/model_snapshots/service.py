@@ -420,10 +420,16 @@ def run_model_snapshot_build(
             built = model_oracle.build_match_lines(
                 match_info={
                     "matchId": target.get("source_match_id") or target.get("match_key"),
+                    "matchKey": target.get("match_key"),
                     "homeTeam": event_links_by_match.get(match_key, {}).get("canonical_home_team_name")
                     or target.get("home_team_name"),
                     "awayTeam": event_links_by_match.get(match_key, {}).get("canonical_away_team_name")
                     or target.get("away_team_name"),
+                    "homeTeamKey": target.get("home_team_key"),
+                    "awayTeamKey": target.get("away_team_key"),
+                    "leagueKey": target.get("league_key"),
+                    "sourceDate": target.get("source_date"),
+                    "startTime": target.get("start_time"),
                 },
                 offers=oracle_input,
             )
@@ -442,7 +448,7 @@ def run_model_snapshot_build(
         snapshot_mode=snapshot_mode,
         snapshot_label=snapshot_label,
         snapshot_time=captured_at,
-        model_source="original_js_model_oracle",
+        model_source=getattr(model_oracle, "model_source", "model_oracle_missing"),
     )
     report_date = captured_at.date().isoformat()
     parity_rows = build_model_snapshot_parity_rows(

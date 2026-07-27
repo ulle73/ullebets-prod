@@ -3,7 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import UTC, datetime
 
+from ullebets_v2.enrichment.replay import build_match_enrichment_documents
+from ullebets_v2.model_snapshots.oracle import V2JsModelOracle
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
+from ullebets_v2.support.schemas import build_support_documents
+from ullebets_v2.teamprofiles.service import build_teamprofile_docs
 
 from tests.v2.test_odds_ingest import (
     FakeHistoricalCollection,
@@ -12,6 +16,8 @@ from tests.v2.test_odds_ingest import (
     build_support_docs,
     fake_transport,
 )
+from tests.v2.test_match_enrichment import FakeReadCollection, FakeReadDatabase
+from tests.v2.test_support_sync import build_fixture_support_inputs
 
 
 class FakeModelOracle:
@@ -65,6 +71,43 @@ class FakeModelOracle:
         return {"lines": lines, "errors": []}
 
 
+def build_v2_model_support_docs() -> dict:
+    leagues, league_urls, opta_rows, ranking_rows, _ = build_fixture_support_inputs()
+    return build_support_documents(leagues, league_urls, ranking_rows, opta_rows=opta_rows)
+
+
+def build_v2_model_history_match() -> dict:
+    return {
+        "matchId": 14689170,
+        "timestamp": int(datetime(2026, 6, 20, 18, 0, tzinfo=UTC).timestamp()),
+        "date": "2026-06-20",
+        "savedAt": "2026-06-20T20:55:00Z",
+        "homeTeamId": 100,
+        "homeTeamName": "Arsenal",
+        "awayTeamId": 101,
+        "awayTeamName": "Bournemouth",
+        "homeScore": 2,
+        "awayScore": 1,
+        "matchDetails": {
+            "statistics": [
+                {
+                    "period": "ALL",
+                    "groups": [
+                        {
+                            "groupName": "Match overview",
+                            "statisticsItems": [
+                                {"key": "totalShotsOnGoal", "homeValue": 13, "awayValue": 8},
+                                {"key": "shotsOnGoal", "homeValue": 5, "awayValue": 3},
+                                {"key": "cornerKicks", "homeValue": 7, "awayValue": 4},
+                            ],
+                        }
+                    ],
+                }
+            ]
+        },
+    }
+
+
 def test_run_model_snapshot_build_dry_run_builds_directed_lines() -> None:
     summary = run_model_snapshot_build(
         targets=[
@@ -96,6 +139,82 @@ def test_run_model_snapshot_build_dry_run_builds_directed_lines() -> None:
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
     assert summary["match_rows"][0]["generated_line_count"] == 2
+
+
+def test_v2_js_model_oracle_builds_lines_from_v2_profiles_and_raw_history() -> None:
+    support_docs = build_v2_model_support_docs()
+    source_rows = [
+        {
+            "source_file": "arsenal_home_match_stats.json",
+            "source_path": "C:/tmp/arsenal_home_match_stats.json",
+            "source_role": "home",
+            "matches": [build_v2_model_history_match()],
+        }
+    ]
+    docs = build_match_enrichment_documents(
+        source_rows=source_rows,
+        support_docs=support_docs,
+    )
+    fixture_doc = {
+        "match_key": "sofascore:14689170",
+        "source_match_id": "14689170",
+        "source_date": "2026-06-20",
+        "start_time": datetime(2026, 6, 20, 18, 0, tzinfo=UTC),
+        "league_key": "premier-league",
+        "league_name": "Premier League",
+        "home_team_key": "premier-league:100",
+        "away_team_key": "premier-league:101",
+        "home_team_name": "Arsenal",
+        "away_team_name": "Bournemouth",
+    }
+    teamprofiles = build_teamprofile_docs(
+        match_stats_canonical=docs["match_stats_canonical"],
+        match_results_canonical=docs["match_results"],
+        raw_incidents=[],
+        raw_shotmaps=[],
+        support_docs=support_docs,
+        profile_date="2026-06-22",
+        generated_at=datetime(2026, 6, 21, 12, 0, tzinfo=UTC),
+    )
+    read_database = FakeReadDatabase(
+        {
+            "teamprofiles_v2": FakeReadCollection(teamprofiles),
+            "match_results_canonical": FakeReadCollection(docs["match_results"]),
+            "raw_match_statistics": FakeReadCollection(docs["raw_match_statistics"]),
+            "fixtures_canonical": FakeReadCollection([fixture_doc]),
+        }
+    )
+    oracle = V2JsModelOracle(read_database, support_docs)
+
+    built = oracle.build_match_lines(
+        match_info={
+            "matchId": "future-arsenal-bournemouth",
+            "matchKey": "future-arsenal-bournemouth",
+            "homeTeam": "Arsenal",
+            "awayTeam": "Bournemouth",
+            "homeTeamKey": "premier-league:100",
+            "awayTeamKey": "premier-league:101",
+            "sourceDate": "2026-06-22",
+            "startTime": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+        },
+        offers=[
+            {
+                "statKey": "totalShots",
+                "scope": "total",
+                "period": "ALL",
+                "line": 20.5,
+                "odds": {"over": 1.82, "under": 2.02},
+            }
+        ],
+    )
+
+    assert built["errors"] == []
+    assert len(built["lines"]) == 2
+    assert {row["direction"] for row in built["lines"]} == {"over", "under"}
+    assert all(row["sampleSize"] == 1 for row in built["lines"])
+    assert all(row["betKey"].startswith("future-arsenal-bournemouth|arsenal|bournemouth|totalShots|total|ALL|") for row in built["lines"])
+    assert all(row["homeTeam"] == "Arsenal" for row in built["lines"])
+    assert all(row["awayTeam"] == "Bournemouth" for row in built["lines"])
 
 
 def test_run_model_snapshot_build_dry_run_handles_empty_target_window() -> None:

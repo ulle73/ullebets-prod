@@ -11,7 +11,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from ullebets_v2.config import V2Config
-from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle
+from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle, V2JsModelOracle
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
 from ullebets_v2.odds.oracle import OriginalJsOracle
 from ullebets_v2.odds.service import (
@@ -45,7 +45,13 @@ def parse_args() -> argparse.Namespace:
         help="Enable the original JS odds oracle for live parity cross-checks before model line generation.",
     )
     odds_oracle_group.add_argument("--disable-odds-oracle", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--disable-model-oracle", action="store_true")
+    model_oracle_group = parser.add_mutually_exclusive_group()
+    model_oracle_group.add_argument(
+        "--use-original-model-oracle",
+        action="store_true",
+        help="Enable the original repo JS model oracle for parity or replay comparisons.",
+    )
+    model_oracle_group.add_argument("--disable-model-oracle", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -104,7 +110,15 @@ def main() -> int:
     database = None if args.dry_run else (read_database or get_database(config))
     legacy_backtest_database = get_legacy_app_database(config) if args.mode == "replay-fixtures" else None
     odds_oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_odds_oracle else None
-    model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
+    model_read_database = read_database or database
+    if args.disable_model_oracle:
+        model_oracle = None
+    elif args.use_original_model_oracle or args.mode == "replay-fixtures":
+        model_oracle = OriginalJsModelOracle(config.old_repo_root)
+    elif model_read_database is not None:
+        model_oracle = V2JsModelOracle(model_read_database, support_docs)
+    else:
+        model_oracle = None
     summary = run_model_snapshot_build(
         targets=targets,
         support_docs=support_docs,

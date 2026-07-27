@@ -126,7 +126,7 @@ def test_healthcheck_v2_cli_reports_native_gap_contract() -> None:
         env={**os.environ, "MONGODB_DB": "ullebets_v2"},
     )
     payload = json.loads(completed.stdout)
-    assert payload["overall_status"] == "warn"
+    assert payload["overall_status"] == "ok"
     assert payload["workflow_files"]["missing_parity_files"] == []
     assert payload["workflow_files"]["invalid_content_files"] == []
     assert payload["env_example"]["missing_required_keys"] == []
@@ -134,8 +134,8 @@ def test_healthcheck_v2_cli_reports_native_gap_contract() -> None:
     assert payload["database_roles"]["legacy_app_db"] == "app"
     assert payload["database_roles"]["legacy_unibet_db"] == "ullebets_unibet"
     assert payload["database_roles"]["role_names_are_distinct"] is True
-    assert payload["legacy_dependency_contract"]["default_runtime_blocker_count"] > 0
-    assert "run-unibet-backtests.yml" in payload["legacy_dependency_contract"]["default_runtime_blocking_workflows"]
+    assert payload["legacy_dependency_contract"]["default_runtime_blocker_count"] == 0
+    assert payload["legacy_dependency_contract"]["default_runtime_blocking_workflows"] == []
     assert payload["legacy_dependency_contract"]["checkout_mismatch_count"] == 0
 
 
@@ -144,11 +144,11 @@ def test_legacy_dependency_contract_summarizes_native_vs_legacy_workflows() -> N
     summary = summarize_legacy_dependency_contract(workflow_report=workflow_report, old_repo_exists=True)
 
     assert summary["workflow_count"] > 0
-    assert summary["default_runtime_blocker_count"] > 0
+    assert summary["default_runtime_blocker_count"] == 0
     assert summary["native_ready_workflow_count"] > 0
     assert summary["checkout_mismatch_count"] == 0
     rows = {row["old_workflow"]: row for row in summary["rows"]}
-    assert rows["run-unibet-backtests.yml"]["default_runtime"]["old_repo"] is True
+    assert rows["run-unibet-backtests.yml"]["default_runtime"]["old_repo"] is False
     assert rows["run-unibet-closing.yml"]["default_runtime"]["old_repo"] is False
     assert rows["backfill-teamstats-from-date.yml"]["default_runtime"]["legacy_app_db"] is False
     assert rows["backfill-teamstats-from-date.yml"]["parity_or_replay"]["legacy_app_db"] is True
