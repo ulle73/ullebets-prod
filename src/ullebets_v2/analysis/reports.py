@@ -86,8 +86,8 @@ def build_analysis_parity_rows(
                 "old_outputs": ["auto-analysis-runs", "auto-analysis-bets", "analysis-snapshots"],
                 "v2_job": "run_auto_analysis.py",
                 "v2_outputs": ["analysis_runs_v2", "analysis_candidates_v2", "analysis_snapshots_v2"],
-                "smoke_test": "dry-run replay or live window through unchanged JS ranking policy",
-                "parity_proof": "V2 reuses the original JS ranking/filter rules on top of canonical model snapshot rows, then persists the same run/candidate/snapshot output families separately from legacy collections",
+                "smoke_test": "dry-run replay or live window through V2 internalized legacy ranking policy",
+                "parity_proof": "V2 internalizes the legacy ranking and sanitization rules on top of canonical model snapshot rows, then persists the same run/candidate/snapshot output families separately from legacy collections",
             },
             counts_old={
                 "target_match_count": len(target_matches),

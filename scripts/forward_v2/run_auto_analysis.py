@@ -10,6 +10,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from ullebets_v2.analysis import InternalAnalysisOracle
 from ullebets_v2.analysis.oracle import OriginalJsAutoAnalysisOracle
 from ullebets_v2.analysis.service import run_auto_analysis_pipeline
 from ullebets_v2.config import V2Config
@@ -47,6 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--disable-odds-oracle", action="store_true")
     parser.add_argument("--disable-model-oracle", action="store_true")
     parser.add_argument("--disable-analysis-oracle", action="store_true")
+    parser.add_argument("--use-original-analysis-oracle", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -104,7 +106,12 @@ def main() -> int:
     legacy_backtest_database = get_named_database(config, "app") if args.mode == "replay-fixtures" else None
     odds_oracle = None if args.disable_odds_oracle else OriginalJsOracle(config.old_repo_root)
     model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
-    analysis_oracle = None if args.disable_analysis_oracle else OriginalJsAutoAnalysisOracle(config.old_repo_root)
+    if args.disable_analysis_oracle:
+        analysis_oracle = False
+    elif args.use_original_analysis_oracle:
+        analysis_oracle = OriginalJsAutoAnalysisOracle(config.old_repo_root)
+    else:
+        analysis_oracle = InternalAnalysisOracle()
     summary = run_auto_analysis_pipeline(
         targets=targets,
         support_docs=support_docs,

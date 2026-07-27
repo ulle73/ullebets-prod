@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from ullebets_v2.prediction_exports.service import run_prediction_export_pipeline
+from tests.v2.test_model_snapshots import FakeModelOracle
+from tests.v2.test_odds_ingest import build_support_docs, fake_transport
 
 
 def build_analysis_run() -> dict:
@@ -141,3 +143,33 @@ def test_run_prediction_export_pipeline_dry_run_handles_empty_candidates() -> No
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_prediction_export_pipeline_uses_internal_analysis_oracle_by_default() -> None:
+    summary = run_prediction_export_pipeline(
+        export_mode="daily",
+        source_workflow="ai-user-daily.yml",
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        dry_run=True,
+        transport=fake_transport,
+        odds_oracle=None,
+        model_oracle=FakeModelOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["analysis_candidates"] == 2
+    assert summary["source_candidates"] == 0
+    assert summary["prediction_exports"] == 0
+    assert summary["forward_bets"] == 0
+    assert summary["parity_status_counts"] == {"no_targets": 1}

@@ -152,6 +152,53 @@ def test_run_auto_analysis_pipeline_dry_run_builds_candidates_and_shortlist() ->
     assert summary["health_status_counts"] == {"ok": 1}
 
 
+def test_run_auto_analysis_pipeline_uses_internal_oracle_by_default() -> None:
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        dry_run=True,
+        transport=fake_transport,
+        odds_oracle=None,
+        model_oracle=FakeModelOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 2
+    assert summary["analysis_candidates"] == 2
+    assert summary["qualifying_candidates"] == 0
+    assert summary["analysis_shortlist"] == 0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+    first_candidate = summary["analysis_candidate_docs"][0]
+    assert first_candidate["bet"] == {
+        "key": "match-1|cornerKicks|total|ALL|over|3.5",
+        "statKey": "cornerKicks",
+        "line": 3.5,
+        "direction": "over",
+        "scope": "total",
+        "period": "ALL",
+        "odds": 1.5,
+        "homeTeam": "Arsenal",
+        "awayTeam": "Bournemouth",
+    }
+    assert first_candidate["headline"] == "Over 3.5 Hornor"
+    assert first_candidate["trackingKey"] == "match-1:match-1|cornerKicks|total|ALL|over|3.5"
+
+
 def test_run_auto_analysis_pipeline_dry_run_handles_empty_target_window() -> None:
     summary = run_auto_analysis_pipeline(
         targets=[],

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from ullebets_v2.analysis.internal_oracle import InternalAnalysisOracle
 from ullebets_v2.analysis.persistence import persist_analysis_records
 from ullebets_v2.analysis.reports import (
     build_analysis_audit_rows,
@@ -169,11 +170,12 @@ def run_auto_analysis_pipeline(
     }
 
     oracle_error_count = 0
-    if valid_model_snapshots and analysis_oracle is None:
-        raise RuntimeError("analysis_oracle is required when valid model snapshot rows are present.")
+    if valid_model_snapshots and analysis_oracle is False:
+        raise RuntimeError("analysis_oracle is disabled while valid model snapshot rows are present.")
 
     if valid_model_snapshots:
-        oracle_payload = analysis_oracle.rank_model_snapshots(
+        effective_analysis_oracle = analysis_oracle or InternalAnalysisOracle()
+        oracle_payload = effective_analysis_oracle.rank_model_snapshots(
             model_snapshot_docs=valid_model_snapshots,
             run_meta=run_meta,
             learning_profile=learning_profile,
