@@ -7,6 +7,7 @@ from ullebets_v2.model_snapshots.service import run_model_snapshot_build
 from tests.v2.test_odds_ingest import (
     FakeHistoricalCollection,
     FakeHistoricalDatabase,
+    build_legacy_backtest_doc,
     build_support_docs,
     fake_transport,
 )
@@ -169,7 +170,7 @@ def test_run_model_snapshot_build_dry_run_accepts_offerless_match_as_clean_empty
     assert summary["health_status_counts"] == {"ok": 1}
 
 
-def test_run_model_snapshot_build_marks_historical_source_gap_as_mismatch() -> None:
+def test_run_model_snapshot_build_accepts_empty_historical_offer_set() -> None:
     historical_database = FakeHistoricalDatabase()
     historical_database["unibet-backtest"] = FakeHistoricalCollection(
         [
@@ -201,14 +202,85 @@ def test_run_model_snapshot_build_marks_historical_source_gap_as_mismatch() -> N
         source_workflow="run-unibet-backtests.yml",
         snapshot_mode="backtest",
         dry_run=True,
-        transport=fake_transport,
-        model_oracle=FakeModelOracle(),
         legacy_backtest_database=historical_database,
         fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
     )
 
-    assert summary["matched_events"] == 0
+    assert summary["matched_events"] == 1
     assert summary["model_snapshots"] == 0
-    assert summary["parity_status_counts"] == {"mismatch": 1}
-    assert summary["audit_status_counts"] == {"warn": 1}
-    assert summary["health_status_counts"] == {"warn": 1}
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_model_snapshot_build_replays_historical_backtest_lines() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    summary = run_model_snapshot_build(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-backtests.yml",
+        snapshot_mode="backtest",
+        dry_run=True,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+        return_documents=True,
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["market_offers"] == 2
+    assert summary["model_snapshots"] == 3
+    assert summary["oracle_error_count"] == 0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+    model_snapshot_doc = summary["documents"]["model_snapshot_docs"][0]
+    assert model_snapshot_doc["invalid_for_model"] is False
+    assert model_snapshot_doc["snapshot_time_source"] == "legacy_doc.generatedAt"
+
+
+def test_run_model_snapshot_build_replays_latest_forward_snapshot() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc(with_snapshots=True)])
+
+    summary = run_model_snapshot_build(
+        targets=[
+            {
+                "match_key": "match-legacy-forward",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-forward.yml",
+        snapshot_mode="forward",
+        dry_run=True,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+        return_documents=True,
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}
+    model_snapshot_doc = summary["documents"]["model_snapshot_docs"][0]
+    assert model_snapshot_doc["selected_odds"] == 1.89
+    assert model_snapshot_doc["snapshot_time_source"] == "legacy_snapshot.fetchedAt"
+    assert model_snapshot_doc["invalid_for_model"] is False

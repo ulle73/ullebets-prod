@@ -11,15 +11,23 @@ from ullebets_v2.model_snapshots.reports import (
     build_model_snapshot_parity_rows,
 )
 from ullebets_v2.odds.persistence import persist_odds_data_records
-from ullebets_v2.odds.service import run_unibet_odds_ingest
+from ullebets_v2.odds.service import _find_legacy_backtest_doc, _parse_match_time, run_unibet_odds_ingest
 
 
 def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
 
-def _timing_fields(match: dict[str, Any], snapshot_time: datetime) -> dict[str, Any]:
+def _timing_fields(
+    match: dict[str, Any],
+    snapshot_time: datetime,
+    *,
+    snapshot_time_source: str = "job_captured_at",
+    match_start_time_source: str = "fixture_target.start_time",
+) -> dict[str, Any]:
     match_start = match.get("start_time")
+    if not isinstance(match_start, datetime):
+        match_start = _parse_match_time(match_start)
     minutes_to_kickoff = None
     invalid_for_model = False
     if isinstance(match_start, datetime):
@@ -27,9 +35,9 @@ def _timing_fields(match: dict[str, Any], snapshot_time: datetime) -> dict[str, 
         invalid_for_model = snapshot_time >= match_start
     return {
         "snapshot_time": snapshot_time,
-        "snapshot_time_source": "job_captured_at",
+        "snapshot_time_source": snapshot_time_source,
         "match_start_time": match_start,
-        "match_start_time_source": "fixture_target.start_time",
+        "match_start_time_source": match_start_time_source,
         "minutes_to_kickoff": minutes_to_kickoff,
         "invalid_for_model": invalid_for_model,
     }
@@ -46,6 +54,123 @@ def _offer_lookup(offer_docs: list[dict[str, Any]]) -> dict[tuple[str, str, str,
         )
         lookup[key] = row
     return lookup
+
+
+def _normalize_legacy_direction(value: Any) -> str | None:
+    text = str(value or "").strip().lower()
+    if text in {"över", "over"}:
+        return "over"
+    if text == "under":
+        return "under"
+    return None
+
+
+def _infer_legacy_snapshot_type(snapshot: dict[str, Any]) -> str | None:
+    snapshot_type = str(snapshot.get("type") or "").strip().lower()
+    if snapshot_type in {"forward", "backtest", "closing"}:
+        return snapshot_type
+    checkpoint_key = str(snapshot.get("checkpointKey") or "").strip().lower()
+    if checkpoint_key in {"t15m", "t10m", "t2h"}:
+        return "closing"
+    if checkpoint_key in {"d7", "d5", "d3", "d2", "d1"}:
+        return "forward"
+    horizon_days = snapshot.get("horizonDays")
+    if isinstance(horizon_days, (int, float)) and horizon_days > 0:
+        return "forward"
+    return None
+
+
+def _select_legacy_snapshot_lines(
+    *,
+    legacy_doc: dict[str, Any],
+    snapshot_mode: str,
+) -> dict[str, Any] | None:
+    snapshots = [row for row in list(legacy_doc.get("snapshots") or []) if isinstance(row, dict)]
+    if snapshots:
+        typed_candidates = [
+            row
+            for row in snapshots
+            if _infer_legacy_snapshot_type(row) == snapshot_mode
+        ]
+        if not typed_candidates:
+            return None
+        selected = sorted(
+            typed_candidates,
+            key=lambda row: _parse_match_time(row.get("fetchedAt")) or datetime.min.replace(tzinfo=UTC),
+        )[-1]
+        return {
+            "lines": list(selected.get("lines") or []),
+            "snapshot_time": _parse_match_time(selected.get("fetchedAt")),
+            "snapshot_time_source": "legacy_snapshot.fetchedAt",
+            "selection_source": f"legacy_snapshot.{snapshot_mode}",
+            "model_source": "legacy_unibet_backtest_snapshot",
+        }
+
+    if snapshot_mode != "backtest":
+        return None
+
+    return {
+        "lines": list(legacy_doc.get("lines") or []),
+        "snapshot_time": _parse_match_time(legacy_doc.get("generatedAt")) or _parse_match_time(legacy_doc.get("updatedAt")),
+        "snapshot_time_source": "legacy_doc.generatedAt",
+        "selection_source": "legacy_doc.lines",
+        "model_source": "legacy_unibet_backtest_root_lines",
+    }
+
+
+def _build_legacy_generated_lines(
+    *,
+    match_key: str,
+    target_match: dict[str, Any],
+    legacy_lines: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    generated_lines: list[dict[str, Any]] = []
+    source_match_id = target_match.get("source_match_id") or match_key
+    for line in legacy_lines:
+        direction = _normalize_legacy_direction(line.get("condition"))
+        odds_value = line.get("odds")
+        if direction is None:
+            continue
+        if not isinstance(odds_value, (int, float)) or odds_value <= 1:
+            continue
+        stat_key = line.get("statKey")
+        scope = line.get("scope")
+        period = line.get("period")
+        line_value = line.get("line")
+        if not stat_key or not scope or not period or line_value is None:
+            continue
+        bet_key = line.get("betKey") or "|".join(
+            [
+                str(source_match_id),
+                str(stat_key),
+                str(scope),
+                str(period),
+                direction,
+                str(line_value),
+            ]
+        )
+        generated_lines.append(
+            {
+                "betKey": bet_key,
+                "statKey": stat_key,
+                "line": line_value,
+                "condition": "över" if direction == "over" else "under",
+                "direction": direction,
+                "period": period,
+                "scope": scope,
+                "odds": float(odds_value),
+                "value": line.get("value"),
+                "evDetails": line.get("evDetails") if isinstance(line.get("evDetails"), dict) else {},
+                "primaryFormulaKey": line.get("primaryFormulaKey"),
+                "primaryValueKey": line.get("primaryValueKey"),
+                "sampleSize": line.get("sampleSize") or line.get("matches"),
+                "homeTeam": line.get("homeTeam") or target_match.get("home_team_name"),
+                "awayTeam": line.get("awayTeam") or target_match.get("away_team_name"),
+                "actual": None,
+                "win": None,
+            }
+        )
+    return generated_lines
 
 
 def build_model_snapshot_docs(
@@ -73,7 +198,15 @@ def build_model_snapshot_docs(
             continue
         offer_lookup = _offer_lookup(offers_by_match.get(match_key, []))
         event_link = event_link_by_match.get(match_key, {})
-        timing = _timing_fields(target_match, snapshot_time)
+        effective_snapshot_time = row.get("snapshot_time_override")
+        if not isinstance(effective_snapshot_time, datetime):
+            effective_snapshot_time = snapshot_time
+        timing = _timing_fields(
+            target_match,
+            effective_snapshot_time,
+            snapshot_time_source=str(row.get("snapshot_time_source_override") or "job_captured_at"),
+            match_start_time_source=str(row.get("match_start_time_source_override") or "fixture_target.start_time"),
+        )
         for line in row.get("generated_lines", []):
             offer = offer_lookup.get(
                 (
@@ -123,7 +256,7 @@ def build_model_snapshot_docs(
                     "win": None,
                     "snapshot_mode": snapshot_mode,
                     "snapshot_label": snapshot_label,
-                    "model_source": model_source,
+                    "model_source": row.get("model_source_override") or model_source,
                     **timing,
                 }
             )
@@ -176,6 +309,41 @@ def run_model_snapshot_build(
         target = target_by_match_key.get(match_key)
         if target is None or not row.get("v2_event_id"):
             row["generated_line_count"] = 0
+            match_rows.append(row)
+            continue
+        if legacy_backtest_database is not None and row.get("historical_source_found"):
+            legacy_doc = _find_legacy_backtest_doc(
+                legacy_backtest_database=legacy_backtest_database,
+                match=target,
+            )
+            legacy_snapshot = (
+                _select_legacy_snapshot_lines(
+                    legacy_doc=legacy_doc,
+                    snapshot_mode=snapshot_mode,
+                )
+                if legacy_doc is not None
+                else None
+            )
+            if legacy_snapshot is None:
+                row["model_errors"] = [
+                    {
+                        "message": "missing_legacy_snapshot_lines_for_mode",
+                        "snapshot_mode": snapshot_mode,
+                    }
+                ]
+            else:
+                row["generated_lines"] = _build_legacy_generated_lines(
+                    match_key=match_key,
+                    target_match=target,
+                    legacy_lines=legacy_snapshot["lines"],
+                )
+                snapshot_time_override = legacy_snapshot.get("snapshot_time")
+                if isinstance(snapshot_time_override, datetime):
+                    row["snapshot_time_override"] = snapshot_time_override
+                    row["snapshot_time_source_override"] = legacy_snapshot.get("snapshot_time_source")
+                row["model_source_override"] = legacy_snapshot.get("model_source")
+                row["legacy_selection_source"] = legacy_snapshot.get("selection_source")
+            row["generated_line_count"] = len(row["generated_lines"])
             match_rows.append(row)
             continue
         offer_docs = offers_by_match.get(match_key, [])

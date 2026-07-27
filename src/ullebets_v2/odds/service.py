@@ -200,6 +200,163 @@ def _find_legacy_backtest_doc(
     return best_doc if best_score >= 40 else None
 
 
+def _normalize_legacy_direction(value: Any) -> str | None:
+    text = str(value or "").strip().lower()
+    if text in {"över", "over"}:
+        return "over"
+    if text == "under":
+        return "under"
+    return None
+
+
+def _build_legacy_tuples(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str, str, float], dict[str, Any]] = {}
+    for line in lines:
+        stat_key = line.get("statKey")
+        scope = line.get("scope")
+        period = line.get("period")
+        line_value = line.get("line")
+        direction = _normalize_legacy_direction(line.get("condition"))
+        odds_value = line.get("odds")
+        if not stat_key or not scope or not period or direction is None:
+            continue
+        if not isinstance(odds_value, (int, float)) or odds_value <= 1:
+            continue
+        try:
+            group_key = (
+                str(stat_key),
+                str(scope),
+                str(period),
+                float(line_value),
+            )
+        except (TypeError, ValueError):
+            continue
+        entry = grouped.setdefault(
+            group_key,
+            {
+                "statKey": stat_key,
+                "scope": scope,
+                "period": period,
+                "line": line_value,
+                "odds": {},
+            },
+        )
+        entry["odds"][direction] = float(odds_value)
+    return sorted(
+        grouped.values(),
+        key=lambda row: (
+            str(row.get("statKey") or ""),
+            str(row.get("scope") or ""),
+            str(row.get("period") or ""),
+            float(row.get("line") or 0),
+        ),
+    )
+
+
+def _parse_legacy_timestamp(document: dict[str, Any], *field_names: str) -> datetime | None:
+    for field_name in field_names:
+        parsed = _parse_match_time(document.get(field_name))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _build_legacy_event_link_doc(
+    *,
+    match: dict[str, Any],
+    legacy_doc: dict[str, Any],
+    imported_at: datetime,
+) -> dict[str, Any]:
+    event_id = legacy_doc.get("eventId")
+    return {
+        "event_id": str(event_id) if event_id is not None else None,
+        "event_url": legacy_doc.get("url"),
+        "match_key": match["match_key"],
+        "source_workflow": match.get("source_workflow"),
+        "league_key": match.get("league_key"),
+        "league_name": match.get("league_name"),
+        "home_team_name": match.get("home_team_name"),
+        "away_team_name": match.get("away_team_name"),
+        "canonical_home_team_name": legacy_doc.get("homeTeam") or match.get("home_team_name"),
+        "canonical_away_team_name": legacy_doc.get("awayTeam") or match.get("away_team_name"),
+        "match_start_time": match.get("start_time"),
+        "discovered_start_time": match.get("start_time"),
+        "discovered_league_name": legacy_doc.get("league") or match.get("league_name"),
+        "mapping_confidence": "legacy_replay",
+        "source_provider": "legacy_unibet_backtest",
+        "discovered_at": imported_at,
+        "list_view_payload_hash": None,
+    }
+
+
+def _build_legacy_raw_doc(
+    *,
+    match: dict[str, Any],
+    legacy_doc: dict[str, Any],
+    imported_at: datetime,
+) -> dict[str, Any]:
+    payload_hash = stable_json_hash(legacy_doc)
+    event_id = legacy_doc.get("eventId")
+    return {
+        "raw_key": "|".join(
+            [
+                "legacy_unibet_backtest",
+                str(event_id) if event_id is not None else "",
+                str(match["match_key"]),
+                payload_hash,
+            ]
+        ),
+        "payload_hash": payload_hash,
+        "payload_kind": "legacy_unibet_backtest",
+        "source_provider": "legacy_unibet_backtest",
+        "source_url": legacy_doc.get("url"),
+        "fetched_at": imported_at,
+        "match_key": match["match_key"],
+        "event_id": str(event_id) if event_id is not None else None,
+        "league_key": match.get("league_key"),
+        "league_name": match.get("league_name"),
+        "match_start_time": match.get("start_time"),
+        "payload": legacy_doc,
+        "bet_offer_count": len(legacy_doc.get("lines") or []),
+    }
+
+
+def _build_legacy_import_payload(
+    *,
+    match: dict[str, Any],
+    legacy_doc: dict[str, Any],
+    fallback_time: datetime,
+) -> dict[str, Any]:
+    imported_at = _parse_legacy_timestamp(legacy_doc, "updatedAt", "generatedAt") or fallback_time
+    event_id = legacy_doc.get("eventId")
+    event_id_str = str(event_id) if event_id is not None else None
+    tuples = _build_legacy_tuples(list(legacy_doc.get("lines") or []))
+    raw_doc = _build_legacy_raw_doc(
+        match=match,
+        legacy_doc=legacy_doc,
+        imported_at=imported_at,
+    )
+    return {
+        "event_id": event_id_str,
+        "tuples": tuples,
+        "tuple_hash": _tuple_hash(tuples),
+        "raw_doc": raw_doc,
+        "event_link_doc": _build_legacy_event_link_doc(
+            match=match,
+            legacy_doc=legacy_doc,
+            imported_at=imported_at,
+        ),
+        "market_offer_docs": _build_market_offer_docs(
+            match=match,
+            event_id=event_id_str,
+            tuples=tuples,
+            raw_payload_hash=raw_doc["payload_hash"],
+            fetched_at=imported_at,
+        ),
+        "imported_at": imported_at,
+    }
+
+
 def inspect_fixture_target_window_from_database(
     *,
     database: Any,
@@ -490,6 +647,8 @@ def run_unibet_odds_ingest(
             "historical_source_checked": legacy_backtest_database is not None,
             "historical_source_found": False,
             "historical_event_id": None,
+            "historical_tuples": [],
+            "historical_offer_count": 0,
             "error": None,
         }
         try:
@@ -499,7 +658,33 @@ def run_unibet_odds_ingest(
             )
             if legacy_doc is not None:
                 row["historical_source_found"] = True
-                row["historical_event_id"] = legacy_doc.get("eventId")
+                row["historical_event_id"] = (
+                    str(legacy_doc.get("eventId"))
+                    if legacy_doc.get("eventId") is not None
+                    else None
+                )
+                row["historical_snapshot_count"] = len(legacy_doc.get("snapshots") or [])
+                imported = _build_legacy_import_payload(
+                    match=match,
+                    legacy_doc=legacy_doc,
+                    fallback_time=now,
+                )
+                row["historical_tuples"] = imported["tuples"]
+                row["historical_offer_count"] = len(imported["tuples"])
+                row["historical_tuple_hash"] = imported["tuple_hash"]
+                row["v2_event_id"] = imported["event_id"]
+                row["v2_tuples"] = imported["tuples"]
+                row["v2_offer_count"] = len(imported["tuples"])
+                row["v2_tuple_hash"] = imported["tuple_hash"]
+                row["imported_from_historical"] = True
+                raw_docs.append(imported["raw_doc"])
+                event_link_docs.append(imported["event_link_doc"])
+                market_offer_docs.extend(imported["market_offer_docs"])
+                match_rows.append(row)
+                continue
+            if legacy_backtest_database is not None:
+                match_rows.append(row)
+                continue
             oracle_event: dict[str, Any] | None = None
             if oracle is not None:
                 try:

@@ -150,6 +150,117 @@ def fake_transport(url: str, headers: dict[str, str], timeout_seconds: int):  # 
     return Response(200, build_list_view_payload())
 
 
+def build_legacy_backtest_doc(*, with_snapshots: bool = False) -> dict:
+    doc = {
+        "matchDate": "2025-10-08",
+        "matchId": 14689178,
+        "league": "Premier League",
+        "homeTeam": "Arsenal",
+        "awayTeam": "Bournemouth",
+        "eventId": "evt-legacy",
+        "url": "https://legacy.test/event/evt-legacy",
+        "generatedAt": "2025-10-08T10:00:00Z",
+        "lines": [
+            {
+                "statKey": "cornerKicks",
+                "scope": "total",
+                "period": "ALL",
+                "condition": "över",
+                "line": 10.5,
+                "odds": 1.95,
+                "value": 8.4,
+                "evDetails": {"evPctUniversalOptimized": 8.4},
+                "homeTeam": "Arsenal",
+                "awayTeam": "Bournemouth",
+            },
+            {
+                "statKey": "cornerKicks",
+                "scope": "total",
+                "period": "ALL",
+                "condition": "under",
+                "line": 10.5,
+                "odds": 1.87,
+                "value": -2.1,
+                "evDetails": {"evPctUniversalOptimized": -2.1},
+                "homeTeam": "Arsenal",
+                "awayTeam": "Bournemouth",
+            },
+            {
+                "statKey": "totalShots",
+                "scope": "home",
+                "period": "ALL",
+                "condition": "över",
+                "line": 11.5,
+                "odds": 1.72,
+                "value": 3.5,
+                "evDetails": {"evPctUniversalOptimized": 3.5},
+                "homeTeam": "Arsenal",
+                "awayTeam": "Bournemouth",
+            },
+        ],
+    }
+    if with_snapshots:
+        doc["snapshots"] = [
+            {
+                "type": "forward",
+                "fetchedAt": datetime(2025, 10, 5, 10, 0, tzinfo=UTC),
+                "lines": [
+                    {
+                        "statKey": "cornerKicks",
+                        "scope": "total",
+                        "period": "ALL",
+                        "condition": "över",
+                        "line": 10.5,
+                        "odds": 1.81,
+                        "value": 4.0,
+                        "homeTeam": "Arsenal",
+                        "awayTeam": "Bournemouth",
+                    }
+                ],
+            },
+            {
+                "type": "forward",
+                "fetchedAt": datetime(2025, 10, 6, 10, 0, tzinfo=UTC),
+                "lines": [
+                    {
+                        "statKey": "cornerKicks",
+                        "scope": "total",
+                        "period": "ALL",
+                        "condition": "över",
+                        "line": 10.5,
+                        "odds": 1.89,
+                        "value": 5.0,
+                        "homeTeam": "Arsenal",
+                        "awayTeam": "Bournemouth",
+                    }
+                ],
+            },
+            {
+                "type": "backtest",
+                "fetchedAt": datetime(2025, 10, 8, 10, 0, tzinfo=UTC),
+                "lines": doc["lines"],
+            },
+            {
+                "type": "closing",
+                "fetchedAt": datetime(2025, 10, 8, 17, 45, tzinfo=UTC),
+                "lines": [
+                    {
+                        "statKey": "cornerKicks",
+                        "scope": "total",
+                        "period": "ALL",
+                        "condition": "över",
+                        "line": 10.5,
+                        "odds": 2.02,
+                        "value": 6.1,
+                        "homeTeam": "Arsenal",
+                        "awayTeam": "Bournemouth",
+                    }
+                ],
+            },
+        ]
+    return doc
+
+
 def test_map_unibet_odds_matches_original_mapper_behavior() -> None:
     legacy = map_unibet_odds(
         [
@@ -404,10 +515,50 @@ def test_run_unibet_odds_ingest_marks_missing_historical_replay_source() -> None
     assert summary["audit_status_counts"] == {"warn": 1}
     assert summary["health_status_counts"] == {"warn": 1}
     assert summary["match_rows"][0]["historical_source_checked"] is True
-    assert summary["match_rows"][0]["historical_source_found"] is False
 
 
-def test_run_unibet_odds_ingest_marks_unmatched_when_historical_source_exists() -> None:
+def test_run_unibet_odds_ingest_replays_historical_source_without_live_fetch() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    def failing_transport(url: str, headers: dict[str, str], timeout_seconds: int):  # noqa: ARG001
+        raise AssertionError(f"live transport should not be used in replay mode: {url}")
+
+    summary = run_unibet_odds_ingest(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-backtests.yml",
+        dry_run=True,
+        transport=failing_transport,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["raw_docs"] == 1
+    assert summary["event_links"] == 1
+    assert summary["market_offers"] == 2
+    assert summary["historical_source_missing"] == 0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+    assert summary["match_rows"][0]["v2_event_id"] == "evt-legacy"
+    assert summary["match_rows"][0]["historical_offer_count"] == 2
+    assert summary["match_rows"][0]["historical_source_found"] is True
+
+
+def test_run_unibet_odds_ingest_marks_empty_historical_offer_set() -> None:
     historical_database = FakeHistoricalDatabase()
     historical_database["unibet-backtest"] = FakeHistoricalCollection(
         [
@@ -438,14 +589,14 @@ def test_run_unibet_odds_ingest_marks_unmatched_when_historical_source_exists() 
         support_docs=build_support_docs(),
         source_workflow="run-unibet-backtests.yml",
         dry_run=True,
-        transport=fake_transport,
         legacy_backtest_database=historical_database,
         fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
     )
 
-    assert summary["matched_events"] == 0
+    assert summary["matched_events"] == 1
+    assert summary["market_offers"] == 0
     assert summary["historical_source_missing"] == 0
-    assert summary["parity_status_counts"] == {"mismatch": 1}
+    assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"warn": 1}
     assert summary["health_status_counts"] == {"warn": 1}
     assert summary["match_rows"][0]["historical_source_found"] is True

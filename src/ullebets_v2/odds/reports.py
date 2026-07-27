@@ -79,6 +79,7 @@ def build_odds_parity_rows(
             )
         ]
 
+    historical_mode = any(row.get("historical_source_checked") for row in match_rows)
     oracle_rows = [row for row in match_rows if row.get("oracle_available")]
     historical_source_missing = [
         row["match_key"]
@@ -99,13 +100,22 @@ def build_odds_parity_rows(
         "historical_source_missing_count": len(historical_source_missing),
         "historical_source_available_unmatched_count": len(historical_source_available_unmatched),
     }
-    counts_old = {
-        "target_match_count": len(oracle_rows),
-        "event_link_count": sum(1 for row in oracle_rows if row.get("oracle_event_id")),
-        "offer_count": sum(int(row.get("oracle_offer_count", 0)) for row in oracle_rows),
-        "event_fingerprint": _event_fingerprint(oracle_rows, "oracle_event_id") if oracle_rows else None,
-        "tuple_fingerprint": _tuple_fingerprint(oracle_rows, "oracle_tuples") if oracle_rows else None,
-    }
+    if historical_mode:
+        counts_old = {
+            "target_match_count": len(match_rows),
+            "event_link_count": sum(1 for row in match_rows if row.get("historical_event_id")),
+            "offer_count": sum(int(row.get("historical_offer_count", 0)) for row in match_rows),
+            "event_fingerprint": _event_fingerprint(match_rows, "historical_event_id"),
+            "tuple_fingerprint": _tuple_fingerprint(match_rows, "historical_tuples"),
+        }
+    else:
+        counts_old = {
+            "target_match_count": len(oracle_rows),
+            "event_link_count": sum(1 for row in oracle_rows if row.get("oracle_event_id")),
+            "offer_count": sum(int(row.get("oracle_offer_count", 0)) for row in oracle_rows),
+            "event_fingerprint": _event_fingerprint(oracle_rows, "oracle_event_id") if oracle_rows else None,
+            "tuple_fingerprint": _tuple_fingerprint(oracle_rows, "oracle_tuples") if oracle_rows else None,
+        }
 
     if historical_source_missing:
         parity_status = "missing_oracle"
@@ -116,6 +126,18 @@ def build_odds_parity_rows(
             f"historical_odds_source_available_but_v2_unmatched:{match_key}"
             for match_key in historical_source_available_unmatched
         ]
+    elif historical_mode:
+        mismatches = [
+            row["match_key"]
+            for row in match_rows
+            if row.get("error")
+            or row.get("v2_event_id") != row.get("historical_event_id")
+            or row.get("v2_tuple_hash") != row.get("historical_tuple_hash")
+        ]
+        parity_status = "matched" if not mismatches else "mismatch"
+        blocking_issues = [f"historical_odds_parity_mismatch:{match_key}" for match_key in mismatches]
+        counts_old["mismatch_count"] = len(mismatches)
+        counts_v2["mismatch_count"] = len(mismatches)
     elif not oracle_rows:
         parity_status = "missing_oracle"
         blocking_issues = ["original_js_oracle_unavailable"]

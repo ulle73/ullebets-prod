@@ -8,6 +8,7 @@ from tests.v2.test_model_snapshots import FakeModelOracle
 from tests.v2.test_odds_ingest import (
     FakeHistoricalCollection,
     FakeHistoricalDatabase,
+    build_legacy_backtest_doc,
     build_support_docs,
     fake_transport,
 )
@@ -209,9 +210,46 @@ def test_run_auto_analysis_pipeline_marks_historical_source_gap_as_mismatch() ->
         fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
     )
 
-    assert summary["matched_events"] == 0
+    assert summary["matched_events"] == 1
     assert summary["model_snapshots"] == 0
     assert summary["analysis_candidates"] == 0
-    assert summary["parity_status_counts"] == {"mismatch": 1}
-    assert summary["audit_status_counts"] == {"warn": 1}
-    assert summary["health_status_counts"] == {"warn": 1}
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_auto_analysis_pipeline_replays_historical_model_snapshots() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        snapshot_mode="backtest",
+        analysis_oracle=FakeAnalysisOracle(),
+        dry_run=True,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 3
+    assert summary["valid_model_snapshots"] == 3
+    assert summary["analysis_candidates"] == 3
+    assert summary["analysis_shortlist"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
