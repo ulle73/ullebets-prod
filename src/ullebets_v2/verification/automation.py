@@ -47,6 +47,10 @@ HELPER_WORKFLOW_RULES = {
     },
 }
 WORKFLOW_CONTENT_RULES = {
+    "backfill-teamstats-from-date.yml": {
+        "required_fragments": ["--source-mode db"],
+        "forbidden_fragments": [],
+    },
     "update-teamstats-and-teamprofiles.yml": {
         "required_fragments": ["--fixture-source db"],
         "forbidden_fragments": [],
@@ -78,10 +82,10 @@ WORKFLOW_LEGACY_CONTRACTS = {
         "notes": ["Live enrichment is V2-native; replay enrichment still uses legacy teamstats and match sources for parity."],
     },
     "backfill-teamstats-from-date.yml": {
-        "default_runtime": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
+        "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": True, "legacy_app_db": True, "legacy_unibet_db": False},
-        "expected_checkout_legacy_repo": True,
-        "notes": ["Backfill currently replays legacy teamstats files and app records as read-only reference sources."],
+        "expected_checkout_legacy_repo": False,
+        "notes": ["Default backfill rebuilds canonical enrichment from V2 raw collections; replay mode still supports legacy teamstats files and app records for parity."],
     },
     "verify-teamstats-db.yml": {
         "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},

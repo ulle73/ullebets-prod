@@ -52,13 +52,13 @@ def test_workflow_directory_flags_missing_source_workflow_and_dry_run() -> None:
     assert "missing_dry_run_guard" in flagged["run-unibet-forward.yml"]["findings"]
 
 
-def test_workflow_directory_flags_missing_required_legacy_checkout() -> None:
+def test_workflow_directory_flags_missing_required_backfill_source_mode() -> None:
     workflow_dir = repo_root() / ".github" / "workflows"
     workflow_path = workflow_dir / "backfill-teamstats-from-date.yml"
     original_bytes = workflow_path.read_bytes()
     original = original_bytes.decode("utf-8")
     try:
-        mutated = re.sub(r"^\s*checkout_legacy_repo:\s*true\r?\n", "", original, count=1, flags=re.MULTILINE)
+        mutated = original.replace("--source-mode db \\\n", "", 1).replace("--source-mode db \\\r\n", "", 1)
         workflow_path.write_text(mutated, encoding="utf-8")
         report = inspect_workflow_directory(workflow_dir)
     finally:
@@ -67,7 +67,7 @@ def test_workflow_directory_flags_missing_required_legacy_checkout() -> None:
     flagged = {row["file"]: row for row in report["file_reports"]}
     assert "backfill-teamstats-from-date.yml" in report["invalid_content_files"]
     assert flagged["backfill-teamstats-from-date.yml"]["status"] == "warn"
-    assert "missing_legacy_repo_checkout" in flagged["backfill-teamstats-from-date.yml"]["findings"]
+    assert "missing_required_workflow_fragments" in flagged["backfill-teamstats-from-date.yml"]["findings"]
 
 
 def test_workflow_directory_flags_missing_required_workflow_fragment() -> None:
@@ -132,4 +132,5 @@ def test_legacy_dependency_contract_summarizes_native_vs_legacy_workflows() -> N
     rows = {row["old_workflow"]: row for row in summary["rows"]}
     assert rows["run-unibet-backtests.yml"]["default_runtime"]["old_repo"] is True
     assert rows["run-unibet-closing.yml"]["default_runtime"]["old_repo"] is False
-    assert rows["backfill-teamstats-from-date.yml"]["default_runtime"]["legacy_app_db"] is True
+    assert rows["backfill-teamstats-from-date.yml"]["default_runtime"]["legacy_app_db"] is False
+    assert rows["backfill-teamstats-from-date.yml"]["parity_or_replay"]["legacy_app_db"] is True

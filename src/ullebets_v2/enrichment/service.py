@@ -3,6 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ullebets_v2.enrichment.backfill import (
+    build_canonical_match_enrichment_from_raw,
+    load_enrichment_backfill_inputs,
+)
 from ullebets_v2.enrichment.live import (
     EnrichmentSourceConfig,
     Transport,
@@ -214,3 +218,100 @@ def run_live_match_enrichment_window(
             "match_rows": live_result["match_rows"],
         },
     )
+
+
+def run_match_enrichment_backfill_from_raw(
+    *,
+    read_database: Any,
+    source_workflow: str,
+    dates: list[str] | None = None,
+    database: Any | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    inputs = load_enrichment_backfill_inputs(read_database, dates=dates)
+    rebuilt = build_canonical_match_enrichment_from_raw(**inputs)
+    parity_rows = build_match_enrichment_parity_rows(
+        source_workflow=source_workflow,
+        source_rows=[],
+        expected_matches=rebuilt["expected_matches"],
+        canonical_match_results=rebuilt["match_results"],
+    )
+    audit_rows = build_match_enrichment_audit_rows(
+        source_workflow=source_workflow,
+        source_rows=[],
+        expected_matches=rebuilt["expected_matches"],
+        raw_match_statistics=inputs["raw_match_statistics"],
+        raw_incidents=inputs["raw_incidents"],
+        raw_shotmaps=inputs["raw_shotmaps"],
+        raw_results=inputs["raw_results"],
+        canonical_match_results=rebuilt["match_results"],
+        canonical_match_stats=rebuilt["match_stats_canonical"],
+    )
+    summary: dict[str, Any] = {
+        "job": "backfill_match_enrichment",
+        "mode": "db",
+        "dates": dates or [],
+        "replay_source": "v2_raw",
+        "fixture_targets": len(inputs["fixtures"]),
+        "source_files": 0,
+        "raw_match_statistics": len(inputs["raw_match_statistics"]),
+        "raw_incidents": len(inputs["raw_incidents"]),
+        "raw_shotmaps": len(inputs["raw_shotmaps"]),
+        "raw_results": len(inputs["raw_results"]),
+        "match_results_canonical": len(rebuilt["match_results"]),
+        "match_stats_canonical": len(rebuilt["match_stats_canonical"]),
+        "parity_reports": len(parity_rows),
+        "audit_reports": len(audit_rows),
+        "missing_fixture_context_matches": rebuilt["missing_fixture_context_matches"],
+        "parity_status_counts": {
+            status: sum(1 for row in parity_rows if row["parity_status"] == status)
+            for status in sorted({row["parity_status"] for row in parity_rows})
+        },
+        "audit_status_counts": {
+            status: sum(1 for row in audit_rows if row["status"] == status)
+            for status in sorted({row["status"] for row in audit_rows})
+        },
+    }
+    if dry_run:
+        return summary
+    if database is None:
+        raise RuntimeError("database is required when dry_run is False.")
+
+    job_collection = database["job_runs"]
+    run_doc = build_job_run_started_doc(
+        job_name="backfill_match_enrichment",
+        source_workflow=source_workflow,
+        target_window={"dates": dates or [], "mode": "db"},
+        job_args={"dry_run": False, "mode": "db"},
+    )
+    job_collection.insert_one(run_doc)
+    try:
+        metrics = persist_enrichment_records(
+            database,
+            raw_match_statistics=inputs["raw_match_statistics"],
+            raw_incidents=inputs["raw_incidents"],
+            raw_shotmaps=inputs["raw_shotmaps"],
+            raw_results=inputs["raw_results"],
+            match_stats_canonical=rebuilt["match_stats_canonical"],
+            match_results=rebuilt["match_results"],
+            parity_rows=parity_rows,
+            audit_rows=audit_rows,
+        )
+        job_collection.update_one(
+            {"run_id": run_doc["run_id"]},
+            build_job_run_finished_update(
+                status="succeeded",
+                metrics={**metrics, **summary},
+            ),
+        )
+    except Exception as exc:
+        job_collection.update_one(
+            {"run_id": run_doc["run_id"]},
+            build_job_run_finished_update(
+                status="failed",
+                metrics=summary,
+                error={"type": type(exc).__name__, "message": str(exc)},
+            ),
+        )
+        raise
+    return summary

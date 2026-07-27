@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 import json
 
-from ullebets_v2.enrichment.service import run_match_enrichment_window
+from ullebets_v2.enrichment.service import run_match_enrichment_backfill_from_raw, run_match_enrichment_window
 from ullebets_v2.enrichment.persistence import persist_enrichment_records
 from ullebets_v2.enrichment.replay import (
     build_match_enrichment_documents,
@@ -181,6 +181,23 @@ def build_mongo_teamstats_doc(*, source_file: str = "adelaide_united_home_match_
     }
 
 
+def build_fixture_doc() -> dict:
+    match = build_match_record()
+    return {
+        "match_key": "sofascore:14671649",
+        "source_match_id": "14671649",
+        "source_date": match["date"],
+        "league_key": "a-league-men",
+        "league_id": 136,
+        "league_name": "A-League Men",
+        "home_team_key": "a-league-men:adelaide-united",
+        "away_team_key": "a-league-men:melbourne-city",
+        "home_team_name": "Adelaide United",
+        "away_team_name": "Melbourne City",
+        "mapping_confidence": "exact_support_ids",
+    }
+
+
 def test_build_match_enrichment_documents_normalizes_stats_and_artifacts(tmp_path: Path) -> None:
     support_docs = build_support_docs()
     source_dir = write_teamstats_source(tmp_path)
@@ -266,6 +283,42 @@ def test_run_match_enrichment_window_falls_back_to_mongo_when_files_have_no_date
     assert summary["replay_source"] == "mongodb_fallback"
     assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
+
+
+def test_run_match_enrichment_backfill_from_raw_rebuilds_native_canonical_rows(tmp_path: Path) -> None:
+    support_docs = build_support_docs()
+    source_dir = write_teamstats_source(tmp_path)
+    source_rows = build_teamstats_source_rows(source_dir)
+    docs = build_match_enrichment_documents(
+        source_rows=source_rows,
+        support_docs=support_docs,
+    )
+    read_database = FakeReadDatabase(
+        {
+            "fixtures_canonical": FakeReadCollection([build_fixture_doc()]),
+            "raw_match_statistics": FakeReadCollection(docs["raw_match_statistics"]),
+            "raw_incidents": FakeReadCollection(docs["raw_incidents"]),
+            "raw_shotmaps": FakeReadCollection(docs["raw_shotmaps"]),
+            "raw_results": FakeReadCollection(docs["raw_results"]),
+        }
+    )
+
+    summary = run_match_enrichment_backfill_from_raw(
+        read_database=read_database,
+        source_workflow="backfill-teamstats-from-date.yml",
+        dates=["2025-11-21"],
+        dry_run=True,
+    )
+
+    assert summary["replay_source"] == "v2_raw"
+    assert summary["fixture_targets"] == 1
+    assert summary["source_files"] == 0
+    assert summary["raw_match_statistics"] == 2
+    assert summary["match_results_canonical"] == 1
+    assert summary["match_stats_canonical"] > 0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["missing_fixture_context_matches"] == []
 
 
 def test_match_enrichment_reports_and_persistence_are_rerun_safe(tmp_path: Path) -> None:

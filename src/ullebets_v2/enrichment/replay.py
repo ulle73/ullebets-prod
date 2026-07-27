@@ -186,8 +186,23 @@ def _build_raw_artifact_doc(
 
 
 def _iter_stat_rows(match: dict[str, Any], match_key: str, context: dict[str, Any]) -> list[dict[str, Any]]:
+    return iter_stat_rows_from_statistics_payload(
+        statistics_payload=match.get("matchDetails"),
+        match_key=match_key,
+        context=context,
+    )
+
+
+def iter_stat_rows_from_statistics_payload(
+    *,
+    statistics_payload: Any,
+    match_key: str,
+    context: dict[str, Any],
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    statistics = match.get("matchDetails", {}).get("statistics", [])
+    if not isinstance(statistics_payload, dict):
+        return rows
+    statistics = statistics_payload.get("statistics", [])
     if not isinstance(statistics, list):
         return rows
 
