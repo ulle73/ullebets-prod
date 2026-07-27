@@ -13,7 +13,12 @@ if str(SRC) not in sys.path:
 from ullebets_v2.closing.service import run_closing_capture
 from ullebets_v2.config import V2Config
 from ullebets_v2.odds.oracle import OriginalJsOracle
-from ullebets_v2.odds.service import build_smoke_targets_for_league, load_fixture_targets_from_database, load_replay_fixture_targets
+from ullebets_v2.odds.service import (
+    build_smoke_targets_for_league,
+    inspect_fixture_target_window_from_database,
+    load_fixture_targets_from_database,
+    load_replay_fixture_targets,
+)
 from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.storage.mongo import get_database, get_named_database
 from ullebets_v2.support.loaders import load_support_documents
@@ -53,6 +58,7 @@ def main() -> int:
         now = None
 
     read_database = None
+    target_window = None
     if args.mode == "replay-fixtures":
         if not args.dates:
             raise RuntimeError("--date is required in replay-fixtures mode.")
@@ -64,6 +70,13 @@ def main() -> int:
         )
     elif args.mode == "fixture-db":
         read_database = get_database(config)
+        target_window = inspect_fixture_target_window_from_database(
+            database=read_database,
+            dates=args.dates or None,
+            max_days_ahead=args.max_days_ahead,
+            reference_time=now,
+            league_name=args.league,
+        )
         targets = load_fixture_targets_from_database(
             database=read_database,
             dates=args.dates or None,
@@ -96,6 +109,11 @@ def main() -> int:
         legacy_backtest_database=legacy_backtest_database,
         now=now,
     )
+    if target_window is not None:
+        target_window["selected_target_match_count"] = len(targets)
+        summary["target_window"] = target_window
+        if not targets:
+            summary["empty_reason"] = target_window.get("empty_reason")
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
     return 0
 
