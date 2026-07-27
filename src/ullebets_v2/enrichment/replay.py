@@ -18,6 +18,11 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
+def _extract_matches(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
+    full = payload.get("full") if isinstance(payload.get("full"), list) else payload.get("matches")
+    return full if isinstance(full, list) else None
+
+
 def infer_source_role(filename: str) -> str | None:
     lowered = filename.lower()
     if lowered.endswith("_home_match_stats.json"):
@@ -31,17 +36,45 @@ def build_teamstats_source_rows(source_dir: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for path in sorted(source_dir.glob("*.json")):
         payload = load_json(path)
-        full = payload.get("full") if isinstance(payload.get("full"), list) else payload.get("matches")
-        if not isinstance(full, list):
+        matches = _extract_matches(payload)
+        if matches is None:
             continue
         rows.append(
             {
                 "source_file": path.name,
                 "source_path": str(path),
                 "source_role": infer_source_role(path.name),
-                "matches": full,
+                "matches": matches,
             }
         )
+    return rows
+
+
+def build_teamstats_source_rows_from_database(
+    database: Any,
+    *,
+    collection_name: str = "teamstats",
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    projection = {"_id": 0, "full": 1, "matches": 1, "_importMeta": 1}
+    for index, payload in enumerate(database[collection_name].find({}, projection=projection)):
+        matches = _extract_matches(payload)
+        if matches is None:
+            continue
+        import_meta = payload.get("_importMeta") if isinstance(payload.get("_importMeta"), dict) else {}
+        source_file = str(import_meta.get("sourceFile") or f"teamstats_doc_{index}.json")
+        source_role = str(import_meta.get("teamRole") or "").lower()
+        if source_role not in {"home", "away"}:
+            source_role = infer_source_role(source_file)
+        rows.append(
+            {
+                "source_file": source_file,
+                "source_path": f"mongodb:{collection_name}:{source_file}",
+                "source_role": source_role,
+                "matches": matches,
+            }
+        )
+    rows.sort(key=lambda row: (str(row["source_file"]), str(row["source_path"])))
     return rows
 
 

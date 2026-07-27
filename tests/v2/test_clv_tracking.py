@@ -7,9 +7,11 @@ from ullebets_v2.clv_tracking.service import run_clv_tracking_refresh
 
 def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds() -> None:
     summary = run_clv_tracking_refresh(
-        model_snapshot_docs=[
+        tracked_bet_docs=[
             {
+                "tracking_key": "sel-over",
                 "selection_key": "sel-over",
+                "prediction_key": "pred-over",
                 "bet_key": "bet-over",
                 "match_key": "match-1",
                 "offer_key": "offer-1",
@@ -23,13 +25,15 @@ def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds
                 "scope": "total",
                 "direction": "over",
                 "line_value": 10.5,
-                "selected_odds": 2.0,
-                "snapshot_time": "2026-06-22T09:50:00Z",
+                "saved_odds": 2.0,
+                "saved_at": "2026-06-22T09:50:00Z",
                 "match_start_time": "2026-06-22T10:00:00Z",
                 "invalid_for_model": False,
             },
             {
+                "tracking_key": "sel-under",
                 "selection_key": "sel-under",
+                "prediction_key": "pred-under",
                 "bet_key": "bet-under",
                 "match_key": "match-1",
                 "offer_key": "offer-1",
@@ -43,8 +47,8 @@ def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds
                 "scope": "total",
                 "direction": "under",
                 "line_value": 10.5,
-                "selected_odds": 1.9,
-                "snapshot_time": "2026-06-22T09:50:00Z",
+                "saved_odds": 1.9,
+                "saved_at": "2026-06-22T09:50:00Z",
                 "match_start_time": "2026-06-22T10:00:00Z",
                 "invalid_for_model": False,
             },
@@ -74,6 +78,8 @@ def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds
     over_doc = next(row for row in summary["clv_docs"] if row["tracking_key"] == "sel-over")
     under_doc = next(row for row in summary["clv_docs"] if row["tracking_key"] == "sel-under")
     assert over_doc["closing_odds"] == 1.8
+    assert over_doc["opening_odds"] is None
+    assert over_doc["saved_odds"] == 2.0
     assert over_doc["clv_pct"] == 11.1
     assert over_doc["beat_closing_line"] is True
     assert under_doc["closing_odds"] == 2.0
@@ -86,8 +92,9 @@ def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds
 
 def test_run_clv_tracking_refresh_dry_run_marks_missing_closing_and_invalid_timing() -> None:
     summary = run_clv_tracking_refresh(
-        model_snapshot_docs=[
+        tracked_bet_docs=[
             {
+                "tracking_key": "sel-missing",
                 "selection_key": "sel-missing",
                 "bet_key": "bet-missing",
                 "match_key": "match-1",
@@ -97,10 +104,11 @@ def test_run_clv_tracking_refresh_dry_run_marks_missing_closing_and_invalid_timi
                 "scope": "total",
                 "direction": "over",
                 "line_value": 10.5,
-                "selected_odds": 2.0,
+                "saved_odds": 2.0,
                 "invalid_for_model": False,
             },
             {
+                "tracking_key": "sel-invalid",
                 "selection_key": "sel-invalid",
                 "bet_key": "bet-invalid",
                 "match_key": "match-2",
@@ -110,7 +118,7 @@ def test_run_clv_tracking_refresh_dry_run_marks_missing_closing_and_invalid_timi
                 "scope": "home",
                 "direction": "over",
                 "line_value": 4.5,
-                "selected_odds": 1.9,
+                "saved_odds": 1.9,
                 "invalid_for_model": True,
             },
         ],
@@ -127,11 +135,12 @@ def test_run_clv_tracking_refresh_dry_run_marks_missing_closing_and_invalid_timi
 
 def test_run_clv_tracking_refresh_dry_run_handles_empty_input() -> None:
     summary = run_clv_tracking_refresh(
-        model_snapshot_docs=[],
+        tracked_bet_docs=[],
         closing_line_docs=[],
         dry_run=True,
     )
 
+    assert summary["tracked_bets"] == 0
     assert summary["model_snapshots"] == 0
     assert summary["clv_tracking_rows"] == 0
     assert summary["parity_status_counts"] == {"no_targets": 1}

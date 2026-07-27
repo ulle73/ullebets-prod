@@ -39,6 +39,18 @@ def build_stats_lookup(match_stats_canonical: list[dict[str, Any]]) -> dict[tupl
     return lookup
 
 
+def build_stat_scope_lookup(match_stats_canonical: list[dict[str, Any]]) -> dict[tuple[str, str, str], set[str]]:
+    lookup: dict[tuple[str, str, str], set[str]] = {}
+    for row in match_stats_canonical:
+        key = (
+            str(row.get("match_key") or ""),
+            str(row.get("stat_key") or ""),
+            str(row.get("period") or ""),
+        )
+        lookup.setdefault(key, set()).add(normalize_scope(row.get("scope")))
+    return lookup
+
+
 def build_result_lookup(match_results_canonical: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {
         str(row.get("match_key")): row
@@ -55,6 +67,7 @@ def build_settled_docs(
     settled_at: datetime,
 ) -> list[dict[str, Any]]:
     stats_lookup = build_stats_lookup(match_stats_canonical)
+    stat_scope_lookup = build_stat_scope_lookup(match_stats_canonical)
     result_lookup = build_result_lookup(match_results_canonical)
     settled_docs: list[dict[str, Any]] = []
     for snapshot in model_snapshot_docs:
@@ -72,20 +85,31 @@ def build_settled_docs(
                     "roi_units": None,
                     "pnl_units": None,
                     "actual_source": None,
+                    "actual_source_status": "missing_match_result_source",
                     "settled_at": settled_at,
                 }
             )
             continue
 
+        stat_key = str(snapshot.get("stat_key") or "")
+        period = str(snapshot.get("period") or "")
+        scope = normalize_scope(snapshot.get("scope"))
         stat_row = stats_lookup.get(
             (
                 match_key,
-                str(snapshot.get("stat_key") or ""),
-                str(snapshot.get("period") or ""),
-                normalize_scope(snapshot.get("scope")),
+                stat_key,
+                period,
+                scope,
             )
         )
         if stat_row is None:
+            available_scopes = stat_scope_lookup.get((match_key, stat_key, period), set())
+            if not available_scopes:
+                actual_source_status = "stat_not_in_canonical_source"
+            elif scope not in available_scopes:
+                actual_source_status = "scope_not_in_canonical_source"
+            else:
+                actual_source_status = "missing_actual_source_row"
             settled_docs.append(
                 {
                     **snapshot,
@@ -97,6 +121,7 @@ def build_settled_docs(
                     "roi_units": None,
                     "pnl_units": None,
                     "actual_source": None,
+                    "actual_source_status": actual_source_status,
                     "settled_at": settled_at,
                 }
             )
@@ -121,6 +146,7 @@ def build_settled_docs(
                     "roi_units": None,
                     "pnl_units": None,
                     "actual_source": f"{stat_row.get('match_key')}:{stat_row.get('stat_key')}:{stat_row.get('period')}:{stat_row.get('scope')}",
+                    "actual_source_status": "rule_error",
                     "settled_at": settled_at,
                 }
             )
@@ -138,6 +164,7 @@ def build_settled_docs(
                 "pnl_units": settlement["pnl_units"],
                 "stake_units": settlement["stake_units"],
                 "actual_source": f"{stat_row.get('match_key')}:{stat_row.get('stat_key')}:{stat_row.get('period')}:{stat_row.get('scope')}",
+                "actual_source_status": "resolved",
                 "settled_at": settled_at,
             }
         )

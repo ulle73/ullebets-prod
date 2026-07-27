@@ -2,10 +2,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 import json
 
+from ullebets_v2.enrichment.service import run_match_enrichment_window
 from ullebets_v2.enrichment.persistence import persist_enrichment_records
 from ullebets_v2.enrichment.replay import (
     build_match_enrichment_documents,
     build_teamstats_source_rows,
+    build_teamstats_source_rows_from_database,
 )
 from ullebets_v2.enrichment.reports import (
     build_match_enrichment_audit_rows,
@@ -49,6 +51,19 @@ class FakeDatabase(dict):
     def __getitem__(self, collection_name: str) -> FakeCollection:
         if collection_name not in self:
             self[collection_name] = FakeCollection()
+        return dict.__getitem__(self, collection_name)
+
+
+class FakeReadCollection:
+    def __init__(self, docs: list[dict]) -> None:
+        self.docs = docs
+
+    def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
+        return list(self.docs)
+
+
+class FakeReadDatabase(dict):
+    def __getitem__(self, collection_name: str) -> FakeReadCollection:
         return dict.__getitem__(self, collection_name)
 
 
@@ -149,6 +164,23 @@ def write_teamstats_source(tmp_path: Path) -> Path:
     return source_dir
 
 
+def build_mongo_teamstats_doc(*, source_file: str = "adelaide_united_home_match_stats.json") -> dict:
+    return {
+        "_importMeta": {
+            "sourceFile": source_file,
+            "teamRole": "home",
+            "importedAt": "2026-05-17T11:00:00Z",
+        },
+        "full": [
+            {
+                **build_match_record(),
+                "date": "2026-05-17",
+                "savedAt": "2026-05-17T11:00:00Z",
+            }
+        ],
+    }
+
+
 def test_build_match_enrichment_documents_normalizes_stats_and_artifacts(tmp_path: Path) -> None:
     support_docs = build_support_docs()
     source_dir = write_teamstats_source(tmp_path)
@@ -191,6 +223,49 @@ def test_build_match_enrichment_documents_normalizes_stats_and_artifacts(tmp_pat
     assert possession_total == []
     assert docs["match_results"][0]["home_score"] == 2
     assert docs["match_results"][0]["away_score"] == 1
+
+
+def test_build_teamstats_source_rows_from_database_uses_import_meta() -> None:
+    rows = build_teamstats_source_rows_from_database(
+        FakeReadDatabase(
+            {
+                "teamstats": FakeReadCollection([build_mongo_teamstats_doc()]),
+            }
+        )
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["source_file"] == "adelaide_united_home_match_stats.json"
+    assert rows[0]["source_role"] == "home"
+    assert rows[0]["source_path"] == "mongodb:teamstats:adelaide_united_home_match_stats.json"
+    assert rows[0]["matches"][0]["date"] == "2026-05-17"
+
+
+def test_run_match_enrichment_window_falls_back_to_mongo_when_files_have_no_date(tmp_path: Path) -> None:
+    support_docs = build_support_docs()
+    source_dir = write_teamstats_source(tmp_path)
+    legacy_teamstats_database = FakeReadDatabase(
+        {
+            "teamstats": FakeReadCollection([build_mongo_teamstats_doc()]),
+        }
+    )
+
+    summary = run_match_enrichment_window(
+        source_dir=source_dir,
+        support_docs=support_docs,
+        source_workflow="update-teamstats-and-teamprofiles.yml",
+        dates=["2026-05-17"],
+        legacy_teamstats_database=legacy_teamstats_database,
+        dry_run=True,
+    )
+
+    assert summary["source_files"] == 1
+    assert summary["raw_match_statistics"] == 1
+    assert summary["match_results_canonical"] == 1
+    assert summary["match_stats_canonical"] > 0
+    assert summary["replay_source"] == "mongodb_fallback"
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
 
 
 def test_match_enrichment_reports_and_persistence_are_rerun_safe(tmp_path: Path) -> None:

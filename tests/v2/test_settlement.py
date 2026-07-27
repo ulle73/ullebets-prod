@@ -97,7 +97,15 @@ def test_run_model_snapshot_settlement_dry_run_marks_pending_and_missing_actual(
                 "invalid_for_model": False,
             },
         ],
-        match_stats_canonical=[],
+        match_stats_canonical=[
+            {
+                "match_key": "match-2",
+                "stat_key": "shotsOnGoal",
+                "period": "ALL",
+                "scope": "away",
+                "actual_value": 2,
+            }
+        ],
         match_results_canonical=[
             {
                 "match_key": "match-2",
@@ -126,5 +134,43 @@ def test_run_model_snapshot_settlement_dry_run_handles_empty_input() -> None:
     assert summary["model_snapshots"] == 0
     assert summary["settled_bets"] == 0
     assert summary["parity_status_counts"] == {"no_targets": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_model_snapshot_settlement_dry_run_treats_historical_source_gap_as_non_blocking() -> None:
+    summary = run_model_snapshot_settlement(
+        source_workflow="correct-backtests-daily.yml",
+        model_snapshot_docs=[
+            {
+                "selection_key": "sel-legacy-gap",
+                "match_key": "match-legacy-gap",
+                "bet_key": "bet-legacy-gap",
+                "stat_key": "offsides",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 4.5,
+                "selected_odds": 1.95,
+                "invalid_for_model": False,
+                "legacy_actual_value": 0,
+                "legacy_settlement_result": "loss",
+                "legacy_win": False,
+            }
+        ],
+        match_stats_canonical=[],
+        match_results_canonical=[
+            {
+                "match_key": "match-legacy-gap",
+                "home_score": 2,
+                "away_score": 1,
+            }
+        ],
+        dry_run=True,
+        settled_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["status_counts"] == {"missing_actual": 1}
+    assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}

@@ -14,7 +14,7 @@ from ullebets_v2.config import V2Config
 from ullebets_v2.enrichment.service import run_match_enrichment_window
 from ullebets_v2.fixtures.replay import iter_target_dates
 from ullebets_v2.safety import ensure_v2_database
-from ullebets_v2.storage.mongo import get_database
+from ullebets_v2.storage.mongo import get_database, get_named_database
 from ullebets_v2.support.loaders import load_support_documents
 
 
@@ -52,6 +52,7 @@ def main() -> int:
         support_docs=support_docs,
         source_workflow=args.source_workflow,
         dates=resolve_dates(args),
+        legacy_teamstats_database=get_named_database(config, "app"),
         database=database,
         dry_run=args.dry_run,
     )

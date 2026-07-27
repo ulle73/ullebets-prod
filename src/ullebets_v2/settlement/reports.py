@@ -15,6 +15,20 @@ def _count_by(rows: list[dict[str, Any]], field: str) -> dict[str, int]:
     return dict(Counter(str(row.get(field) or "missing") for row in rows))
 
 
+def _historical_source_gap_missing_actual_count(settled_docs: list[dict[str, Any]]) -> int:
+    return sum(
+        1
+        for row in settled_docs
+        if row.get("settlement_status") == "missing_actual"
+        and (
+            row.get("actual_source_status") == "stat_not_in_canonical_source"
+            or row.get("legacy_actual_value") is not None
+            or row.get("legacy_settlement_result") is not None
+            or row.get("legacy_win") is not None
+        )
+    )
+
+
 def build_settlement_parity_rows(
     *,
     source_workflow: str,
@@ -44,14 +58,24 @@ def build_settlement_parity_rows(
         ]
 
     status_counts = _count_by(settled_docs, "settlement_status")
+    historical_gap_count = _historical_source_gap_missing_actual_count(settled_docs)
+    blocking_missing_actual_count = max(0, status_counts.get("missing_actual", 0) - historical_gap_count)
     parity_status = "matched"
     blocking_issues: list[str] = []
-    if any(status_counts.get(key, 0) for key in ("missing_actual", "rule_error")):
+    if blocking_missing_actual_count or status_counts.get("rule_error", 0):
         parity_status = "mismatch"
-        if status_counts.get("missing_actual", 0):
+        if blocking_missing_actual_count:
             blocking_issues.append("missing_actual_values_present")
         if status_counts.get("rule_error", 0):
             blocking_issues.append("rule_errors_present")
+
+    audit_risks: list[str] = []
+    if historical_gap_count:
+        audit_risks.append("historical_source_gap_unverified_actuals")
+    if status_counts.get("pending_result", 0):
+        audit_risks.append("result_coverage_gap")
+    if parity_status != "matched":
+        audit_risks.append("settlement_coverage_risk")
 
     return [
         build_parity_report_row(
@@ -72,11 +96,13 @@ def build_settlement_parity_rows(
                 "snapshot_count": len(model_snapshot_docs),
                 "settled_count": len(settled_docs),
                 "status_counts": status_counts,
+                "historical_source_gap_missing_actual_count": historical_gap_count,
+                "blocking_missing_actual_count": blocking_missing_actual_count,
                 "result_bucket_counts": _count_by(settled_docs, "settlement_result"),
             },
             parity_status=parity_status,
             blocking_issues=blocking_issues,
-            audit_risks=[] if parity_status == "matched" else ["settlement_coverage_risk"],
+            audit_risks=audit_risks,
             report_date=report_date or utc_now().date().isoformat(),
         )
     ]
@@ -102,14 +128,18 @@ def build_settlement_audit_rows(
 
     status_counts = _count_by(settled_docs, "settlement_status")
     result_counts = _count_by(settled_docs, "settlement_result")
+    historical_gap_count = _historical_source_gap_missing_actual_count(settled_docs)
+    blocking_missing_actual_count = max(0, status_counts.get("missing_actual", 0) - historical_gap_count)
     findings: list[str] = []
     if status_counts.get("pending_result", 0):
         findings.append("pending_match_results_present")
-    if status_counts.get("missing_actual", 0):
+    if historical_gap_count:
+        findings.append("historical_source_gap_missing_actual_values_present")
+    if blocking_missing_actual_count:
         findings.append("missing_actual_values_present")
     if status_counts.get("rule_error", 0):
         findings.append("rule_errors_present")
-    status = "ok" if not findings else "warn"
+    status = "ok" if not (blocking_missing_actual_count or status_counts.get("rule_error", 0)) else "warn"
     return [
         build_audit_report_row(
             audit_type="model_snapshot_settlement",
@@ -120,6 +150,8 @@ def build_settlement_audit_rows(
                 "settled_count": status_counts.get("settled", 0),
                 "pending_result_count": status_counts.get("pending_result", 0),
                 "missing_actual_count": status_counts.get("missing_actual", 0),
+                "historical_source_gap_missing_actual_count": historical_gap_count,
+                "blocking_missing_actual_count": blocking_missing_actual_count,
                 "rule_error_count": status_counts.get("rule_error", 0),
                 "invalid_for_model_count": sum(1 for row in settled_docs if row.get("invalid_for_model")),
                 "result_bucket_counts": result_counts,

@@ -65,6 +65,33 @@ def _normalize_legacy_direction(value: Any) -> str | None:
     return None
 
 
+def _infer_legacy_settlement_result(*, actual_value: Any, line_value: Any, win: Any) -> str | None:
+    if isinstance(win, bool):
+        return "win" if win else "loss"
+    try:
+        actual_numeric = float(actual_value)
+        line_numeric = float(line_value)
+    except (TypeError, ValueError):
+        return None
+    if actual_numeric == line_numeric:
+        return "push"
+    return None
+
+
+def _legacy_reference_signature(line: dict[str, Any]) -> tuple[str, str, str, float, str] | None:
+    direction = _normalize_legacy_direction(line.get("condition")) or str(line.get("direction") or "").lower()
+    stat_key = str(line.get("statKey") or "")
+    scope = str(line.get("scope") or "")
+    period = str(line.get("period") or "")
+    if not stat_key or not scope or not period or direction not in {"over", "under"}:
+        return None
+    try:
+        line_value = float(line.get("line"))
+    except (TypeError, ValueError):
+        return None
+    return (stat_key, scope, period, line_value, direction)
+
+
 def _infer_legacy_snapshot_type(snapshot: dict[str, Any]) -> str | None:
     snapshot_type = str(snapshot.get("type") or "").strip().lower()
     if snapshot_type in {"forward", "backtest", "closing"}:
@@ -104,6 +131,7 @@ def _select_legacy_snapshot_lines(
             "snapshot_time_source": "legacy_snapshot.fetchedAt",
             "selection_source": f"legacy_snapshot.{snapshot_mode}",
             "model_source": "legacy_unibet_backtest_snapshot",
+            "legacy_reference_lines": list(legacy_doc.get("lines") or []),
         }
 
     if snapshot_mode != "backtest":
@@ -115,6 +143,7 @@ def _select_legacy_snapshot_lines(
         "snapshot_time_source": "legacy_doc.generatedAt",
         "selection_source": "legacy_doc.lines",
         "model_source": "legacy_unibet_backtest_root_lines",
+        "legacy_reference_lines": list(legacy_doc.get("lines") or []),
     }
 
 
@@ -123,9 +152,20 @@ def _build_legacy_generated_lines(
     match_key: str,
     target_match: dict[str, Any],
     legacy_lines: list[dict[str, Any]],
+    legacy_reference_lines: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     generated_lines: list[dict[str, Any]] = []
     source_match_id = target_match.get("source_match_id") or match_key
+    reference_by_bet_key: dict[str, dict[str, Any]] = {}
+    reference_by_signature: dict[tuple[str, str, str, float, str], dict[str, Any]] = {}
+    for reference in legacy_reference_lines or legacy_lines:
+        reference_signature = _legacy_reference_signature(reference)
+        if reference_signature is None:
+            continue
+        bet_key = str(reference.get("betKey") or "")
+        if bet_key:
+            reference_by_bet_key[bet_key] = reference
+        reference_by_signature[reference_signature] = reference
     for line in legacy_lines:
         direction = _normalize_legacy_direction(line.get("condition"))
         odds_value = line.get("odds")
@@ -149,6 +189,11 @@ def _build_legacy_generated_lines(
                 str(line_value),
             ]
         )
+        reference = reference_by_bet_key.get(str(bet_key))
+        if reference is None:
+            reference = reference_by_signature.get((str(stat_key), str(scope), str(period), float(line_value), direction))
+        if reference is None:
+            reference = line
         generated_lines.append(
             {
                 "betKey": bet_key,
@@ -168,6 +213,13 @@ def _build_legacy_generated_lines(
                 "awayTeam": line.get("awayTeam") or target_match.get("away_team_name"),
                 "actual": None,
                 "win": None,
+                "legacyActualValue": reference.get("actual"),
+                "legacySettlementResult": _infer_legacy_settlement_result(
+                    actual_value=reference.get("actual"),
+                    line_value=line_value,
+                    win=reference.get("win"),
+                ),
+                "legacyWin": reference.get("win"),
             }
         )
     return generated_lines
@@ -254,6 +306,9 @@ def build_model_snapshot_docs(
                     "actual_value": None,
                     "settlement_result": None,
                     "win": None,
+                    "legacy_actual_value": line.get("legacyActualValue"),
+                    "legacy_settlement_result": line.get("legacySettlementResult"),
+                    "legacy_win": line.get("legacyWin"),
                     "snapshot_mode": snapshot_mode,
                     "snapshot_label": snapshot_label,
                     "model_source": row.get("model_source_override") or model_source,
@@ -336,6 +391,7 @@ def run_model_snapshot_build(
                     match_key=match_key,
                     target_match=target,
                     legacy_lines=legacy_snapshot["lines"],
+                    legacy_reference_lines=legacy_snapshot.get("legacy_reference_lines"),
                 )
                 snapshot_time_override = legacy_snapshot.get("snapshot_time")
                 if isinstance(snapshot_time_override, datetime):

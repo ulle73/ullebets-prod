@@ -9,7 +9,11 @@ from ullebets_v2.enrichment.live import (
     build_live_match_enrichment_source_rows,
 )
 from ullebets_v2.enrichment.persistence import persist_enrichment_records
-from ullebets_v2.enrichment.replay import build_match_enrichment_documents, build_teamstats_source_rows
+from ullebets_v2.enrichment.replay import (
+    build_match_enrichment_documents,
+    build_teamstats_source_rows,
+    build_teamstats_source_rows_from_database,
+)
 from ullebets_v2.enrichment.reports import build_match_enrichment_audit_rows, build_match_enrichment_parity_rows
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
 
@@ -24,6 +28,27 @@ def filter_source_rows_by_dates(source_rows: list[dict[str, Any]], dates: list[s
         if matches:
             filtered.append({**row, "matches": matches})
     return filtered
+
+
+def load_replay_source_rows(
+    *,
+    source_dir: Path,
+    dates: list[str] | None = None,
+    legacy_teamstats_database: Any | None = None,
+) -> tuple[list[dict[str, Any]], str]:
+    file_rows = filter_source_rows_by_dates(build_teamstats_source_rows(source_dir), dates)
+    if file_rows:
+        return file_rows, "files"
+
+    if legacy_teamstats_database is not None:
+        mongo_rows = filter_source_rows_by_dates(
+            build_teamstats_source_rows_from_database(legacy_teamstats_database),
+            dates,
+        )
+        if mongo_rows:
+            return mongo_rows, "mongodb_fallback"
+
+    return file_rows, "files"
 
 
 def _run_match_enrichment_pipeline(
@@ -134,10 +159,15 @@ def run_match_enrichment_window(
     support_docs: dict[str, Any],
     source_workflow: str,
     dates: list[str] | None = None,
+    legacy_teamstats_database: Any | None = None,
     database: Any | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    source_rows = filter_source_rows_by_dates(build_teamstats_source_rows(source_dir), dates)
+    source_rows, replay_source = load_replay_source_rows(
+        source_dir=source_dir,
+        dates=dates,
+        legacy_teamstats_database=legacy_teamstats_database,
+    )
     return _run_match_enrichment_pipeline(
         source_rows=source_rows,
         expected_matches=None,
@@ -147,7 +177,7 @@ def run_match_enrichment_window(
         target_window={"dates": dates or [], "mode": "replay"},
         database=database,
         dry_run=dry_run,
-        extra_summary={"dates": dates or [], "mode": "replay"},
+        extra_summary={"dates": dates or [], "mode": "replay", "replay_source": replay_source},
     )
 
 

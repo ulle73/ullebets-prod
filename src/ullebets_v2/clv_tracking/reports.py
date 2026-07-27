@@ -14,12 +14,12 @@ def utc_now() -> datetime:
 def _workflow_entry() -> dict[str, Any]:
     return {
         "old_workflow": "closing-line-tracking",
-        "old_inputs": ["analysis snapshots / result-loop tracked odds", "market observations"],
+        "old_inputs": ["result-loop tracked odds", "market observations"],
         "old_outputs": ["closing-line-tracking"],
         "v2_job": "refresh_clv_tracking.py",
-        "v2_outputs": ["clv_tracking_v2", "audit_reports"],
-        "smoke_test": "dry-run with synthetic model snapshots and canonical closing lines",
-        "parity_proof": "compare direction-specific closing odds, beat-close flags, and CLV percentages against the legacy closing-line-tracking semantics",
+        "v2_outputs": ["forward_bets_v2", "clv_tracking_v2", "audit_reports"],
+        "smoke_test": "dry-run with synthetic tracked bets and canonical closing lines",
+        "parity_proof": "compare saved odds, direction-specific opening/latest/closing odds, beat-close flags, and CLV percentages against the legacy closing-line-tracking semantics",
     }
 
 
@@ -29,16 +29,16 @@ def _count_by(rows: list[dict[str, Any]], field: str) -> dict[str, int]:
 
 def build_clv_tracking_parity_rows(
     *,
-    model_snapshot_docs: list[dict[str, Any]],
+    tracked_bet_docs: list[dict[str, Any]],
     clv_docs: list[dict[str, Any]],
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
-    if not model_snapshot_docs:
+    if not tracked_bet_docs:
         return [
             build_parity_report_row(
                 workflow_entry=_workflow_entry(),
-                counts_old={"model_snapshot_count": 0, "tracked_count": 0},
-                counts_v2={"model_snapshot_count": 0, "tracked_count": 0},
+                counts_old={"tracked_bet_count": 0, "tracked_count": 0},
+                counts_v2={"tracked_bet_count": 0, "tracked_count": 0},
                 parity_status="no_targets",
                 blocking_issues=[],
                 audit_risks=[],
@@ -58,9 +58,9 @@ def build_clv_tracking_parity_rows(
     return [
         build_parity_report_row(
             workflow_entry=_workflow_entry(),
-            counts_old={"model_snapshot_count": len(model_snapshot_docs)},
+            counts_old={"tracked_bet_count": len(tracked_bet_docs)},
             counts_v2={
-                "model_snapshot_count": len(model_snapshot_docs),
+                "tracked_bet_count": len(tracked_bet_docs),
                 "tracked_count": len(clv_docs),
                 "status_counts": status_counts,
             },
@@ -84,7 +84,7 @@ def build_clv_tracking_audit_rows(
                 scope_key="closing-line-tracking",
                 status="ok",
                 metrics={"tracked_count": 0},
-                findings=["no_model_snapshots_to_track"],
+                findings=["no_tracked_bets_to_track"],
                 report_date=report_date or utc_now().date().isoformat(),
             )
         ]
@@ -97,7 +97,7 @@ def build_clv_tracking_audit_rows(
         findings.append("missing_selected_or_closing_odds_present")
     if status_counts.get("invalid_snapshot_timing", 0):
         findings.append("invalid_snapshot_timing_present")
-    status = "ok" if not findings else "warn"
+    status = "warn" if status_counts.get("invalid_snapshot_timing", 0) else "ok"
     tracked_rows = [row for row in clv_docs if row.get("clv_status") == "tracked"]
     return [
         build_audit_report_row(
@@ -126,7 +126,7 @@ def build_clv_tracking_health_rows(
             build_health_report_row(
                 job_name="refresh_clv_tracking",
                 status="ok",
-                summary="No model snapshot rows required CLV refresh.",
+                summary="No tracked bet rows required CLV refresh.",
                 metrics={"tracked_count": 0},
                 report_date=report_date or utc_now().date().isoformat(),
             )

@@ -66,6 +66,7 @@ def main() -> int:
             support_docs=support_docs,
             source_workflow=args.source_workflow,
             dates=dates,
+            legacy_teamstats_database=get_named_database(config, "app"),
             database=write_database,
             dry_run=args.dry_run,
         )

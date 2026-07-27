@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime
 
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
@@ -284,3 +285,53 @@ def test_run_model_snapshot_build_replays_latest_forward_snapshot() -> None:
     assert model_snapshot_doc["selected_odds"] == 1.89
     assert model_snapshot_doc["snapshot_time_source"] == "legacy_snapshot.fetchedAt"
     assert model_snapshot_doc["invalid_for_model"] is False
+
+
+def test_run_model_snapshot_build_preserves_legacy_settlement_reference_from_root_lines() -> None:
+    historical_database = FakeHistoricalDatabase()
+    legacy_doc = build_legacy_backtest_doc(with_snapshots=True)
+    for line in legacy_doc["lines"]:
+        if line["statKey"] == "cornerKicks" and line["scope"] == "total" and line["period"] == "ALL":
+            if line["condition"] == "över":
+                line["actual"] = 9
+                line["win"] = False
+            else:
+                line["actual"] = 9
+                line["win"] = True
+    for snapshot in legacy_doc["snapshots"]:
+        snapshot["lines"] = [deepcopy(line) for line in snapshot.get("lines", [])]
+        for line in snapshot["lines"]:
+            line.pop("actual", None)
+            line.pop("win", None)
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([legacy_doc])
+
+    summary = run_model_snapshot_build(
+        targets=[
+            {
+                "match_key": "match-legacy-backtest-reference",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-backtests.yml",
+        snapshot_mode="backtest",
+        dry_run=True,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+        return_documents=True,
+    )
+
+    doc = next(
+        row
+        for row in summary["documents"]["model_snapshot_docs"]
+        if row["stat_key"] == "cornerKicks" and row["scope"] == "total" and row["direction"] == "over"
+    )
+    assert doc["legacy_actual_value"] == 9
+    assert doc["legacy_settlement_result"] == "loss"
+    assert doc["legacy_win"] is False

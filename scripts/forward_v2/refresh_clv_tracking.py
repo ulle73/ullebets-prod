@@ -17,8 +17,9 @@ from ullebets_v2.storage.mongo import get_database
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Refresh V2 CLV tracking rows from model_snapshots and closing_lines_v2.")
+    parser = argparse.ArgumentParser(description="Refresh V2 CLV tracking rows from forward_bets_v2 and closing_lines_v2.")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--tracked-bets-path", type=Path)
     parser.add_argument("--model-snapshots-path", type=Path)
     parser.add_argument("--closing-lines-path", type=Path)
     parser.add_argument("--dry-run", action="store_true")
@@ -38,9 +39,11 @@ def main() -> int:
     ensure_v2_database(config)
     config.ensure_directories()
     database = None if args.dry_run else get_database(config)
+    tracked_bet_docs = _load_json_rows(args.tracked_bets_path) if args.tracked_bets_path else None
     model_snapshot_docs = _load_json_rows(args.model_snapshots_path) if args.model_snapshots_path else None
     closing_line_docs = _load_json_rows(args.closing_lines_path) if args.closing_lines_path else None
     summary = run_clv_tracking_refresh(
+        tracked_bet_docs=tracked_bet_docs,
         model_snapshot_docs=model_snapshot_docs,
         closing_line_docs=closing_line_docs,
         database=database,
