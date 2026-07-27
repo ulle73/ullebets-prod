@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -25,13 +26,20 @@ def test_workflow_directory_covers_parity_matrix() -> None:
 def test_workflow_directory_flags_missing_source_workflow_and_dry_run() -> None:
     workflow_dir = repo_root() / ".github" / "workflows"
     workflow_path = workflow_dir / "run-unibet-forward.yml"
-    original = workflow_path.read_text(encoding="utf-8")
+    original_bytes = workflow_path.read_bytes()
+    original = original_bytes.decode("utf-8")
     try:
-        mutated = original.replace("--source-workflow run-unibet-forward.yml \\\n", "", 1).replace("--dry-run", "", 1)
+        mutated = re.sub(
+            r"^\s*--source-workflow run-unibet-forward\.yml \\\r?\n",
+            "",
+            original,
+            count=1,
+            flags=re.MULTILINE,
+        ).replace("--dry-run", "", 1)
         workflow_path.write_text(mutated, encoding="utf-8")
         report = inspect_workflow_directory(workflow_dir)
     finally:
-        workflow_path.write_text(original, encoding="utf-8")
+        workflow_path.write_bytes(original_bytes)
 
     flagged = {row["file"]: row for row in report["file_reports"]}
     assert "run-unibet-forward.yml" in report["invalid_content_files"]
