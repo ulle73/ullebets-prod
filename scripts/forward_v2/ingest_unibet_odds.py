@@ -45,7 +45,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
-    parser.add_argument("--disable-oracle", action="store_true")
+    oracle_group = parser.add_mutually_exclusive_group()
+    oracle_group.add_argument(
+        "--use-original-oracle",
+        action="store_true",
+        help="Enable the original JS odds oracle for live parity cross-checks.",
+    )
+    oracle_group.add_argument("--disable-oracle", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -102,7 +108,7 @@ def main() -> int:
 
     database = None if args.dry_run else (read_database or get_database(config))
     legacy_backtest_database = get_named_database(config, "app") if args.mode == "replay-fixtures" else None
-    oracle = None if args.disable_oracle else OriginalJsOracle(config.old_repo_root)
+    oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_oracle else None
     summary = run_unibet_odds_ingest(
         targets=targets,
         support_docs=support_docs,

@@ -67,8 +67,8 @@ def build_odds_parity_rows(
                     "old_outputs": ["unibet-backtest tuple underlag", "event discovery", "normalized odds tuples"],
                     "v2_job": "ingest_unibet_odds.py",
                     "v2_outputs": ["raw_odds_kambi", "unibet_event_links", "market_offers"],
-                    "smoke_test": "dry-run with current window selection and original JS oracle when targets exist",
-                    "parity_proof": "compare discovered event ids and normalized tuple fingerprints against original JS discovery and mapper when eligible targets exist",
+                    "smoke_test": "dry-run with current window selection; enable the original JS oracle explicitly when a live parity cross-check is needed",
+                    "parity_proof": "historical replay compares against stored legacy odds snapshots; live native mode can optionally cross-check discovered event ids and tuple fingerprints against the original JS oracle",
                 },
                 counts_old={"target_match_count": 0, "event_link_count": 0, "offer_count": 0},
                 counts_v2={"target_match_count": 0, "event_link_count": 0, "offer_count": 0},
@@ -80,7 +80,9 @@ def build_odds_parity_rows(
         ]
 
     historical_mode = any(row.get("historical_source_checked") for row in match_rows)
+    oracle_requested = any(row.get("oracle_requested") for row in match_rows)
     oracle_rows = [row for row in match_rows if row.get("oracle_available")]
+    oracle_error_rows = [row for row in match_rows if row.get("oracle_error")]
     historical_source_missing = [
         row["match_key"]
         for row in match_rows
@@ -99,6 +101,13 @@ def build_odds_parity_rows(
         "tuple_fingerprint": _tuple_fingerprint(match_rows, "v2_tuples"),
         "historical_source_missing_count": len(historical_source_missing),
         "historical_source_available_unmatched_count": len(historical_source_available_unmatched),
+        "reference_mode": (
+            "historical_replay"
+            if historical_mode
+            else "original_js_oracle"
+            if oracle_requested
+            else "native_python_only"
+        ),
     }
     if historical_mode:
         counts_old = {
@@ -107,15 +116,19 @@ def build_odds_parity_rows(
             "offer_count": sum(int(row.get("historical_offer_count", 0)) for row in match_rows),
             "event_fingerprint": _event_fingerprint(match_rows, "historical_event_id"),
             "tuple_fingerprint": _tuple_fingerprint(match_rows, "historical_tuples"),
+            "reference_mode": "historical_backtest",
         }
-    else:
+    elif oracle_requested:
         counts_old = {
             "target_match_count": len(oracle_rows),
             "event_link_count": sum(1 for row in oracle_rows if row.get("oracle_event_id")),
             "offer_count": sum(int(row.get("oracle_offer_count", 0)) for row in oracle_rows),
             "event_fingerprint": _event_fingerprint(oracle_rows, "oracle_event_id") if oracle_rows else None,
             "tuple_fingerprint": _tuple_fingerprint(oracle_rows, "oracle_tuples") if oracle_rows else None,
+            "reference_mode": "original_js_oracle",
         }
+    else:
+        counts_old = {"reference_mode": "not_requested"}
 
     if historical_source_missing:
         parity_status = "missing_oracle"
@@ -138,10 +151,13 @@ def build_odds_parity_rows(
         blocking_issues = [f"historical_odds_parity_mismatch:{match_key}" for match_key in mismatches]
         counts_old["mismatch_count"] = len(mismatches)
         counts_v2["mismatch_count"] = len(mismatches)
-    elif not oracle_rows:
+    elif oracle_error_rows:
+        parity_status = "missing_oracle"
+        blocking_issues = [f"original_js_oracle_failed:{row['match_key']}" for row in oracle_error_rows]
+    elif oracle_requested and not oracle_rows:
         parity_status = "missing_oracle"
         blocking_issues = ["original_js_oracle_unavailable"]
-    else:
+    elif oracle_requested:
         mismatches = [
             row["match_key"]
             for row in oracle_rows
@@ -153,6 +169,13 @@ def build_odds_parity_rows(
         blocking_issues = [f"odds_parity_mismatch:{match_key}" for match_key in mismatches]
         counts_old["mismatch_count"] = len(mismatches)
         counts_v2["mismatch_count"] = len(mismatches)
+    else:
+        blockers = [
+            *(f"v2_odds_source_error:{row['match_key']}" for row in match_rows if row.get("error")),
+            *(f"v2_event_unmatched:{row['match_key']}" for row in match_rows if not row.get("v2_event_id")),
+        ]
+        parity_status = "matched" if not blockers else "mismatch"
+        blocking_issues = blockers
 
     return [
         build_parity_report_row(
@@ -162,8 +185,8 @@ def build_odds_parity_rows(
                 "old_outputs": ["unibet-backtest tuple underlag", "event discovery", "normalized odds tuples"],
                 "v2_job": "ingest_unibet_odds.py",
                 "v2_outputs": ["raw_odds_kambi", "unibet_event_links", "market_offers"],
-                "smoke_test": "dry-run with original JS oracle against live Kambi payload",
-                "parity_proof": "compare discovered event ids and normalized tuple fingerprints against original JS discovery and mapper",
+                "smoke_test": "dry-run with fixture-db or live targets; enable the original JS oracle only when a direct legacy cross-check is required",
+                "parity_proof": "compare historical replay rows against stored legacy odds snapshots, or optionally compare live discovery and tuple fingerprints against the original JS oracle",
             },
             counts_old=counts_old,
             counts_v2=counts_v2,

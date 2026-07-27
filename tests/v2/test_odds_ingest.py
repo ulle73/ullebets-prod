@@ -436,6 +436,36 @@ def test_run_unibet_odds_ingest_dry_run_matches_oracle() -> None:
     assert summary["match_rows"][0]["oracle_event_id"] == "evt-1"
 
 
+def test_run_unibet_odds_ingest_dry_run_native_mode_is_clean_without_legacy_reference() -> None:
+    summary = run_unibet_odds_ingest(
+        targets=[
+            {
+                "match_key": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-forward.yml",
+        dry_run=True,
+        transport=fake_transport,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["raw_docs"] == 2
+    assert summary["event_links"] == 1
+    assert summary["market_offers"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+    assert summary["match_rows"][0]["oracle_requested"] is False
+    assert summary["match_rows"][0]["oracle_event_id"] is None
+
+
 def test_run_unibet_odds_ingest_dry_run_handles_empty_target_window() -> None:
     summary = run_unibet_odds_ingest(
         targets=[],

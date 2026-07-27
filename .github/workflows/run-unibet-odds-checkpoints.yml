@@ -36,7 +36,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 45
-      checkout_legacy_repo: true
+      checkout_legacy_repo: false
       run_command: |
         ARGS=(--mode fixture-db --source-workflow run-unibet-odds-checkpoints.yml --max-days-ahead "${{ inputs.days_ahead || '7' }}" --dry-run)
         if [ -n "${{ inputs.date }}" ]; then

@@ -16,7 +16,6 @@ from ullebets_v2.checkpoints.reports import (
     build_checkpoint_parity_rows,
 )
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
-from ullebets_v2.odds.oracle import OriginalJsOracle
 from ullebets_v2.odds.persistence import persist_odds_data_records
 from ullebets_v2.odds.service import (
     _build_legacy_event_link_doc,

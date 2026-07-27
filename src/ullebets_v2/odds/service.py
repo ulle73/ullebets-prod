@@ -642,6 +642,7 @@ def run_unibet_odds_ingest(
             "oracle_tuples": [],
             "v2_offer_count": 0,
             "oracle_offer_count": 0,
+            "oracle_requested": oracle is not None,
             "oracle_available": oracle is not None,
             "oracle_error": None,
             "historical_source_checked": legacy_backtest_database is not None,
