@@ -5,7 +5,14 @@ from datetime import UTC, datetime, timedelta
 from ullebets_v2.checkpoints.policy import build_snapshot_timing_fields, pick_due_checkpoint
 from ullebets_v2.checkpoints.service import run_checkpoint_capture, select_due_checkpoint_targets
 
-from tests.v2.test_odds_ingest import FakeOracle, build_support_docs, fake_transport
+from tests.v2.test_odds_ingest import (
+    FakeHistoricalCollection,
+    FakeHistoricalDatabase,
+    FakeOracle,
+    build_legacy_backtest_doc,
+    build_support_docs,
+    fake_transport,
+)
 
 
 def test_pick_due_checkpoint_uses_v2_policy_windows() -> None:
@@ -125,3 +132,73 @@ def test_run_checkpoint_capture_dry_run_handles_empty_due_window() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_checkpoint_capture_replays_historical_v2_windows_without_live_fetch() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc(with_snapshots=True)])
+
+    def failing_transport(url: str, headers: dict[str, str], timeout_seconds: int):  # noqa: ARG001
+        raise AssertionError(f"live transport should not be used in replay mode: {url}")
+
+    summary = run_checkpoint_capture(
+        targets=[
+            {
+                "match_key": "match-legacy-checkpoints",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-odds-checkpoints.yml",
+        dry_run=True,
+        transport=failing_transport,
+        legacy_backtest_database=historical_database,
+    )
+
+    assert summary["target_matches"] == 1
+    assert summary["due_matches"] == 3
+    assert summary["checkpoint_counts"] == {"T_MINUS_10M": 1, "T_MINUS_2D": 1, "T_MINUS_3D": 1}
+    assert summary["matched_events"] == 1
+    assert summary["market_snapshots"] == 3
+    assert summary["checkpoint_gap_count"] == 1
+    assert summary["parity_status_counts"] == {"mismatch": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
+    assert summary["health_status_counts"] == {"warn": 1}
+
+
+def test_run_checkpoint_capture_replay_marks_missing_requested_checkpoint() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc(with_snapshots=True)])
+
+    summary = run_checkpoint_capture(
+        targets=[
+            {
+                "match_key": "match-legacy-checkpoint-gap",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-odds-checkpoints.yml",
+        dry_run=True,
+        checkpoint_filter="T_MINUS_1D",
+        legacy_backtest_database=historical_database,
+    )
+
+    assert summary["due_matches"] == 0
+    assert summary["market_snapshots"] == 0
+    assert summary["checkpoint_gap_count"] == 1
+    assert summary["parity_status_counts"] == {"mismatch": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
+    assert summary["health_status_counts"] == {"warn": 1}

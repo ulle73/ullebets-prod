@@ -242,7 +242,7 @@ def build_legacy_backtest_doc(*, with_snapshots: bool = False) -> dict:
             },
             {
                 "type": "closing",
-                "fetchedAt": datetime(2025, 10, 8, 17, 45, tzinfo=UTC),
+                "fetchedAt": datetime(2025, 10, 8, 17, 52, tzinfo=UTC),
                 "lines": [
                     {
                         "statKey": "cornerKicks",

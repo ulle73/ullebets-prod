@@ -6,6 +6,7 @@ from typing import Any
 from ullebets_v2.checkpoints.service import (
     build_market_snapshot_docs,
     load_existing_snapshot_docs,
+    select_replay_checkpoint_targets,
     select_due_checkpoint_targets,
 )
 from ullebets_v2.closing.persistence import persist_closing_records
@@ -130,6 +131,16 @@ def build_closing_line_docs(
     return sorted(closing_docs, key=lambda row: (str(row.get("match_key") or ""), str(row.get("offer_key") or "")))
 
 
+def _dedupe_snapshot_docs(snapshot_docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: dict[str, dict[str, Any]] = {}
+    for row in snapshot_docs:
+        snapshot_key = row.get("snapshot_key")
+        if not snapshot_key:
+            continue
+        deduped[str(snapshot_key)] = row
+    return list(deduped.values())
+
+
 def run_closing_capture(
     *,
     targets: list[dict[str, Any]],
@@ -140,37 +151,77 @@ def run_closing_capture(
     existing_snapshot_docs: list[dict[str, Any]] | None = None,
     transport: Any | None = None,
     oracle: Any | None = None,
+    legacy_backtest_database: Any | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     captured_at = now or utc_now()
     snapshots = existing_snapshot_docs
     if snapshots is None and database is not None:
         snapshots = load_existing_snapshot_docs(database, [str(target["match_key"]) for target in targets])
-    due_targets = select_due_checkpoint_targets(
-        targets=targets,
-        now=captured_at,
-        existing_snapshot_docs=snapshots,
-        checkpoint_filter="T_MINUS_10M",
-    )
+    if legacy_backtest_database is not None:
+        replay_due = select_replay_checkpoint_targets(
+            targets=targets,
+            legacy_backtest_database=legacy_backtest_database,
+            existing_snapshot_docs=snapshots,
+            checkpoint_filter="T_MINUS_10M",
+        )
+        replay_history = select_replay_checkpoint_targets(
+            targets=targets,
+            legacy_backtest_database=legacy_backtest_database,
+            existing_snapshot_docs=None,
+            checkpoint_filter=None,
+        )
+        due_targets = replay_due["due_targets"]
+        documents = {
+            "raw_docs": replay_due["raw_docs"],
+            "event_link_docs": replay_due["event_link_docs"],
+            "market_offer_docs": replay_due["market_offer_docs"],
+        }
+        market_snapshot_docs = build_market_snapshot_docs(
+            due_targets=due_targets,
+            market_offer_docs=documents.get("market_offer_docs", []),
+            snapshot_time=captured_at,
+            source_workflow=source_workflow,
+        )
+        historical_snapshot_docs = build_market_snapshot_docs(
+            due_targets=replay_history["due_targets"],
+            market_offer_docs=replay_history["market_offer_docs"],
+            snapshot_time=captured_at,
+            source_workflow=source_workflow,
+        )
+        all_snapshot_docs = _dedupe_snapshot_docs(list(snapshots or []) + historical_snapshot_docs)
+        match_rows = replay_due["match_rows"]
+        errors = sum(1 for row in match_rows if row.get("error"))
+        matched_events = len({row["match_key"] for row in match_rows if row.get("v2_event_id")})
+    else:
+        due_targets = select_due_checkpoint_targets(
+            targets=targets,
+            now=captured_at,
+            existing_snapshot_docs=snapshots,
+            checkpoint_filter="T_MINUS_10M",
+        )
 
-    odds_summary = run_unibet_odds_ingest(
-        targets=due_targets,
-        support_docs=support_docs,
-        source_workflow=source_workflow,
-        dry_run=True,
-        transport=transport,
-        oracle=oracle,
-        fetched_at=captured_at,
-        return_documents=True,
-    )
-    documents = odds_summary.get("documents", {})
-    market_snapshot_docs = build_market_snapshot_docs(
-        due_targets=due_targets,
-        market_offer_docs=documents.get("market_offer_docs", []),
-        snapshot_time=captured_at,
-        source_workflow=source_workflow,
-    )
-    all_snapshot_docs = list(snapshots or []) + market_snapshot_docs
+        odds_summary = run_unibet_odds_ingest(
+            targets=due_targets,
+            support_docs=support_docs,
+            source_workflow=source_workflow,
+            dry_run=True,
+            transport=transport,
+            oracle=oracle,
+            fetched_at=captured_at,
+            return_documents=True,
+        )
+        documents = odds_summary.get("documents", {})
+        market_snapshot_docs = build_market_snapshot_docs(
+            due_targets=due_targets,
+            market_offer_docs=documents.get("market_offer_docs", []),
+            snapshot_time=captured_at,
+            source_workflow=source_workflow,
+        )
+        all_snapshot_docs = list(snapshots or []) + market_snapshot_docs
+        match_rows = odds_summary["match_rows"]
+        errors = odds_summary["errors"]
+        matched_events = odds_summary["matched_events"]
     due_match_keys = {str(row["match_key"]) for row in due_targets}
     closing_line_docs = build_closing_line_docs(
         market_snapshot_docs=all_snapshot_docs,
@@ -180,24 +231,28 @@ def run_closing_capture(
     report_date = captured_at.date().isoformat()
     parity_rows = build_closing_parity_rows(
         source_workflow=source_workflow,
+        target_matches=targets,
         due_targets=due_targets,
-        match_rows=odds_summary["match_rows"],
+        match_rows=match_rows,
         market_snapshot_docs=market_snapshot_docs,
         closing_line_docs=closing_line_docs,
         report_date=report_date,
     )
     audit_rows = build_closing_audit_rows(
         source_workflow=source_workflow,
+        target_matches=targets,
         due_targets=due_targets,
-        match_rows=odds_summary["match_rows"],
+        match_rows=match_rows,
         market_snapshot_docs=market_snapshot_docs,
         closing_line_docs=closing_line_docs,
         report_date=report_date,
     )
     health_rows = build_closing_health_rows(
+        target_matches=targets,
         due_targets=due_targets,
-        match_rows=odds_summary["match_rows"],
+        match_rows=match_rows,
         closing_line_docs=closing_line_docs,
+        market_snapshot_docs=market_snapshot_docs,
         report_date=report_date,
     )
     invalid_for_model_rows = sum(1 for row in market_snapshot_docs if row.get("invalid_for_model"))
@@ -211,9 +266,10 @@ def run_closing_capture(
         "market_offers": len(documents.get("market_offer_docs", [])),
         "market_snapshots": len(market_snapshot_docs),
         "closing_lines": len(closing_line_docs),
-        "matched_events": odds_summary["matched_events"],
-        "errors": odds_summary["errors"],
+        "matched_events": matched_events,
+        "errors": errors,
         "invalid_for_model_rows": invalid_for_model_rows,
+        "checkpoint_gap_count": sum(1 for row in match_rows if row.get("checkpoint_capture_gap")),
         "parity_reports": len(parity_rows),
         "audit_reports": len(audit_rows),
         "health_reports": len(health_rows),
@@ -230,7 +286,7 @@ def run_closing_capture(
             for status in sorted({row["status"] for row in health_rows})
         },
         "due_targets": due_targets,
-        "match_rows": odds_summary["match_rows"],
+        "match_rows": match_rows,
         "closing_line_docs": closing_line_docs,
     }
     if dry_run:

@@ -4,7 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 from ullebets_v2.closing.service import build_closing_line_docs, run_closing_capture
 
-from tests.v2.test_odds_ingest import FakeOracle, build_support_docs, fake_transport
+from tests.v2.test_odds_ingest import (
+    FakeHistoricalCollection,
+    FakeHistoricalDatabase,
+    FakeOracle,
+    build_legacy_backtest_doc,
+    build_support_docs,
+    fake_transport,
+)
 
 
 def test_build_closing_line_docs_keeps_latest_valid_prematch_snapshot() -> None:
@@ -159,3 +166,76 @@ def test_run_closing_capture_dry_run_handles_empty_window() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_closing_capture_replays_historical_closing_snapshot_without_live_fetch() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc(with_snapshots=True)])
+
+    def failing_transport(url: str, headers: dict[str, str], timeout_seconds: int):  # noqa: ARG001
+        raise AssertionError(f"live transport should not be used in replay mode: {url}")
+
+    summary = run_closing_capture(
+        targets=[
+            {
+                "match_key": "match-legacy-closing",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-closing.yml",
+        dry_run=True,
+        transport=failing_transport,
+        legacy_backtest_database=historical_database,
+    )
+
+    assert summary["due_matches"] == 1
+    assert summary["matched_events"] == 1
+    assert summary["market_snapshots"] == 1
+    assert summary["closing_lines"] == 1
+    assert summary["checkpoint_gap_count"] == 0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+    closing_doc = summary["closing_line_docs"][0]
+    assert closing_doc["opening_over_odds"] == 1.81
+    assert closing_doc["latest_over_odds"] == 2.02
+    assert closing_doc["closing_snapshot_label"] == "T_MINUS_10M"
+    assert closing_doc["prematch_observation_count"] == 3
+
+
+def test_run_closing_capture_replay_marks_missing_historical_closing_snapshot() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    summary = run_closing_capture(
+        targets=[
+            {
+                "match_key": "match-legacy-closing-gap",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-closing.yml",
+        dry_run=True,
+        legacy_backtest_database=historical_database,
+    )
+
+    assert summary["due_matches"] == 0
+    assert summary["closing_lines"] == 0
+    assert summary["checkpoint_gap_count"] == 1
+    assert summary["parity_status_counts"] == {"mismatch": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
+    assert summary["health_status_counts"] == {"warn": 1}

@@ -86,6 +86,7 @@ def main() -> int:
 
     database = None if args.dry_run else (read_database or get_database(config))
     oracle = None if args.disable_oracle else OriginalJsOracle(config.old_repo_root)
+    legacy_backtest_database = get_named_database(config, "app") if args.mode == "replay-fixtures" else None
     summary = run_checkpoint_capture(
         targets=targets,
         support_docs=support_docs,
@@ -94,6 +95,7 @@ def main() -> int:
         dry_run=args.dry_run,
         checkpoint_filter=args.checkpoint,
         oracle=oracle,
+        legacy_backtest_database=legacy_backtest_database,
         now=now,
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))

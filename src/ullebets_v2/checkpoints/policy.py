@@ -84,6 +84,21 @@ def get_captured_checkpoint_keys(snapshot_docs: list[dict[str, Any]] | None = No
     return captured
 
 
+def classify_checkpoint_by_minutes(
+    *,
+    minutes_to_kickoff: int | None,
+    checkpoint_filter: str | None = None,
+) -> V2OddsCheckpoint | None:
+    if minutes_to_kickoff is None or minutes_to_kickoff <= 0:
+        return None
+    for checkpoint in V2_ODDS_CHECKPOINTS:
+        if checkpoint_filter and checkpoint.key != checkpoint_filter:
+            continue
+        if checkpoint.min_minutes_to_kickoff <= minutes_to_kickoff < checkpoint.max_minutes_to_kickoff:
+            return checkpoint
+    return None
+
+
 def pick_due_checkpoint(
     *,
     match_start: Any,
@@ -101,14 +116,13 @@ def pick_due_checkpoint(
         return None
 
     captured = set(get_captured_checkpoint_keys(snapshots))
-    for checkpoint in V2_ODDS_CHECKPOINTS:
-        if checkpoint_filter and checkpoint.key != checkpoint_filter:
-            continue
-        if checkpoint.key in captured:
-            continue
-        if checkpoint.min_minutes_to_kickoff <= minutes_to_kickoff < checkpoint.max_minutes_to_kickoff:
-            return checkpoint
-    return None
+    checkpoint = classify_checkpoint_by_minutes(
+        minutes_to_kickoff=minutes_to_kickoff,
+        checkpoint_filter=checkpoint_filter,
+    )
+    if checkpoint is None or checkpoint.key in captured:
+        return None
+    return checkpoint
 
 
 def build_snapshot_timing_fields(
