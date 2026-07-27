@@ -1,0 +1,35 @@
+name: V2 Daily ML Training Export
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_correction:
+        description: "Skip settlement replay step."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  train-ml-models:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 45
+      run_command: |
+        if [ "${{ inputs.skip_correction }}" != "true" ]; then
+          python scripts/forward_v2/settle_model_snapshots.py \
+            --source-workflow train-ml-models.yml \
+            --dry-run
+        fi
+        python scripts/forward_v2/build_training_exports.py \
+          --source-workflow train-ml-models.yml \
+          --dry-run

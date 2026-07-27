@@ -1,0 +1,51 @@
+name: V2 Run Unibet Odds Checkpoints
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Optional single match date (YYYY-MM-DD)"
+        required: false
+        type: string
+      days_ahead:
+        description: "How many days ahead to scan when date is omitted"
+        required: false
+        default: "7"
+        type: string
+      checkpoint:
+        description: "Optional checkpoint filter (T_MINUS_3D, T_MINUS_2D, T_MINUS_1D, T_MINUS_10M)"
+        required: false
+        type: string
+      now:
+        description: "Optional ISO timestamp override for manual replay"
+        required: false
+        type: string
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  unibet-odds-checkpoints:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 45
+      checkout_legacy_repo: true
+      run_command: |
+        ARGS=(--mode fixture-db --source-workflow run-unibet-odds-checkpoints.yml --max-days-ahead "${{ inputs.days_ahead || '7' }}" --dry-run)
+        if [ -n "${{ inputs.date }}" ]; then
+          ARGS+=(--date "${{ inputs.date }}")
+        fi
+        if [ -n "${{ inputs.checkpoint }}" ]; then
+          ARGS+=(--checkpoint "${{ inputs.checkpoint }}")
+        fi
+        if [ -n "${{ inputs.now }}" ]; then
+          ARGS+=(--now "${{ inputs.now }}")
+        fi
+        python scripts/forward_v2/capture_odds_checkpoints.py "${ARGS[@]}"

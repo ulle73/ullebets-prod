@@ -1,0 +1,45 @@
+name: V2 Debug RapidAPI endpoints
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_date:
+        description: "YYYY-MM-DD. Empty = yesterday UTC."
+        required: false
+        default: ""
+        type: string
+      category_id:
+        description: "SofaScore categoryId."
+        required: false
+        default: "34"
+        type: string
+      match_ids:
+        description: "Comma-separated match/event ids."
+        required: false
+        default: "15235566,14065562,14083306"
+        type: string
+      max_keys:
+        description: "Max RapidAPI keys to test."
+        required: false
+        default: "10"
+        type: string
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 20
+      run_command: |
+        ARGS=(--source-workflow debug-rapidapi-endpoints.yml --dry-run --category-id "${{ inputs.category_id || '34' }}" --match-ids "${{ inputs.match_ids || '15235566,14065562,14083306' }}" --max-keys "${{ inputs.max_keys || '10' }}")
+        if [ -n "${{ inputs.test_date }}" ]; then
+          ARGS+=(--test-date "${{ inputs.test_date }}")
+        fi
+        python scripts/forward_v2/audit_source_connectivity.py "${ARGS[@]}"

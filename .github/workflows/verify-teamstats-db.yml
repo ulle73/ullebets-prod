@@ -1,0 +1,29 @@
+name: V2 Verify teamstats DB
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_date:
+        description: "Count matches from this date, YYYY-MM-DD."
+        required: true
+        default: "2026-04-22"
+        type: string
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 20
+      run_command: |
+        python scripts/forward_v2/verify_match_enrichment.py \
+          --from-date "${{ inputs.from_date }}" \
+          --source-workflow verify-teamstats-db.yml \
+          --dry-run

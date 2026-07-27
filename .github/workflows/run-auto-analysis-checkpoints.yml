@@ -1,0 +1,51 @@
+name: V2 Run Auto Analysis Checkpoints
+
+on:
+  schedule:
+    - cron: "45 5 * * *"
+  workflow_dispatch:
+    inputs:
+      checkpoint:
+        description: "Optional checkpoint filter."
+        required: false
+        type: string
+      date:
+        description: "Optional target match date (YYYY-MM-DD)."
+        required: false
+        type: string
+      strategy:
+        description: "Strategy id."
+        required: false
+        default: "balanced"
+        type: string
+      now:
+        description: "Optional ISO timestamp override for replay."
+        required: false
+        type: string
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  auto-analysis-checkpoints:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 60
+      checkout_legacy_repo: true
+      run_command: |
+        ARGS=(--mode fixture-db --source-workflow run-auto-analysis-checkpoints.yml --strategy "${{ inputs.strategy || 'balanced' }}" --dry-run)
+        if [ -n "${{ inputs.checkpoint }}" ]; then
+          ARGS+=(--checkpoint-key "${{ inputs.checkpoint }}")
+        fi
+        if [ -n "${{ inputs.date }}" ]; then
+          ARGS+=(--date "${{ inputs.date }}")
+        fi
+        if [ -n "${{ inputs.now }}" ]; then
+          ARGS+=(--now "${{ inputs.now }}")
+        fi
+        python scripts/forward_v2/run_auto_analysis.py "${ARGS[@]}"

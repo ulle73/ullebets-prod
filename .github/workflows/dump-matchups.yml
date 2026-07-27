@@ -1,0 +1,32 @@
+name: V2 Dump matchups
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "Match date (YYYY-MM-DD), defaults to D+7."
+        required: false
+        type: string
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run-matchups:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 45
+      run_command: |
+        DATE="${{ inputs.target_date }}"
+        if [ -z "$DATE" ]; then
+          DATE=$(date -u -d '+7 days' +%F)
+        fi
+        python scripts/forward_v2/build_matchups_score.py --date "$DATE" --dry-run
+        python scripts/forward_v2/build_matchups_league_avg.py --date "$DATE" --dry-run

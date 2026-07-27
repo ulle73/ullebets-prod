@@ -1,0 +1,38 @@
+name: V2 Backfill teamstats from date
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_date:
+        description: "Startdatum YYYY-MM-DD."
+        required: true
+        default: "2026-04-22"
+        type: string
+      end_date:
+        description: "Optional end date. Defaults to yesterday in Stockholm."
+        required: false
+        type: string
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 180
+      run_command: |
+        END="${{ inputs.end_date }}"
+        if [ -z "$END" ]; then
+          END=$(TZ=Europe/Stockholm date -d 'yesterday' +%F)
+        fi
+        python scripts/forward_v2/backfill_match_enrichment.py \
+          --start-date "${{ inputs.from_date }}" \
+          --end-date "$END" \
+          --source-workflow backfill-teamstats-from-date.yml \
+          --dry-run

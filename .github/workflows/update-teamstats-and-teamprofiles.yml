@@ -1,0 +1,46 @@
+name: V2 Update teamstats and teamprofiles
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Optional YYYY-MM-DD override. Defaults to yesterday in Stockholm."
+        required: false
+        type: string
+      skip_generate_profiles:
+        description: "Skip teamprofile generation."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 90
+      run_command: |
+        TARGET="${{ inputs.date }}"
+        if [ -z "$TARGET" ]; then
+          TARGET=$(TZ=Europe/Stockholm date -d 'yesterday' +%F)
+        fi
+        python scripts/forward_v2/ingest_match_enrichment.py \
+          --mode live \
+          --date "$TARGET" \
+          --source-workflow update-teamstats-and-teamprofiles.yml \
+          --dry-run
+        if [ "${{ inputs.skip_generate_profiles }}" != "true" ]; then
+          python scripts/forward_v2/build_teamprofiles.py \
+            --profile-date "$TARGET" \
+            --source-workflow update-teamstats-and-teamprofiles.yml \
+            --dry-run
+        fi

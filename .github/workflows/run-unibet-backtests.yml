@@ -1,0 +1,32 @@
+name: V2 Run Unibet Backtests
+
+on:
+  schedule:
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Optional YYYY-MM-DD override."
+        required: false
+        type: string
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  unibet-backtests:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 60
+      checkout_legacy_repo: true
+      run_command: |
+        ARGS=(--mode fixture-db --snapshot-mode backtest --source-workflow run-unibet-backtests.yml --max-days-ahead 7 --dry-run)
+        if [ -n "${{ inputs.date }}" ]; then
+          ARGS+=(--date "${{ inputs.date }}")
+        fi
+        python scripts/forward_v2/build_model_snapshots.py "${ARGS[@]}"

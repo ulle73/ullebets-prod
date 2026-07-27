@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 import sys
 
@@ -39,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint-target-days", type=int)
     parser.add_argument("--snapshot-mode", choices=["backtest", "forward"], default="forward")
     parser.add_argument("--snapshot-label", default="CURRENT")
+    parser.add_argument("--now", help="Optional ISO timestamp override for deterministic replay.")
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
     parser.add_argument("--disable-odds-oracle", action="store_true")
@@ -99,6 +101,7 @@ def main() -> int:
         )
         run_date = args.run_date
 
+    fetched_at = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else None
     database = None if args.dry_run else (read_database or get_database(config))
     odds_oracle = None if args.disable_odds_oracle else OriginalJsOracle(config.old_repo_root)
     model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
@@ -125,6 +128,7 @@ def main() -> int:
         analysis_oracle=analysis_oracle,
         odds_oracle=odds_oracle,
         model_oracle=model_oracle,
+        fetched_at=fetched_at,
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
     return 0

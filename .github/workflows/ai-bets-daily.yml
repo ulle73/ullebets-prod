@@ -1,0 +1,32 @@
+name: V2 Daily AI Bets Generation
+
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Optional YYYY-MM-DD override."
+        required: false
+        type: string
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate-bets:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 45
+      checkout_legacy_repo: true
+      run_command: |
+        ARGS=(--mode daily --target-mode fixture-db --source-workflow ai-bets-daily.yml --dry-run)
+        if [ -n "${{ inputs.date }}" ]; then
+          ARGS+=(--date "${{ inputs.date }}")
+        fi
+        python scripts/forward_v2/build_ai_bet_exports.py "${ARGS[@]}"
