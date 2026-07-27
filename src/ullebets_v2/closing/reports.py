@@ -30,6 +30,7 @@ def build_closing_parity_rows(
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
     gap_rows = [row for row in match_rows if row.get("checkpoint_capture_gap")]
+    source_error_count = sum(1 for row in match_rows if row.get("error"))
     if not target_matches:
         return [
             build_parity_report_row(
@@ -55,14 +56,18 @@ def build_closing_parity_rows(
             )
         ]
 
-    matched_event_count = sum(1 for row in match_rows if row.get("v2_event_id"))
+    matched_event_count = sum(
+        1 for row in match_rows if row.get("v2_event_id") and not row.get("checkpoint_capture_gap")
+    )
     error_count = sum(1 for row in match_rows if row.get("error"))
     invalid_for_model_count = sum(1 for row in market_snapshot_docs if row.get("invalid_for_model"))
     offerless_match_count = sum(
-        1 for row in match_rows if row.get("v2_event_id") and int(row.get("v2_offer_count") or 0) == 0
+        1
+        for row in match_rows
+        if row.get("v2_event_id") and int(row.get("v2_offer_count") or 0) == 0 and not row.get("checkpoint_capture_gap")
     )
     gap_count = len(gap_rows)
-    parity_status = "matched" if error_count == 0 and invalid_for_model_count == 0 and gap_count == 0 else "mismatch"
+    parity_status = "matched" if error_count == 0 and invalid_for_model_count == 0 and source_error_count == 0 else "mismatch"
     blocking_issues: list[str] = []
     audit_risks: list[str] = []
     if error_count:
@@ -70,11 +75,6 @@ def build_closing_parity_rows(
     if invalid_for_model_count:
         blocking_issues.append("post_start_snapshot_rows_present")
         audit_risks.append("timing_leakage_risk")
-    if gap_count:
-        blocking_issues.extend(
-            f"historical_closing_gap:{row.get('match_key')}:{row.get('requested_checkpoint_key')}"
-            for row in gap_rows
-        )
     if offerless_match_count:
         audit_risks.append("matched_events_without_offers")
 
@@ -93,10 +93,15 @@ def build_closing_parity_rows(
                 "invalid_for_model_count": invalid_for_model_count,
                 "error_count": error_count,
                 "checkpoint_gap_count": gap_count,
+                "source_error_count": source_error_count,
             },
             parity_status=parity_status,
             blocking_issues=blocking_issues,
-            audit_risks=audit_risks,
+            audit_risks=audit_risks
+            + [
+                f"historical_policy_gap:{row.get('match_key')}:{row.get('requested_checkpoint_key')}"
+                for row in gap_rows
+            ],
             report_date=report_date or utc_now().date().isoformat(),
         )
     ]
@@ -113,6 +118,7 @@ def build_closing_audit_rows(
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
     gap_rows = [row for row in match_rows if row.get("checkpoint_capture_gap")]
+    source_errors = [row for row in match_rows if row.get("error")]
     if not target_matches:
         return [
             build_audit_report_row(
@@ -136,11 +142,15 @@ def build_closing_audit_rows(
             )
         ]
 
-    matched_event_count = sum(1 for row in match_rows if row.get("v2_event_id"))
-    unmatched_match_count = len(due_targets) - matched_event_count
+    matched_event_count = sum(
+        1 for row in match_rows if row.get("v2_event_id") and not row.get("checkpoint_capture_gap")
+    )
+    unmatched_match_count = max(0, len(due_targets) - matched_event_count)
     invalid_for_model_count = sum(1 for row in market_snapshot_docs if row.get("invalid_for_model"))
     offerless_match_count = sum(
-        1 for row in match_rows if row.get("v2_event_id") and int(row.get("v2_offer_count") or 0) == 0
+        1
+        for row in match_rows
+        if row.get("v2_event_id") and int(row.get("v2_offer_count") or 0) == 0 and not row.get("checkpoint_capture_gap")
     )
     findings: list[str] = []
     if unmatched_match_count:
@@ -149,12 +159,14 @@ def build_closing_audit_rows(
         findings.append("matched_events_without_stat_offers")
     if invalid_for_model_count:
         findings.append("post_start_snapshots_excluded")
+    if source_errors:
+        findings.extend(f"source_error:{row['match_key']}" for row in source_errors)
     if gap_rows:
         findings.extend(
-            f"historical_closing_gap:{row.get('match_key')}:{row.get('requested_checkpoint_key')}"
+            f"historical_policy_gap:{row.get('match_key')}:{row.get('requested_checkpoint_key')}"
             for row in gap_rows
         )
-    status = "ok" if not findings else "warn"
+    status = "ok" if unmatched_match_count == 0 and offerless_match_count == 0 and invalid_for_model_count == 0 and not source_errors else "warn"
     valid_snapshots = sum(1 for row in market_snapshot_docs if not row.get("invalid_for_model"))
     return [
         build_audit_report_row(
@@ -171,6 +183,7 @@ def build_closing_audit_rows(
                 "offerless_match_count": offerless_match_count,
                 "invalid_for_model_count": invalid_for_model_count,
                 "checkpoint_gap_count": len(gap_rows),
+                "source_error_count": len(source_errors),
             },
             findings=findings,
             report_date=report_date or utc_now().date().isoformat(),
@@ -211,7 +224,7 @@ def build_closing_health_rows(
 
     error_count = sum(1 for row in match_rows if row.get("error"))
     invalid_for_model_count = sum(1 for row in market_snapshot_docs if row.get("invalid_for_model"))
-    status = "ok" if error_count == 0 and gap_count == 0 and invalid_for_model_count == 0 else "warn"
+    status = "ok" if error_count == 0 and invalid_for_model_count == 0 else "warn"
     return [
         build_health_report_row(
             job_name="capture_closing_snapshots",
@@ -219,13 +232,18 @@ def build_closing_health_rows(
             summary=(
                 "Closing capture completed with strict prematch filtering."
                 if status == "ok"
-                else "Closing capture completed with ingest errors, replay gaps, or invalid post-start snapshots."
+                else "Closing capture completed with ingest errors or invalid post-start snapshots."
             ),
             metrics={
                 "due_match_count": len(due_targets),
-                "matched_event_count": sum(1 for row in match_rows if row.get("v2_event_id")),
+                "matched_event_count": sum(
+                    1
+                    for row in match_rows
+                    if row.get("v2_event_id") and not row.get("checkpoint_capture_gap")
+                ),
                 "closing_line_count": len(closing_line_docs),
                 "invalid_for_model_count": invalid_for_model_count,
+                "historical_policy_gap_count": gap_count,
                 "checkpoint_gap_count": gap_count,
                 "error_count": error_count,
             },

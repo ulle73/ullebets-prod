@@ -19,6 +19,17 @@ def _checkpoint_counts(rows: list[dict[str, Any]], field: str) -> dict[str, int]
     return dict(Counter(str(row.get(field) or "missing") for row in rows))
 
 
+def _target_pairs(rows: list[dict[str, Any]], field: str) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+    for row in rows:
+        match_key = str(row.get("match_key") or "")
+        checkpoint_key = str(row.get(field) or "")
+        if not match_key or not checkpoint_key:
+            continue
+        pairs.add((match_key, checkpoint_key))
+    return pairs
+
+
 def build_checkpoint_parity_rows(
     *,
     source_workflow: str,
@@ -29,6 +40,7 @@ def build_checkpoint_parity_rows(
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
     gap_rows = [row for row in match_rows if row.get("checkpoint_capture_gap")]
+    source_error_count = sum(1 for row in match_rows if row.get("error"))
     if not target_matches:
         return [
             build_parity_report_row(
@@ -70,12 +82,12 @@ def build_checkpoint_parity_rows(
             )
         ]
 
-    eligible_match_keys = {str(row["match_key"]) for row in due_targets}
-    captured_match_keys = {str(row["match_key"]) for row in market_snapshot_docs}
+    due_pairs = _target_pairs(due_targets, "checkpoint_key")
+    captured_pairs = _target_pairs(market_snapshot_docs, "snapshot_label")
     invalid_count = sum(1 for row in market_snapshot_docs if row.get("invalid_for_model"))
-    missing = sorted(eligible_match_keys - captured_match_keys)
+    missing = sorted(due_pairs - captured_pairs)
     gap_count = len(gap_rows)
-    parity_status = "matched" if not missing and invalid_count == 0 and gap_count == 0 else "mismatch"
+    parity_status = "matched" if not missing and invalid_count == 0 and source_error_count == 0 else "mismatch"
 
     return [
         build_parity_report_row(
@@ -89,25 +101,31 @@ def build_checkpoint_parity_rows(
                 "parity_proof": "compare due-match count under V2 checkpoint policy against captured unique match keys and require zero post-start snapshots",
             },
             counts_old={
-                "eligible_match_count": len(eligible_match_keys),
-                "checkpoint_counts": _checkpoint_counts(due_targets, "checkpoint_key"),
+                "available_checkpoint_target_count": len(due_pairs),
+                "available_checkpoint_counts": _checkpoint_counts(due_targets, "checkpoint_key"),
             },
             counts_v2={
-                "captured_match_count": len(captured_match_keys),
+                "captured_checkpoint_target_count": len(captured_pairs),
                 "snapshot_count": len(market_snapshot_docs),
                 "checkpoint_counts": _checkpoint_counts(market_snapshot_docs, "snapshot_label"),
                 "invalid_for_model_count": invalid_count,
+                "source_error_count": source_error_count,
                 "checkpoint_gap_count": gap_count,
                 "gap_checkpoint_counts": _checkpoint_counts(gap_rows, "requested_checkpoint_key") if gap_rows else {},
             },
             parity_status=parity_status,
-            blocking_issues=[f"missing_snapshot_capture:{match_key}" for match_key in missing]
+            blocking_issues=[
+                f"missing_snapshot_capture:{match_key}:{checkpoint_key}"
+                for match_key, checkpoint_key in missing
+            ]
             + (["post_start_snapshot_detected"] if invalid_count else [])
-            + [
-                f"historical_checkpoint_gap:{row.get('match_key')}:{row.get('requested_checkpoint_key')}"
-                for row in gap_rows
-            ],
-            audit_risks=[] if parity_status == "matched" else ["checkpoint_capture_risk"],
+            + (["checkpoint_source_errors_present"] if source_error_count else []),
+            audit_risks=(
+                [f"historical_policy_gap:{row.get('match_key')}:{row.get('requested_checkpoint_key')}" for row in gap_rows]
+                if gap_rows
+                else []
+            )
+            + ([] if parity_status == "matched" else ["checkpoint_capture_risk"]),
             report_date=report_date or utc_now().date().isoformat(),
         )
     ]
@@ -123,6 +141,7 @@ def build_checkpoint_audit_rows(
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
     gap_rows = [row for row in match_rows if row.get("checkpoint_capture_gap")]
+    source_errors = [row for row in match_rows if row.get("error")]
     if not target_matches:
         return [
             build_audit_report_row(
@@ -168,7 +187,11 @@ def build_checkpoint_audit_rows(
     invalid_rows = [row for row in market_snapshot_docs if row.get("invalid_for_model")]
     missing_snapshot_time = [row for row in market_snapshot_docs if row.get("snapshot_time") is None]
     missing_matchstart = [row for row in market_snapshot_docs if row.get("match_start_time") is None]
-    empty_offer_matches = [row["match_key"] for row in match_rows if row.get("v2_event_id") and not row.get("v2_offer_count")]
+    empty_offer_matches = [
+        row["match_key"]
+        for row in match_rows
+        if row.get("v2_event_id") and not row.get("v2_offer_count") and not row.get("checkpoint_capture_gap")
+    ]
     findings: list[str] = []
     if invalid_rows:
         findings.append("post_start_snapshot_rows_present")
@@ -176,14 +199,16 @@ def build_checkpoint_audit_rows(
         findings.append("missing_snapshot_time_rows_present")
     if missing_matchstart:
         findings.append("missing_match_start_rows_present")
-    if gap_rows:
-        findings.extend(
-            f"historical_checkpoint_gap:{row.get('match_key')}:{row.get('requested_checkpoint_key')}"
-            for row in gap_rows
-        )
+    if source_errors:
+        findings.extend(f"source_error:{row['match_key']}" for row in source_errors)
     if empty_offer_matches:
         findings.extend(f"empty_offer_set:{match_key}" for match_key in empty_offer_matches)
-    status = "ok" if not findings else "warn"
+    if gap_rows:
+        findings.extend(
+            f"historical_policy_gap:{row.get('match_key')}:{row.get('requested_checkpoint_key')}"
+            for row in gap_rows
+        )
+    status = "ok" if not invalid_rows and not missing_snapshot_time and not missing_matchstart and not source_errors and not empty_offer_matches else "warn"
 
     return [
         build_audit_report_row(
@@ -191,14 +216,15 @@ def build_checkpoint_audit_rows(
             scope_key=source_workflow,
             status=status,
             metrics={
-                "eligible_match_count": len(due_targets),
-                "captured_match_count": len({row["match_key"] for row in market_snapshot_docs}),
+                "available_checkpoint_target_count": len(_target_pairs(due_targets, "checkpoint_key")),
+                "captured_checkpoint_target_count": len(_target_pairs(market_snapshot_docs, "snapshot_label")),
                 "market_snapshot_count": len(market_snapshot_docs),
                 "rows_before_matchstart": len(valid_rows),
                 "rows_at_or_after_matchstart": len(invalid_rows),
                 "rows_without_snapshot_time": len(missing_snapshot_time),
                 "rows_without_matchstart": len(missing_matchstart),
                 "invalid_for_model_count": len(invalid_rows),
+                "source_error_count": len(source_errors),
                 "checkpoint_gap_count": len(gap_rows),
                 "gap_checkpoint_counts": _checkpoint_counts(gap_rows, "requested_checkpoint_key") if gap_rows else {},
                 "checkpoint_counts": _checkpoint_counts(market_snapshot_docs, "snapshot_label"),
@@ -221,6 +247,7 @@ def build_checkpoint_health_rows(
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
     gap_count = sum(1 for row in match_rows if row.get("checkpoint_capture_gap"))
+    source_error_count = sum(1 for row in match_rows if row.get("error"))
     if not target_matches:
         return [
             build_health_report_row(
@@ -253,8 +280,9 @@ def build_checkpoint_health_rows(
         ]
 
     invalid_count = sum(1 for row in market_snapshot_docs if row.get("invalid_for_model"))
-    captured_count = len({row["match_key"] for row in market_snapshot_docs})
-    status = "ok" if captured_count == len(due_targets) and invalid_count == 0 and error_count == 0 and gap_count == 0 else "warn"
+    due_pair_count = len(_target_pairs(due_targets, "checkpoint_key"))
+    captured_pair_count = len(_target_pairs(market_snapshot_docs, "snapshot_label"))
+    status = "ok" if captured_pair_count == due_pair_count and invalid_count == 0 and error_count == 0 and source_error_count == 0 else "warn"
     return [
         build_health_report_row(
             job_name="capture_odds_checkpoints",
@@ -262,13 +290,15 @@ def build_checkpoint_health_rows(
             summary=(
                 "Checkpoint capture stored prematch snapshots for every due match."
                 if status == "ok"
-                else "Checkpoint capture finished with missing snapshots, replay coverage gaps, source errors, or post-start rows."
+                else "Checkpoint capture finished with missing snapshots, source errors, or post-start rows."
             ),
             metrics={
-                "eligible_match_count": len(due_targets),
-                "captured_match_count": captured_count,
+                "available_checkpoint_target_count": due_pair_count,
+                "captured_checkpoint_target_count": captured_pair_count,
                 "market_snapshot_count": len(market_snapshot_docs),
                 "invalid_for_model_count": invalid_count,
+                "historical_policy_gap_count": gap_count,
+                "source_error_count": source_error_count,
                 "checkpoint_gap_count": gap_count,
                 "error_count": error_count,
             },

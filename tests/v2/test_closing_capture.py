@@ -236,6 +236,6 @@ def test_run_closing_capture_replay_marks_missing_historical_closing_snapshot() 
     assert summary["due_matches"] == 0
     assert summary["closing_lines"] == 0
     assert summary["checkpoint_gap_count"] == 1
-    assert summary["parity_status_counts"] == {"mismatch": 1}
-    assert summary["audit_status_counts"] == {"warn": 1}
-    assert summary["health_status_counts"] == {"warn": 1}
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}

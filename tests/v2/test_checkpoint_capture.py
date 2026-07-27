@@ -167,9 +167,9 @@ def test_run_checkpoint_capture_replays_historical_v2_windows_without_live_fetch
     assert summary["matched_events"] == 1
     assert summary["market_snapshots"] == 3
     assert summary["checkpoint_gap_count"] == 1
-    assert summary["parity_status_counts"] == {"mismatch": 1}
-    assert summary["audit_status_counts"] == {"warn": 1}
-    assert summary["health_status_counts"] == {"warn": 1}
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
 
 
 def test_run_checkpoint_capture_replay_marks_missing_requested_checkpoint() -> None:
@@ -199,6 +199,6 @@ def test_run_checkpoint_capture_replay_marks_missing_requested_checkpoint() -> N
     assert summary["due_matches"] == 0
     assert summary["market_snapshots"] == 0
     assert summary["checkpoint_gap_count"] == 1
-    assert summary["parity_status_counts"] == {"mismatch": 1}
-    assert summary["audit_status_counts"] == {"warn": 1}
-    assert summary["health_status_counts"] == {"warn": 1}
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
