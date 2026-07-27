@@ -38,7 +38,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--date", dest="dates", action="append", default=[])
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
-    parser.add_argument("--disable-odds-oracle", action="store_true")
+    odds_oracle_group = parser.add_mutually_exclusive_group()
+    odds_oracle_group.add_argument(
+        "--use-original-odds-oracle",
+        action="store_true",
+        help="Enable the original JS odds oracle for live parity cross-checks before model line generation.",
+    )
+    odds_oracle_group.add_argument("--disable-odds-oracle", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--disable-model-oracle", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
@@ -97,7 +103,7 @@ def main() -> int:
 
     database = None if args.dry_run else (read_database or get_database(config))
     legacy_backtest_database = get_named_database(config, "app") if args.mode == "replay-fixtures" else None
-    odds_oracle = None if args.disable_odds_oracle else OriginalJsOracle(config.old_repo_root)
+    odds_oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_odds_oracle else None
     model_oracle = None if args.disable_model_oracle else OriginalJsModelOracle(config.old_repo_root)
     summary = run_model_snapshot_build(
         targets=targets,

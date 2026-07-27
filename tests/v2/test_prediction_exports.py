@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from ullebets_v2.prediction_exports.service import run_prediction_export_pipeline
+from tests.v2.test_auto_analysis import FakeAnalysisOracle
 from tests.v2.test_model_snapshots import FakeModelOracle
-from tests.v2.test_odds_ingest import build_support_docs, fake_transport
+from tests.v2.test_odds_ingest import FakeHistoricalCollection, FakeHistoricalDatabase, build_legacy_backtest_doc, build_support_docs, fake_transport
 
 
 def build_analysis_run() -> dict:
@@ -173,3 +174,42 @@ def test_run_prediction_export_pipeline_uses_internal_analysis_oracle_by_default
     assert summary["prediction_exports"] == 0
     assert summary["forward_bets"] == 0
     assert summary["parity_status_counts"] == {"no_targets": 1}
+
+
+def test_run_prediction_export_pipeline_replays_historical_backtest_without_live_fetch() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    def failing_transport(url: str, headers: dict[str, str], timeout_seconds: int):  # noqa: ARG001
+        raise AssertionError(f"live transport should not be used in replay export mode: {url}")
+
+    summary = run_prediction_export_pipeline(
+        export_mode="daily",
+        source_workflow="ai-bets-daily.yml",
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        dry_run=True,
+        strategy_id="balanced",
+        snapshot_mode="backtest",
+        analysis_oracle=FakeAnalysisOracle(),
+        transport=failing_transport,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["analysis_candidates"] == 3
+    assert summary["source_candidates"] == 1
+    assert summary["prediction_exports"] == 1
+    assert summary["forward_bets"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}
