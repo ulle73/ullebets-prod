@@ -135,6 +135,7 @@ def main() -> int:
             teamstats_dir=teamstats_dir,
             support_docs=support_docs,
             targets=targets,
+            legacy_teamstats_database=legacy_backtest_database,
         )
     elif model_read_database is None:
         model_read_database = get_database(config)

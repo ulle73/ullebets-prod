@@ -83,11 +83,13 @@ def main() -> int:
             support_docs=support_docs,
             targets=targets,
             generated_at=fetched_at,
+            legacy_teamstats_database=legacy_app_database,
         )
         enrichment_docs = build_ephemeral_match_enrichment_documents(
             teamstats_dir=teamstats_dir,
             support_docs=support_docs,
             targets=targets,
+            legacy_teamstats_database=legacy_app_database,
         )
         model_oracle = (
             OriginalJsModelOracle(config.old_repo_root)

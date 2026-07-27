@@ -6,7 +6,10 @@ import json
 from pathlib import Path
 
 from ullebets_v2.enrichment.replay import build_match_enrichment_documents
-from ullebets_v2.model_snapshots.ephemeral import build_ephemeral_model_read_database
+from ullebets_v2.model_snapshots.ephemeral import (
+    build_ephemeral_match_enrichment_documents,
+    build_ephemeral_model_read_database,
+)
 from ullebets_v2.model_snapshots.oracle import V2JsModelOracle
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
 from ullebets_v2.support.schemas import build_support_documents
@@ -120,6 +123,15 @@ def write_v2_model_teamstats_source(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     return source_dir
+
+
+def build_v2_model_legacy_db_match() -> dict:
+    match = deepcopy(build_v2_model_history_match())
+    match["matchId"] = 14689171
+    match["timestamp"] = int(datetime(2026, 6, 22, 18, 0, tzinfo=UTC).timestamp())
+    match["date"] = "2026-06-22"
+    match["savedAt"] = "2026-06-22T20:55:00Z"
+    return match
 
 
 def test_run_model_snapshot_build_dry_run_builds_directed_lines() -> None:
@@ -279,6 +291,48 @@ def test_ephemeral_model_read_database_bootstraps_v2_oracle_from_teamstats_dir(t
     assert built["errors"] == []
     assert len(built["lines"]) == 2
     assert {row["direction"] for row in built["lines"]} == {"over", "under"}
+
+
+def test_ephemeral_match_enrichment_falls_back_to_legacy_teamstats_database_for_missing_target_match(tmp_path: Path) -> None:
+    support_docs = build_v2_model_support_docs()
+    teamstats_dir = write_v2_model_teamstats_source(tmp_path)
+    legacy_match = build_v2_model_legacy_db_match()
+    legacy_database = FakeReadDatabase(
+        {
+            "teamstats": FakeReadCollection(
+                [
+                    {
+                        "_importMeta": {
+                            "sourceFile": "arsenal_home_match_stats.json",
+                            "teamRole": "home",
+                        },
+                        "full": [legacy_match],
+                    }
+                ]
+            )
+        }
+    )
+    target = {
+        "match_key": "sofascore:14689171",
+        "source_match_id": "14689171",
+        "source_date": "2026-06-22",
+        "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+        "league_key": "premier-league",
+        "league_name": "Premier League",
+        "home_team_key": "premier-league:100",
+        "away_team_key": "premier-league:101",
+        "home_team_name": "Arsenal",
+        "away_team_name": "Bournemouth",
+    }
+
+    docs = build_ephemeral_match_enrichment_documents(
+        teamstats_dir=teamstats_dir,
+        support_docs=support_docs,
+        targets=[target],
+        legacy_teamstats_database=legacy_database,
+    )
+
+    assert any(row["match_key"] == "sofascore:14689171" for row in docs["match_results"])
 
 
 def test_run_model_snapshot_build_dry_run_handles_empty_target_window() -> None:

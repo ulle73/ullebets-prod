@@ -87,3 +87,39 @@ def test_run_training_export_build_handles_empty_input() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_training_export_build_uses_partial_market_context_when_offer_is_missing(tmp_path: Path) -> None:
+    support_docs, settled_docs, market_offers, match_results, match_stats, raw_incidents, raw_shotmaps = build_training_sources(tmp_path)
+    settled_docs = [
+        {
+            **settled_docs[0],
+            "offer_key": None,
+            "direction": "under",
+            "selected_odds": 1.85,
+        }
+    ]
+
+    summary = run_training_export_build(
+        source_workflow="train-ml-models.yml",
+        support_docs=support_docs,
+        settled_docs=settled_docs,
+        market_offer_docs=market_offers,
+        match_results_canonical=match_results,
+        match_stats_canonical=match_stats,
+        raw_incidents=raw_incidents,
+        raw_shotmaps=raw_shotmaps,
+        dry_run=True,
+        generated_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["settled_samples"] == 1
+    assert summary["training_exports"] == 2
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
+    assert summary["health_status_counts"] == {"warn": 1}
+    assert summary["skipped_reason_counts"] == {}
+    assert summary["fallback_reason_counts"] == {"partial_market_context_from_settled_doc": 1}
+    row = summary["training_export_docs"][0]
+    assert row["market"]["partial_market_context"] is True
+    assert row["market"]["selected_odds"] == 1.85

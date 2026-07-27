@@ -6,7 +6,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from ullebets_v2.enrichment.replay import build_match_enrichment_documents, build_teamstats_source_rows
+from ullebets_v2.enrichment.replay import (
+    build_match_enrichment_documents,
+    build_teamstats_source_rows,
+    build_teamstats_source_rows_from_database,
+)
 from ullebets_v2.odds.naming import normalize_team_name
 from ullebets_v2.teamprofiles.service import build_teamprofile_docs
 
@@ -55,18 +59,76 @@ def _filter_source_rows_for_targets(
     return filtered or source_rows
 
 
+def _candidate_source_files_for_targets(
+    teamstats_dir: Path,
+    targets: list[dict[str, Any]],
+) -> set[str]:
+    target_team_names = {
+        normalize_team_name(row.get(key))
+        for row in targets
+        for key in ("home_team_name", "away_team_name")
+        if row.get(key)
+    }
+    if not target_team_names or not teamstats_dir.exists():
+        return set()
+    matches: set[str] = set()
+    for path in teamstats_dir.glob("*.json"):
+        if _source_row_team_name(path.name) in target_team_names:
+            matches.add(path.name)
+    return matches
+
+
+def _documents_cover_targets(
+    documents: dict[str, list[dict[str, Any]]],
+    targets: list[dict[str, Any]],
+) -> bool:
+    target_match_keys = {
+        str(row.get("match_key") or "")
+        for row in targets
+        if row.get("match_key") is not None
+    }
+    if not target_match_keys:
+        return True
+    available_match_keys = {
+        str(row.get("match_key") or "")
+        for row in documents.get("match_results", [])
+        if row.get("match_key") is not None
+    }
+    return target_match_keys.issubset(available_match_keys)
+
+
 def build_ephemeral_match_enrichment_documents(
     *,
     teamstats_dir: Path,
     support_docs: dict[str, Any],
     targets: list[dict[str, Any]],
+    legacy_teamstats_database: Any | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
-    source_rows = build_teamstats_source_rows(teamstats_dir)
+    candidate_source_files = _candidate_source_files_for_targets(teamstats_dir, targets)
+    source_rows = build_teamstats_source_rows(
+        teamstats_dir,
+        source_files=candidate_source_files or None,
+    )
     selected_source_rows = _filter_source_rows_for_targets(source_rows, targets)
-    return build_match_enrichment_documents(
+    documents = build_match_enrichment_documents(
         source_rows=selected_source_rows,
         support_docs=support_docs,
     )
+    if _documents_cover_targets(documents, targets) or legacy_teamstats_database is None:
+        return documents
+
+    mongo_rows = build_teamstats_source_rows_from_database(
+        legacy_teamstats_database,
+        source_files=candidate_source_files or None,
+    )
+    mongo_selected_rows = _filter_source_rows_for_targets(mongo_rows, targets)
+    mongo_documents = build_match_enrichment_documents(
+        source_rows=mongo_selected_rows,
+        support_docs=support_docs,
+    )
+    if _documents_cover_targets(mongo_documents, targets):
+        return mongo_documents
+    return documents
 
 
 class InMemoryReadCollection:
@@ -116,11 +178,13 @@ def build_ephemeral_model_read_database(
     support_docs: dict[str, Any],
     targets: list[dict[str, Any]],
     generated_at: datetime | None = None,
+    legacy_teamstats_database: Any | None = None,
 ) -> InMemoryReadDatabase:
     docs = build_ephemeral_match_enrichment_documents(
         teamstats_dir=teamstats_dir,
         support_docs=support_docs,
         targets=targets,
+        legacy_teamstats_database=legacy_teamstats_database,
     )
     target_dates = sorted({date_str for row in targets if (date_str := _target_source_date(row))})
     profile_docs: list[dict[str, Any]] = []

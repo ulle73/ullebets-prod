@@ -131,6 +131,22 @@ def _load_training_sources(database: Any) -> tuple[list[dict[str, Any]], list[di
     return settled_docs, market_offers, match_results, match_stats, raw_incidents, raw_shotmaps
 
 
+def _build_market_context_from_settled_doc(settled: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    direction = "under" if str(settled.get("direction") or "").lower() == "under" else "over"
+    selected_odds = _safe_float(settled.get("selected_odds"))
+    over_odds = selected_odds if direction == "over" and selected_odds > 0 else None
+    under_odds = selected_odds if direction == "under" and selected_odds > 0 else None
+    return (
+        {
+            "offer_key": settled.get("offer_key"),
+            "line": settled.get("line_value"),
+            "over_odds": over_odds,
+            "under_odds": under_odds,
+        },
+        True,
+    )
+
+
 def run_training_export_build(
     *,
     source_workflow: str,
@@ -184,6 +200,7 @@ def run_training_export_build(
 
     profile_cache: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
     skipped_reason_counts: Counter[str] = Counter()
+    fallback_reason_counts: Counter[str] = Counter()
     training_export_docs: list[dict[str, Any]] = []
 
     unique_dates = sorted(
@@ -215,9 +232,10 @@ def run_training_export_build(
             skipped_reason_counts["missing_match_result"] += 1
             continue
         offer_row = offers_by_key.get(str(settled.get("offer_key") or ""))
+        used_partial_market_context = False
         if offer_row is None:
-            skipped_reason_counts["missing_market_offer"] += 1
-            continue
+            offer_row, used_partial_market_context = _build_market_context_from_settled_doc(settled)
+            fallback_reason_counts["partial_market_context_from_settled_doc"] += 1
         source_date = str(result_row.get("source_date") or "")
         profiles = profile_cache.get(source_date, {})
         home_team_key = str(result_row.get("home_team_key") or "")
@@ -277,6 +295,7 @@ def run_training_export_build(
                 "selectionKey": settled.get("selection_key"),
                 "settlementResult": settled.get("settlement_result"),
                 "profileDate": source_date,
+                "partialMarketContext": used_partial_market_context,
             },
         }
         split = _split_name_for_date(source_date)
@@ -302,6 +321,7 @@ def run_training_export_build(
                         "selected_odds": settled.get("selected_odds"),
                         "over_odds": offer_row.get("over_odds"),
                         "under_odds": offer_row.get("under_odds"),
+                        "partial_market_context": used_partial_market_context,
                     },
                     "sample": sample,
                     "profile_context": {
@@ -318,6 +338,7 @@ def run_training_export_build(
         settled_docs=settled_docs,
         training_export_docs=training_export_docs,
         skipped_reason_counts=dict(skipped_reason_counts),
+        fallback_reason_counts=dict(fallback_reason_counts),
         report_date=report_date,
     )
     audit_rows = build_training_export_audit_rows(
@@ -325,11 +346,13 @@ def run_training_export_build(
         settled_docs=settled_docs,
         training_export_docs=training_export_docs,
         skipped_reason_counts=dict(skipped_reason_counts),
+        fallback_reason_counts=dict(fallback_reason_counts),
         report_date=report_date,
     )
     health_rows = build_training_export_health_rows(
         training_export_docs=training_export_docs,
         skipped_reason_counts=dict(skipped_reason_counts),
+        fallback_reason_counts=dict(fallback_reason_counts),
         report_date=report_date,
     )
     summary: dict[str, Any] = {
@@ -341,6 +364,7 @@ def run_training_export_build(
         "split_counts": dict(Counter(row["split"] for row in training_export_docs)),
         "dataset_counts": dict(Counter(row["dataset_key"] for row in training_export_docs)),
         "skipped_reason_counts": dict(skipped_reason_counts),
+        "fallback_reason_counts": dict(fallback_reason_counts),
         "parity_reports": len(parity_rows),
         "audit_reports": len(audit_rows),
         "health_reports": len(health_rows),

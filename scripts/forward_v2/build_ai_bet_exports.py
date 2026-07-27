@@ -154,6 +154,7 @@ def main() -> int:
             support_docs=support_docs,
             targets=targets,
             generated_at=fetched_at,
+            legacy_teamstats_database=legacy_backtest_database,
         )
     if args.disable_model_oracle:
         model_oracle = None

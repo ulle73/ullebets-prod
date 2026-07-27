@@ -32,9 +32,20 @@ def infer_source_role(filename: str) -> str | None:
     return None
 
 
-def build_teamstats_source_rows(source_dir: Path) -> list[dict[str, Any]]:
+def build_teamstats_source_rows(
+    source_dir: Path,
+    *,
+    source_files: set[str] | None = None,
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for path in sorted(source_dir.glob("*.json")):
+    paths = (
+        [source_dir / name for name in sorted(source_files)]
+        if source_files
+        else sorted(source_dir.glob("*.json"))
+    )
+    for path in paths:
+        if not path.exists() or path.suffix.lower() != ".json":
+            continue
         payload = load_json(path)
         matches = _extract_matches(payload)
         if matches is None:
@@ -54,10 +65,14 @@ def build_teamstats_source_rows_from_database(
     database: Any,
     *,
     collection_name: str = "teamstats",
+    source_files: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     projection = {"_id": 0, "full": 1, "matches": 1, "_importMeta": 1}
-    for index, payload in enumerate(database[collection_name].find({}, projection=projection)):
+    query: dict[str, Any] = {}
+    if source_files:
+        query["_importMeta.sourceFile"] = {"$in": sorted(source_files)}
+    for index, payload in enumerate(database[collection_name].find(query, projection=projection)):
         matches = _extract_matches(payload)
         if matches is None:
             continue

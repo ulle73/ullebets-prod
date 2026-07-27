@@ -21,6 +21,7 @@ def build_training_export_parity_rows(
     settled_docs: list[dict[str, Any]],
     training_export_docs: list[dict[str, Any]],
     skipped_reason_counts: dict[str, int],
+    fallback_reason_counts: dict[str, int] | None = None,
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
     if not settled_docs:
@@ -64,10 +65,11 @@ def build_training_export_parity_rows(
                 "feature_mode_counts": _count_by(training_export_docs, "feature_mode"),
                 "split_counts": _count_by(training_export_docs, "split"),
                 "dataset_counts": _count_by(training_export_docs, "dataset_key"),
+                "fallback_reason_counts": fallback_reason_counts or {},
             },
             parity_status=parity_status,
             blocking_issues=blocking_issues,
-            audit_risks=[],
+            audit_risks=["partial_market_context_used"] if fallback_reason_counts else [],
             report_date=report_date or utc_now().date().isoformat(),
         )
     ]
@@ -79,6 +81,7 @@ def build_training_export_audit_rows(
     settled_docs: list[dict[str, Any]],
     training_export_docs: list[dict[str, Any]],
     skipped_reason_counts: dict[str, int],
+    fallback_reason_counts: dict[str, int] | None = None,
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
     if not settled_docs:
@@ -94,6 +97,8 @@ def build_training_export_audit_rows(
         ]
 
     findings = sorted(reason for reason, count in skipped_reason_counts.items() if count > 0)
+    if fallback_reason_counts:
+        findings.extend(sorted(reason for reason, count in fallback_reason_counts.items() if count > 0))
     status = "ok" if not findings else "warn"
     return [
         build_audit_report_row(
@@ -104,6 +109,7 @@ def build_training_export_audit_rows(
                 "settled_sample_count": len(settled_docs),
                 "training_export_count": len(training_export_docs),
                 "skipped_reason_counts": skipped_reason_counts,
+                "fallback_reason_counts": fallback_reason_counts or {},
                 "feature_mode_counts": _count_by(training_export_docs, "feature_mode"),
                 "split_counts": _count_by(training_export_docs, "split"),
             },
@@ -117,6 +123,7 @@ def build_training_export_health_rows(
     *,
     training_export_docs: list[dict[str, Any]],
     skipped_reason_counts: dict[str, int],
+    fallback_reason_counts: dict[str, int] | None = None,
     report_date: str | None = None,
 ) -> list[dict[str, Any]]:
     if not training_export_docs:
@@ -125,11 +132,15 @@ def build_training_export_health_rows(
                 job_name="build_training_exports",
                 status="ok",
                 summary="No training exports were generated.",
-                metrics={"training_export_count": 0, "skipped_reason_counts": skipped_reason_counts},
+                metrics={
+                    "training_export_count": 0,
+                    "skipped_reason_counts": skipped_reason_counts,
+                    "fallback_reason_counts": fallback_reason_counts or {},
+                },
                 report_date=report_date or utc_now().date().isoformat(),
             )
         ]
-    status = "ok" if not any(skipped_reason_counts.values()) else "warn"
+    status = "ok" if not any(skipped_reason_counts.values()) and not any((fallback_reason_counts or {}).values()) else "warn"
     return [
         build_health_report_row(
             job_name="build_training_exports",
@@ -140,6 +151,7 @@ def build_training_export_health_rows(
                 "feature_mode_counts": _count_by(training_export_docs, "feature_mode"),
                 "split_counts": _count_by(training_export_docs, "split"),
                 "skipped_reason_counts": skipped_reason_counts,
+                "fallback_reason_counts": fallback_reason_counts or {},
             },
             report_date=report_date or utc_now().date().isoformat(),
         )
