@@ -15,6 +15,10 @@ from ullebets_v2.fixtures.replay import build_fixture_documents, load_fixture_pa
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
 
 
+def _live_source_path(date_str: str) -> Path:
+    return Path("live-fixtures") / f"fixtures-{date_str}.json"
+
+
 def run_fixture_ingest_window(
     *,
     mode: str,
@@ -22,7 +26,7 @@ def run_fixture_ingest_window(
     support_docs: dict[str, Any],
     source_workflow: str,
     old_payloads_by_date: dict[str, dict[str, Any]],
-    source_dir: Path,
+    source_dir: Path | None,
     database: Any | None = None,
     dry_run: bool = False,
     source_config: FixtureSourceConfig | None = None,
@@ -56,7 +60,7 @@ def run_fixture_ingest_window(
                 date=date_str,
                 live_batches=live_raw_docs,
             )
-            source_path_for_docs = source_dir / f"fixtures-{date_str}.json"
+            source_path_for_docs = _live_source_path(date_str) if source_dir is None else source_dir / f"fixtures-{date_str}.json"
         else:
             raise RuntimeError(f"Unsupported fixture ingest mode: {mode}")
 

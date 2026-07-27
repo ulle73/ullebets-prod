@@ -315,6 +315,47 @@ def test_run_fixture_ingest_window_live_writes_job_and_reports() -> None:
     assert database["audit_reports"].count_documents() == 1
 
 
+def test_run_fixture_ingest_window_live_without_legacy_oracle_uses_synthetic_source_path() -> None:
+    support_docs = build_support_docs()
+    old_payload = build_old_fixture_payload()
+    database = FakeDatabase()
+
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:
+        if "sportapi7" in url:
+            return HttpJsonResponse(status=404, headers={}, data={})
+        return HttpJsonResponse(
+            status=200,
+            headers={"content-type": "application/json"},
+            data={"events": old_payload["matches"]},
+        )
+
+    summary = run_fixture_ingest_window(
+        mode="live",
+        dates=["2025-10-08"],
+        support_docs=support_docs,
+        source_workflow="import-fixtures-rolling.yml",
+        old_payloads_by_date={},
+        database=database,
+        dry_run=False,
+        source_config=FixtureSourceConfig(
+            rapidapi_keys=["key-1"],
+            rapidapi_sportapi7_base_url="https://sportapi7.example.test",
+            rapidapi_sofascore_base_url="https://sofascore.example.test",
+            rapidapi_sport_api_real_time_base_url="https://realtime.example.test",
+            rapidapi_sofascore_sport_api_base_url="https://sportapi.example.test",
+            sofascore_public_api_base_url="https://public.example.test",
+        ),
+        transport=transport,
+        source_dir=None,
+    )
+
+    assert summary["processed_dates"] == 1
+    assert summary["parity_status_counts"] == {"missing_oracle": 1}
+    assert database["fixtures_canonical"].count_documents() == 1
+    assert "live-fixtures" in database["fixtures_canonical"].docs[0]["source_path"]
+    assert database["fixtures_canonical"].docs[0]["source_path"].endswith("fixtures-2025-10-08.json")
+
+
 def test_run_fixture_ingest_window_live_handles_empty_requested_date_as_no_targets() -> None:
     support_docs = build_support_docs()
 
