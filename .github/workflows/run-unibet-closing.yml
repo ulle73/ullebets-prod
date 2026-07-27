@@ -34,4 +34,4 @@ jobs:
         if [ -n "${{ inputs.now }}" ]; then
           ARGS+=(--now "${{ inputs.now }}")
         fi
-        python scripts/forward_v2/capture_closing_snapshots.py "${ARGS[@]}"
+        python scripts/forward_v2/capture_closing_snapshots.py --source-workflow run-unibet-closing.yml "${ARGS[@]}"

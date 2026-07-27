@@ -28,5 +28,5 @@ jobs:
         if [ -z "$DATE" ]; then
           DATE=$(date -u -d '+7 days' +%F)
         fi
-        python scripts/forward_v2/build_matchups_score.py --date "$DATE" --dry-run
-        python scripts/forward_v2/build_matchups_league_avg.py --date "$DATE" --dry-run
+        python scripts/forward_v2/build_matchups_score.py --date "$DATE" --source-workflow dump-matchups.yml --dry-run
+        python scripts/forward_v2/build_matchups_league_avg.py --date "$DATE" --source-workflow dump-matchups.yml --dry-run

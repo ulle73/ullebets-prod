@@ -30,4 +30,4 @@ jobs:
           END_DATE=$(date -u -d 'yesterday' +'%Y-%m-%d')
           DATE="${START_DATE}-${END_DATE}"
         fi
-        python scripts/forward_v2/settle_matchups_outputs.py --date "$DATE" --dry-run
+        python scripts/forward_v2/settle_matchups_outputs.py --date "$DATE" --source-workflow enrich-matchups-results.yml --dry-run

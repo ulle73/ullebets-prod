@@ -52,6 +52,8 @@ def _build_contract_findings(
         findings.append("missing_workflow_replacements")
     if workflow_report["missing_helper_files"]:
         findings.append("missing_workflow_helpers")
+    if workflow_report.get("invalid_content_files"):
+        findings.append("workflow_content_mismatches")
     if env_report["missing_required_keys"]:
         findings.append("missing_env_example_keys")
     if env_report.get("mongo_db") != "ullebets_v2":
@@ -94,6 +96,7 @@ def main() -> int:
             summary="V2 automation and safety contract evaluated without writes.",
             metrics={
                 "workflow_missing_count": len(workflow_report["missing_parity_files"]) + len(workflow_report["missing_helper_files"]),
+                "workflow_invalid_content_count": len(workflow_report.get("invalid_content_files", [])),
                 "env_missing_count": len(env_report["missing_required_keys"]),
                 "old_repo_root_exists": config.old_repo_root.exists(),
             },
@@ -105,6 +108,7 @@ def main() -> int:
             findings=contract_findings,
             metrics={
                 "workflow_missing_count": len(workflow_report["missing_parity_files"]) + len(workflow_report["missing_helper_files"]),
+                "workflow_invalid_content_count": len(workflow_report.get("invalid_content_files", [])),
                 "env_missing_count": len(env_report["missing_required_keys"]),
                 "workflow_existing_count": workflow_report["existing_workflow_count"],
             },
