@@ -60,10 +60,21 @@ jobs:
       - name: Apply closing watcher state
         if: ${{ github.event_name == 'schedule' || inputs.dry_run != true }}
         run: |
-          if [ "${{ steps.plan.outputs.should_enable }}" = "true" ]; then
-            gh workflow enable run-unibet-closing.yml
-          else
+          CURRENT_STATE=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/run-unibet-closing.yml" \
+            --jq '.state')
+          SHOULD_ENABLE="${{ steps.plan.outputs.should_enable }}"
+
+          if [ "$SHOULD_ENABLE" = "true" ]; then
+            if [ "$CURRENT_STATE" = "active" ]; then
+              echo "Closing watcher is already active; no state change needed."
+            else
+              gh workflow enable run-unibet-closing.yml
+            fi
+          elif [ "$CURRENT_STATE" = "active" ]; then
             gh workflow disable run-unibet-closing.yml
+          else
+            echo "Closing watcher is already disabled ($CURRENT_STATE); no state change needed."
           fi
 
       - name: Capture due production checkpoints

@@ -66,6 +66,9 @@ def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watc
     assert "actions/checkout@v7" in workflow
     assert "actions/setup-python@v7" in workflow
     assert "plan_closing_watch.py" in workflow
+    assert "CURRENT_STATE=$(gh api" in workflow
+    assert 'if [ "$CURRENT_STATE" = "active" ]' in workflow
+    assert "Closing watcher is already disabled" in workflow
     assert "gh workflow enable run-unibet-closing.yml" in workflow
     assert "gh workflow disable run-unibet-closing.yml" in workflow
     assert "capture_odds_checkpoints.py" in workflow
