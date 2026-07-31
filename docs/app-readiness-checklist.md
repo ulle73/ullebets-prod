@@ -207,8 +207,9 @@ Current acceptance window:
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
 - [x] Current V2 regression suite passes `386/386`.
-- [ ] `PARTIAL` Commit, review, and merge the current V2 worktree without
-  including secrets, caches, or unnecessary generated data.
+- [x] The V2 worktree was committed and merge-verified without secrets,
+  caches, or unnecessary generated data; the clean merged checkout passed
+  `386/386` tests.
 - [ ] `NOT STARTED` Deploy backend jobs and frontend to their final production
   environments.
 - [ ] `NOT STARTED` Run a production acceptance test over at least one complete

@@ -23,7 +23,8 @@ Valid empty source responses are not failures when no matches or markets exist.
 
 ### Repository and data boundaries
 
-- `VERIFIED`: active V2 branch is `feature/ullebets-v2-backend`.
+- `VERIFIED`: V2 is preserved on `feature/ullebets-v2-backend` and has been
+  merge-verified for `main`.
 - `VERIFIED`: V2 writes target only `ullebets_v2`.
 - `VERIFIED`: `app` and `ullebets_unibet` are read-only reference sources.
 - `VERIFIED`: raw and canonical/derived data are separated.
@@ -168,6 +169,9 @@ Results:
 - Targeted checkpoint, closing downstream, and workflow contract tests:
   `23 passed`.
 - `git diff --check` found no whitespace errors.
+- Feature commits `7557729` and `6009db9` were merged without conflicts in a
+  clean worktree based on `origin/main`; the merged checkout also passed
+  `386/386` tests.
 
 Insight:
 The backend code already contained the capture mechanisms, but an undeployed
