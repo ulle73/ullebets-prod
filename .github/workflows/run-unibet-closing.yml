@@ -2,7 +2,7 @@ name: V2 Run Unibet Closing Odds
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "2-57/5 * * * *"
   workflow_dispatch:
     inputs:
       date:
@@ -33,6 +33,7 @@ jobs:
     with:
       timeout_minutes: 45
       checkout_legacy_repo: false
+      dependency_profile: lean
       dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         ARGS=(--mode fixture-db --refresh-derived --dry-run)

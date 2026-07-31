@@ -128,9 +128,10 @@ The closing and CLV dry-run paths now read current V2 history without writing,
 and the targeted checkpoint/closing/CLV/safety suite passes `27/27`.
 
 The automation gap was concrete: `run-unibet-closing.yml`, which materializes
-`closing_lines`, had no schedule. It now runs every five minutes in a dedicated
-concurrency group. The Codex heartbeat was also corrected because its previous
-schedule missed the four 18:00Z kickoffs. The next real T-10 window must prove:
+`closing_lines`, had no deployed schedule during this window. The deployed
+replacement is match-aware: an hourly scheduler captures T-3D/T-2D/T-1D and
+enables the five-minute T-10 watcher only while an uncaptured fixture is within
+two hours. The next real T-10 window must prove:
 
 - a live due target is selected
 - raw Kambi data is fetched

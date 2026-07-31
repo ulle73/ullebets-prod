@@ -210,11 +210,15 @@ matchklustrad 95%-nedre gräns, korrigerat p-värde under `0,05` och noll
 timing-/outcome-/duplicate-/feature-auditfel. Just nu har samtliga policys
 status `insufficient_evidence`.
 
-Oddsautomation behåller de obligatoriska checkpoints T-3D, T-2D, T-1D och
-T-10M. Den fångar dessutom T-12H och T-2H som research-snapshots eftersom
-horisontauditen visade att de ursprungliga fyra fönstren endast täckte 17,15%
-av den historiska V3-modellens val. Med research-fönstren är jämförbar
-horisonttäckning 86,63%.
+Produktionsautomation fångar endast de obligatoriska checkpoints T-3D, T-2D,
+T-1D och T-10M. Ett timvis matchmedvetet scheduler-jobb hanterar de tre långa
+horisonterna och aktiverar T-10-workflowen först när en ännu ej fångad match
+finns inom två timmar. Utan en sådan match är femminuters-workflowen avstängd.
+
+T-12H och T-2H finns kvar som manuellt tillgängliga research-checkpoints, men
+de körs inte av produktionsschemat. Horisontauditen visade att de ursprungliga
+fyra fönstren endast täckte 17,15% av den historiska V3-modellens val; med
+research-fönstren är jämförbar horisonttäckning 86,63%.
 
 Samma audit för den exakta V6 corner/away+total-policyn gav `27/156`
 historiska val (`17,31%`) i de fyra obligatoriska fönstren och `128/156`

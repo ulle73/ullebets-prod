@@ -1,0 +1,93 @@
+name: V2 Match-Aware Odds Scheduler
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      lookahead_hours:
+        description: "Hours ahead to keep the T-10 watcher active."
+        required: false
+        default: "2"
+        type: string
+      days_ahead:
+        description: "Days ahead to inspect regular checkpoints."
+        required: false
+        default: "7"
+        type: string
+      dry_run:
+        description: "Run without writes or changing workflow state."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-odds-scheduler
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  schedule-odds-captures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_DB: ullebets_v2
+    steps:
+      - name: Check out V2 repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install lean scheduler dependency
+        run: python -m pip install "pymongo>=4.8.0"
+
+      - name: Inspect upcoming uncaptured fixtures
+        id: plan
+        run: |
+          python scripts/forward_v2/plan_closing_watch.py \
+            --lookahead-hours "${{ inputs.lookahead_hours || '2' }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Apply closing watcher state
+        if: ${{ github.event_name == 'schedule' || inputs.dry_run != true }}
+        run: |
+          if [ "${{ steps.plan.outputs.should_enable }}" = "true" ]; then
+            gh workflow enable run-unibet-closing.yml
+          else
+            gh workflow disable run-unibet-closing.yml
+          fi
+
+      - name: Capture due production checkpoints
+        run: |
+          ARGS=(
+            --mode fixture-db
+            --source-workflow run-unibet-odds-checkpoints.yml
+            --max-days-ahead "${{ inputs.days_ahead || '7' }}"
+            --exclude-checkpoint T_MINUS_12H
+            --exclude-checkpoint T_MINUS_2H
+            --exclude-checkpoint T_MINUS_10M
+          )
+          if [ "${{ inputs.dry_run || false }}" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          python scripts/forward_v2/capture_odds_checkpoints.py "${ARGS[@]}"
+
+      - name: Publish scheduler summary
+        run: |
+          {
+            echo "### Match-aware odds scheduler"
+            echo "- Closing action: ${{ steps.plan.outputs.action }}"
+            echo "- Reason: ${{ steps.plan.outputs.reason }}"
+            echo "- Pending fixtures: ${{ steps.plan.outputs.pending_fixture_count }}"
+            echo "- Next match: ${{ steps.plan.outputs.next_pending_match_key }}"
+            echo "- Next kickoff: ${{ steps.plan.outputs.next_pending_start_time }}"
+          } >> "$GITHUB_STEP_SUMMARY"
