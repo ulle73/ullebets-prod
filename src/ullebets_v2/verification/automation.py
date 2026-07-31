@@ -38,6 +38,8 @@ HELPER_WORKFLOW_RULES = {
         "required_fragments": [
             'cron: "23 * * * *"',
             "actions: write",
+            "actions/checkout@v7",
+            "actions/setup-python@v7",
             "plan_closing_watch.py",
             "gh workflow enable run-unibet-closing.yml",
             "gh workflow disable run-unibet-closing.yml",
@@ -59,6 +61,9 @@ HELPER_WORKFLOW_RULES = {
     "v2-python-job.yml": {
         "required_fragments": [
             "MONGODB_DB: ullebets_v2",
+            "actions/checkout@v7",
+            "actions/setup-python@v7",
+            "actions/setup-node@v7",
             "python -m pip install -e .",
             "if: ${{ inputs.checkout_legacy_repo }}",
             "${{ inputs.run_command }}",

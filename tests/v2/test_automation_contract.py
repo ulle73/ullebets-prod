@@ -63,6 +63,8 @@ def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watc
 
     assert 'cron: "23 * * * *"' in workflow
     assert "actions: write" in workflow
+    assert "actions/checkout@v7" in workflow
+    assert "actions/setup-python@v7" in workflow
     assert "plan_closing_watch.py" in workflow
     assert "gh workflow enable run-unibet-closing.yml" in workflow
     assert "gh workflow disable run-unibet-closing.yml" in workflow
@@ -70,6 +72,22 @@ def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watc
     assert "--exclude-checkpoint T_MINUS_12H" in workflow
     assert "--exclude-checkpoint T_MINUS_2H" in workflow
     assert "--exclude-checkpoint T_MINUS_10M" in workflow
+
+
+def test_shared_runner_uses_current_node24_actions() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "v2-python-job.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "actions/checkout@v7" in workflow
+    assert "actions/setup-python@v7" in workflow
+    assert "actions/setup-node@v7" in workflow
+    assert "actions/checkout@v4" not in workflow
+    assert "actions/setup-python@v5" not in workflow
+    assert "actions/setup-node@v4" not in workflow
 
 
 def test_workflow_directory_flags_missing_source_workflow_and_runner_dry_run_wiring() -> None:

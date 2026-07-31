@@ -53,10 +53,10 @@ jobs:
       ULLEBETS_V2_RUN_COMMAND: ${{ inputs.run_command }}
     steps:
       - name: Check out V2 repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ inputs.python_version }}
           cache: pip
@@ -73,14 +73,14 @@ jobs:
 
       - name: Check out original backend reference repo
         if: ${{ inputs.checkout_legacy_repo }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ulle73/ullebets-vecel
           path: .deps/original-backend
 
       - name: Set up Node.js for legacy oracle bridge
         if: ${{ inputs.checkout_legacy_repo }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
