@@ -180,6 +180,11 @@ Results:
 - Official runner dependencies were updated to `actions/checkout@v7`,
   `actions/setup-python@v7`, and `actions/setup-node@v7` after the first hosted
   run exposed the Node 20 deprecation warning.
+- Final v7 hosted dry-run
+  [30667644513](https://github.com/ulle73/ullebets-prod/actions/runs/30667644513)
+  completed in 17 seconds with zero annotations. At verification time the
+  match-aware scheduler was active, the T-10 workflow was disabled, and the
+  manual checkpoint workflow had no cron schedule.
 
 Insight:
 GitHub Actions cannot create dynamic future cron events per fixture. Toggling a
