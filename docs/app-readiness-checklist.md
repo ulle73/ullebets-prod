@@ -16,8 +16,6 @@ Status details and evidence:
 
 ## Critical blockers
 
-- [ ] `PARTIAL` Scheduled EV forward scoring runtime drift is fixed and tested
-  locally; hosted production verification remains pending deployment.
 - [ ] `FAILED` Capture a real T-10 odds window before kickoff; all six current
   Brazil windows were missed by the execution automation.
 - [ ] `UNPROVEN` Materialize a valid closing line from that live capture.
@@ -172,9 +170,9 @@ Current acceptance window:
 - [x] A match-aware hourly Actions scheduler owns production checkpoints and
   enables the five-minute closing watcher only around uncaptured upcoming
   fixtures.
-- [ ] `PARTIAL` EV shadow runtime versions are now pinned to the frozen
-  manifests and scheduled execution is write-mode by default; the corrected
-  hosted workflow still needs a successful run.
+- [x] EV shadow runtime versions are pinned to the frozen manifests; hosted
+  production write-mode run `30672830616` passed all four scorers. It produced
+  zero rows because no upcoming canonical model markets existed.
 - [ ] `PARTIAL` Prove every scheduled workflow in real write mode through a
   complete prematch-to-postmatch lifecycle.
 - [ ] `PARTIAL` Attach persisted parity/health evidence to every workflow run.

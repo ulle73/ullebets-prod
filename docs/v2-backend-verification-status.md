@@ -22,8 +22,11 @@ The latest scheduled `V2 EV Shadow Forward` GitHub Actions run
   scheduled execution uses its default false input. Production was not forced
   to dry-run; manual dry-run remains intentionally available.
 
-The local full suite passes `394/394`; hosted scoring remains pending until the
-pinning change is deployed and rerun.
+The local full suite passes `394/394`. The fix was deployed on `main@f188c52`;
+hosted production write-mode run `30672830616` passed V3, V4, V5, and V6 with
+`status=ok`. All four returned zero canonical markets because no current
+upcoming model-ready markets existed. That is a valid empty production result,
+not a dry-run or source failure.
 
 The latest completed match dates for all followed leagues were then fetched in
 production write mode. Fixture ingest stored 181 canonical matches for 16-24

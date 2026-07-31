@@ -59,10 +59,9 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `PARTIAL`: source connectivity diagnostics still contain endpoint failures,
   although the production fixture, enrichment, and odds paths succeeded in
   tested windows.
-- `PARTIAL`: scheduled `V2 EV Shadow Forward` run `30668128118` exposed
-  unpinned hosted `numpy/pandas` versions. Exact manifest-compatible pins are
-  implemented and covered by the local `394/394` suite; hosted verification
-  remains required after deployment.
+- `VERIFIED`: scheduled `V2 EV Shadow Forward` runtime drift exposed by run
+  `30668128118` is fixed. Production write-mode run `30672830616` passed all
+  four frozen scorers on the manifest-compatible runtime.
 - `VERIFIED`: scheduled workflows are write-mode by default. Their command
   templates include `--dry-run`, but the shared runner removes that flag when
   the workflow input is false. Manual dry-run remains available as a safety
@@ -150,7 +149,7 @@ Detailed model history:
 
 ### 2026-08-01 - Scheduled forward-scoring runtime audit
 
-Status: `PARTIAL`
+Status: `VERIFIED`
 
 Objective:
 Answer whether the current model, match-data, statistics, and odds lifecycle is
@@ -169,6 +168,7 @@ Tests:
 ```text
 gh run list --limit 20 --json databaseId,name,workflowName,status,conclusion,event,createdAt,updatedAt,headSha,url
 gh run view 30668128118 --log-failed
+gh run watch 30672830616 --exit-status
 python -m pytest -q
 python scripts/forward_v2/ingest_fixtures_window.py --mode live --start-date 2026-05-16 --end-date 2026-05-24 --source-workflow production-latest-completed-2026-08-01
 python scripts/forward_v2/ingest_fixtures_window.py --mode live --date 2026-07-31 --source-workflow production-latest-completed-2026-08-01
@@ -199,6 +199,11 @@ Results:
   corners/shots/shots-on-goal period/scope rows. There are 1,107 primary rows,
   zero duplicate primary keys, and zero missing actual values.
 - Full regression suite: `394 passed`.
+- Hosted run `30672830616` completed successfully in write mode on
+  `main@f188c52`; V3, V4, V5, and V6 each returned `status=ok`.
+- All four scorers returned zero canonical markets because no current upcoming
+  model-ready markets existed. This is a valid empty production result, not a
+  dry-run or source failure.
 
 Insight:
 The frozen model correctly fails closed on runtime drift. Production workflow
@@ -208,14 +213,12 @@ writes on CosmosDB even though normal daily windows are smaller.
 
 Remaining:
 
-- Deploy the manifest-compatible dependency pins and verify a hosted scorer
-  run succeeds.
 - Prove one hosted scoring write before kickoff on an in-domain fixture.
 
 Next:
 
-- Push the runtime and enrichment persistence fixes, execute the hosted scorer,
-  then wait for an in-domain prematch fixture for the first persisted score.
+- Wait for an in-domain prematch fixture, then verify the first persisted score
+  and eventual untouched settlement without changing the frozen policy.
 
 ### 2026-07-31 - Match-aware GitHub Actions odds scheduling
 
