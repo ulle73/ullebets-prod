@@ -1,0 +1,37 @@
+name: V2 Run Unibet Forward Backtests
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Match date to capture manually (YYYY-MM-DD)"
+        required: true
+        type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  unibet-forward-backtests:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 60
+      checkout_legacy_repo: false
+      dry_run: ${{ inputs.dry_run || false }}
+      run_command: |
+        python scripts/forward_v2/build_model_snapshots.py \
+          --mode fixture-db \
+          --snapshot-mode forward \
+          --source-workflow run-unibet-forward.yml \
+          --date "${{ inputs.date }}" \
+          --dry-run

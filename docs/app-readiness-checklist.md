@@ -1,0 +1,224 @@
+# Ullebets app readiness checklist
+
+Last updated: 2026-07-31
+
+Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
+
+Only fully evidenced behavior gets `[x]`. Implemented code, unit tests, or a
+successful dry-run is not enough when the requirement needs a real live
+lifecycle window.
+
+Status details and evidence:
+
+- [Work log](work-log.md)
+- [Backend verification](v2-backend-verification-status.md)
+- [Model experiments](ev-model-experiments.md)
+
+## Critical blockers
+
+- [ ] `FAILED` Capture a real T-10 odds window before kickoff; all six current
+  Brazil windows were missed by the execution automation.
+- [ ] `UNPROVEN` Materialize a valid closing line from that live capture.
+- [ ] `UNPROVEN` Calculate CLV from a valid live closing line.
+- [ ] `BLOCKED` Accumulate in-domain V6 forward predictions and settlements.
+- [ ] `PARTIAL` Prove output parity for every original backend workflow.
+- [ ] `PARTIAL` Remove the runtime dependency on the old repository's JS
+  oracle so V2 can run independently.
+- [ ] `NOT STARTED` Build the frontend and a stable frontend read API.
+- [ ] `NOT STARTED` Complete production deployment, monitoring, and operational
+  acceptance.
+
+## 1. Database and safety
+
+- [x] V2 has a separate `ullebets_v2` database.
+- [x] `app` and `ullebets_unibet` are treated as read-only references.
+- [x] Every V2 write path hard-fails when `MONGODB_DB` is not `ullebets_v2`.
+- [x] Raw source documents are stored separately from canonical/derived data.
+- [x] Canonical collection names are suffix-free and legacy `*_v2` names have
+  cleanup mappings.
+- [x] Jobs record status and metrics through `job_runs`.
+- [x] Audit, parity, and health report collection families exist.
+- [x] Simulated timestamps are rejected in real write mode.
+- [ ] `UNPROVEN` Run and save an explicit production index audit for every
+  high-volume collection.
+- [ ] `NOT STARTED` Define and verify backup, restore, retention, and disaster
+  recovery procedures for `ullebets_v2`.
+
+## 2. Support data, leagues, and teams
+
+- [x] Support sources can be synchronized.
+- [x] Canonical league records are persisted.
+- [x] Canonical team records and aliases are persisted.
+- [x] Opta/ranking support data is persisted with auditable source metadata.
+- [x] The tested support sync completed with health and audit status `ok`.
+- [ ] `PARTIAL` Prove team/league alias coverage across a complete active
+  season for every target league.
+
+## 3. Fixtures and match identity
+
+- [x] Upcoming fixtures can be fetched from the live source.
+- [x] Raw fixture payloads are stored before normalization.
+- [x] Canonical fixtures and source links are created idempotently.
+- [x] Empty fixture dates are accepted as valid empty source responses.
+- [x] Tested fixture windows produced stable per-date canonical records.
+- [x] Tested Unibet events and SofaScore fixtures linked without guessing.
+- [ ] `PARTIAL` Prove canonical match identity coverage across all supported
+  leagues and a complete season.
+- [ ] `PARTIAL` Reduce unresolved team/league mappings to an accepted
+  production threshold and report that threshold continuously.
+
+## 4. Statistics, results, and derived sports data
+
+- [x] Raw match statistics can be fetched and stored.
+- [x] Raw incidents can be fetched and stored.
+- [x] Raw shotmaps can be fetched and stored.
+- [x] Raw results can be fetched and stored.
+- [x] Canonical match results can be rebuilt from raw data.
+- [x] Corners, total shots, and shots on goal map to canonical
+  stat/period/scope rows.
+- [x] Tested finished matches produced 27 canonical primary-stat rows each.
+- [x] Teamprofiles can be rebuilt from canonical history.
+- [ ] `PARTIAL` Run and save a live/parity acceptance report for
+  `matchups_score`.
+- [ ] `PARTIAL` Run and save a live/parity acceptance report for
+  `matchups_league_avg`.
+- [ ] `PARTIAL` Prove matchup outcome settlement against old output and
+  canonical actuals over a finished date range.
+
+## 5. Unibet/Kambi odds
+
+- [x] Unibet/Kambi events can be discovered for tested fixtures.
+- [x] Full raw Kambi payloads are stored before normalization.
+- [x] Event links connect source events to canonical matches.
+- [x] Market offers are normalized without mutating raw payloads.
+- [x] Odds rows carry source and snapshot metadata.
+- [x] Odds at or after kickoff are excluded from model, ROI, and CLV.
+- [x] A real T-1D capture succeeded for two of two due matches.
+- [ ] `UNPROVEN` Prove a real T-3D capture.
+- [ ] `UNPROVEN` Prove a real T-2D capture.
+- [ ] `UNPROVEN` Prove a real T-10M capture.
+- [ ] `UNPROVEN` Build closing lines from the final valid prematch snapshot.
+- [ ] `UNPROVEN` Refresh CLV from valid live closing lines.
+
+Current acceptance window:
+
+- Six future Brazil fixtures are present; the first four kick off at 20:00
+  Europe/Stockholm on 30 July.
+- T-10 preflight and `27/27` targeted tests pass.
+- All six fixture windows passed without a valid T-10 capture. The heartbeat
+  was delivered after the final window and is not a production scheduler.
+- Post-match enrichment, settlement, and forward results are now complete for
+  the final match, but closing odds and CLV cannot be reconstructed afterward.
+- No live checkbox above may be checked before persisted prematch timing,
+  closing-line, and CLV evidence exists.
+
+## 6. Model snapshots, analysis, and predictions
+
+- [x] Model-ready snapshots can be produced from V2 database inputs.
+- [x] Auto-analysis can produce candidates and a shortlist.
+- [x] Daily, combo, and user-closing prediction exports can be persisted.
+- [x] Forward predictions are immutable after creation.
+- [x] V6 model artifact exists and its hash matches its manifest.
+- [x] Registry V5 resolves to 20 immutable policies with a stable fingerprint.
+- [x] Training-domain filtering excludes unknown leagues from evidence.
+- [x] Historical experiments 000-077 are documented with negative results.
+- [x] The strongest historical V6 policy has leakage-safe walk-forward evidence.
+- [ ] `BLOCKED` Score upcoming matches from a V6-supported league before
+  kickoff.
+- [ ] `BLOCKED` Settle untouched in-domain V6 selections.
+- [ ] `BLOCKED` Reach the promotion gate: at least 300 settled bets, 150 match
+  clusters, 80% CLV coverage, positive mean CLV, positive clustered lower
+  bound, corrected p-value below 0.05, and clean audits.
+
+## 7. Settlement, ROI, and CLV
+
+- [x] Over wins only when actual is greater than line.
+- [x] Under wins only when actual is lower than line.
+- [x] Equal actual and line settles as push with zero PnL.
+- [x] Decimal-odds PnL uses win `odds - 1`, loss `-1`, and push `0`.
+- [x] Duplicate snapshot exposure is deduplicated per market selection.
+- [x] Invalid timing rows remain auditable but cannot receive PnL or CLV.
+- [x] Operational forward rows have been settled against canonical outcomes.
+- [x] Forward-results output separates open, settled, and excluded rows.
+- [ ] `UNPROVEN` Produce model-specific in-domain forward ROI.
+- [ ] `UNPROVEN` Produce model-specific in-domain CLV and beat-close rate.
+
+## 8. Audits and data quality
+
+- [x] Odds timing leakage audit exists and has excluded real violations.
+- [x] Outcome mapping and push-rule audits exist.
+- [x] Duplicate exposure audit exists.
+- [x] Feature leakage checks enforce historical availability before kickoff.
+- [x] Database safety audit exists.
+- [x] Job health and stale-run reporting exist.
+- [x] Empty payloads are distinguished from failed requests.
+- [ ] `PARTIAL` Source connectivity audit still reports failed endpoints and
+  requires endpoint-by-endpoint triage.
+- [ ] `PARTIAL` Complete raw coverage and match-mapping acceptance across a
+  full active-season window.
+- [ ] `PARTIAL` Complete closing/CLV coverage audits after valid live closings
+  exist.
+
+## 9. Automation and operations
+
+- [x] Original workflow names have V2 job mappings.
+- [x] Shared GitHub Actions runner enforces `ullebets_v2`.
+- [x] Emergency dry-run mode exists.
+- [x] Closing workflow has a five-minute schedule and concurrency group.
+- [x] EV shadow scoring and settlement workflows exist.
+- [ ] `PARTIAL` Prove every scheduled workflow in real write mode through a
+  complete prematch-to-postmatch lifecycle.
+- [ ] `PARTIAL` Attach persisted parity/health evidence to every workflow run.
+- [ ] `NOT STARTED` Add production alerting for stale jobs, failed sources,
+  missing odds, mapping failures, and missed closing windows.
+- [ ] `NOT STARTED` Define operational ownership and recovery procedures for
+  failed scheduled jobs.
+
+## 10. V2 independence and original-backend parity
+
+- [x] The old databases are not V2 write targets.
+- [x] The parity matrix maps every known original workflow to a V2 job.
+- [x] V2 has replacement scripts for fixtures, enrichment, support, odds,
+  snapshots, settlement, analysis, exports, and training exports.
+- [ ] `PARTIAL` Replace the remaining legacy JS oracle runtime dependency with
+  native V2 behavior.
+- [ ] `PARTIAL` Mark every workflow parity row accepted with saved count and
+  quality comparisons.
+- [ ] `PARTIAL` Verify `matchups_score`, `matchups_league_avg`, and matchup
+  settlement output parity.
+- [ ] `PARTIAL` Verify training-export sample and stat/scope/period parity.
+- [ ] `PARTIAL` Demonstrate that V2 can run end-to-end with the old repository
+  unavailable.
+
+## 11. Frontend and product surface
+
+- [ ] `NOT STARTED` Define a stable read API for fixtures, odds, predictions,
+  teamstats, results, ROI, and CLV.
+- [ ] `NOT STARTED` Build the frontend.
+- [ ] `NOT STARTED` Show today's/upcoming matches and match details.
+- [ ] `NOT STARTED` Show team statistics by stat, period, and scope.
+- [ ] `NOT STARTED` Show model predictions, offered odds, EV, and model status.
+- [ ] `NOT STARTED` Show settled results, ROI, closing odds, and CLV.
+- [ ] `NOT STARTED` Show data freshness, missing data, and audit warnings.
+- [ ] `NOT STARTED` Verify responsive desktop/mobile behavior and usability.
+
+## 12. Release readiness
+
+- [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
+  instructions exist.
+- [x] Current V2 regression suite passes `386/386`.
+- [ ] `PARTIAL` Commit, review, and merge the current V2 worktree without
+  including secrets, caches, or unnecessary generated data.
+- [ ] `NOT STARTED` Deploy backend jobs and frontend to their final production
+  environments.
+- [ ] `NOT STARTED` Run a production acceptance test over at least one complete
+  in-domain match lifecycle.
+- [ ] `NOT STARTED` Define release rollback, database recovery, and incident
+  response.
+
+## Definition of done
+
+The app is complete only when every checkbox above is checked. A historically
+positive model is not enough: the product must fetch, snapshot, predict,
+settle, audit, display, and operate automatically on real in-domain matches
+without reading the old repository or writing to the old databases.

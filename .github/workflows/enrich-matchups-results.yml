@@ -1,0 +1,39 @@
+name: V2 Enrich matchups results
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: "Date or range to enrich (YYYY-MM-DD or YYYY-MM-DD-YYYY-MM-DD)."
+        required: false
+        type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  enrich:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 45
+      dry_run: ${{ inputs.dry_run || false }}
+      run_command: |
+        DATE="${{ inputs.target_date }}"
+        if [ -z "$DATE" ]; then
+          START_DATE=$(date -u -d '7 days ago' +'%Y-%m-%d')
+          END_DATE=$(date -u -d 'yesterday' +'%Y-%m-%d')
+          DATE="${START_DATE}-${END_DATE}"
+        fi
+        python scripts/forward_v2/settle_matchups_outputs.py --date "$DATE" --source-workflow enrich-matchups-results.yml --dry-run

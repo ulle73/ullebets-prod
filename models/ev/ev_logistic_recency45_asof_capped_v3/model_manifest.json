@@ -1,0 +1,209 @@
+{
+  "artifact": "ev_logistic_recency45_asof_capped_v3.joblib",
+  "asof_feature_audit": {
+    "availability_buffer_hours": 3.0,
+    "history_observations_at_or_after_snapshot_used": 0,
+    "history_observations_excluded_by_snapshot": 24,
+    "rows": 14033,
+    "rows_without_baseline_history": 0
+  },
+  "configuration": {
+    "algorithm": "regularized_logistic_regression",
+    "feature_set": "compact_snapshot_asof_leakage_safe",
+    "history_availability_buffer_hours": 3.0,
+    "maximum_ev": 0.25,
+    "minimum_ev": 0.075,
+    "probability_calibration": "none",
+    "recency_half_life_days": 45.0,
+    "train_window_days": 90
+  },
+  "created_at": "2026-07-30T00:12:19.336197+00:00",
+  "dataset_audit": {
+    "duplicate_rows_removed": 0,
+    "eligible_rows": 14033,
+    "input_rows": 72385,
+    "output_rows": 14033
+  },
+  "features": [
+    "league_name_normalized",
+    "period",
+    "scope",
+    "stat_key",
+    "line_value",
+    "over_odds",
+    "under_odds",
+    "market_fair_probability_over",
+    "market_anchor_lambda",
+    "market_overround",
+    "baseline_lambda",
+    "snapshot_lead_hours",
+    "history_role_attack_3",
+    "history_role_defense_3",
+    "history_role_expected_3",
+    "history_role_attack_5",
+    "history_role_defense_5",
+    "history_role_expected_5",
+    "history_role_attack_10",
+    "history_role_defense_10",
+    "history_role_expected_10",
+    "history_role_attack_20",
+    "history_role_defense_20",
+    "history_role_expected_20",
+    "history_all_attack_3",
+    "history_all_defense_3",
+    "history_all_expected_3",
+    "history_all_attack_5",
+    "history_all_defense_5",
+    "history_all_expected_5",
+    "history_all_attack_10",
+    "history_all_defense_10",
+    "history_all_expected_10",
+    "history_all_attack_20",
+    "history_all_defense_20",
+    "history_all_expected_20",
+    "history_role_trend_3_10",
+    "history_all_trend_3_10"
+  ],
+  "forbidden_features": [],
+  "historical_evidence": {
+    "audit_report": "docs/ev-model-experiments.md#experiment-032-extreme-edge-abstention",
+    "bets": 344,
+    "bootstrap_probability_positive": 0.94404,
+    "clustered_95_interval_pct": [
+      -2.5142061910823337,
+      22.401258270745714
+    ],
+    "clv_coverage_pct": 1.1627906976744187,
+    "pnl_units": 35.15,
+    "positive_windows": 6,
+    "roi_pct": 10.218023255813954,
+    "status": "shadow_candidate_only",
+    "unique_matches": 165,
+    "windows": 6
+  },
+  "model_id": "ev_logistic_recency45_asof_capped_v3",
+  "promotion_requirements": [
+    "new untouched forward bets",
+    "complete prematch closing-line capture",
+    "zero timing, mapping, duplicate, and feature-leakage audit failures",
+    "positive match-clustered uncertainty interval"
+  ],
+  "robustness_evidence": {
+    "audit_report": "docs/ev-model-experiments.md#experiment-032-extreme-edge-abstention",
+    "calibration": {
+      "actual_win_rate": 0.5697674418604651,
+      "market_brier": 0.24803232389323104,
+      "market_calibration_bias": 0.08874459922092853,
+      "market_log_loss": 0.6892227776114874,
+      "mean_market_probability": 0.4810228426395366,
+      "mean_model_probability": 0.5723107038456798,
+      "model_brier": 0.23969991342837915,
+      "model_calibration_bias": -0.0025432619852147065,
+      "model_log_loss": 0.6720833838893939,
+      "settled_bets": 344
+    },
+    "match_concentration": {
+      "match_clusters": 165,
+      "removal_sensitivity": [
+        {
+          "best_match_clusters_removed": 1,
+          "bets": 338,
+          "pnl_units": 29.15,
+          "roi_pct": 8.624260355029586
+        },
+        {
+          "best_match_clusters_removed": 3,
+          "bets": 327,
+          "pnl_units": 18.66,
+          "roi_pct": 5.706422018348624
+        },
+        {
+          "best_match_clusters_removed": 5,
+          "bets": 316,
+          "pnl_units": 10.3,
+          "roi_pct": 3.259493670886076
+        },
+        {
+          "best_match_clusters_removed": 10,
+          "bets": 294,
+          "pnl_units": -6.069999999999997,
+          "roi_pct": -2.0646258503401347
+        },
+        {
+          "best_match_clusters_removed": 20,
+          "bets": 265,
+          "pnl_units": -29.690000000000005,
+          "roi_pct": -11.203773584905662
+        }
+      ],
+      "top_10_match_pnl_units": 41.22
+    },
+    "odds_haircut_sensitivity": [
+      {
+        "bets": 344,
+        "decimal_odds_haircut": 0.0,
+        "pnl_units": 35.15,
+        "roi_pct": 10.218023255813954
+      },
+      {
+        "bets": 344,
+        "decimal_odds_haircut": 0.01,
+        "pnl_units": 31.358500000000003,
+        "roi_pct": 9.115843023255815
+      },
+      {
+        "bets": 344,
+        "decimal_odds_haircut": 0.02,
+        "pnl_units": 27.566999999999993,
+        "roi_pct": 8.013662790697671
+      },
+      {
+        "bets": 344,
+        "decimal_odds_haircut": 0.03,
+        "pnl_units": 23.775499999999994,
+        "roi_pct": 6.911482558139532
+      },
+      {
+        "bets": 344,
+        "decimal_odds_haircut": 0.05,
+        "pnl_units": 16.192499999999978,
+        "roi_pct": 4.70712209302325
+      },
+      {
+        "bets": 344,
+        "decimal_odds_haircut": 0.075,
+        "pnl_units": 6.713750000000017,
+        "roi_pct": 1.951671511627912
+      },
+      {
+        "bets": 344,
+        "decimal_odds_haircut": 0.1,
+        "pnl_units": -2.764999999999997,
+        "roi_pct": -0.803779069767441
+      }
+    ],
+    "risk": {
+      "maximum_drawdown_units": -12.430000000000007,
+      "maximum_loss_streak": 10
+    },
+    "status": "historical_stress_only"
+  },
+  "runtime_versions": {
+    "joblib": "1.5.0",
+    "numpy": "2.2.2",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.7.1"
+  },
+  "smoke_test": {
+    "markets_scored": 10,
+    "selections_with_disabled_gate": 10,
+    "serialization_round_trip": "passed"
+  },
+  "status": "shadow_only",
+  "training": {
+    "end": "2026-05-24",
+    "rows": 4724,
+    "source_fingerprint_sha256": "2929981228c4cd40dc10c4d92a198e0f8cf5d3e5522454b87b6a79f3219c45d2",
+    "start": "2026-02-24"
+  }
+}

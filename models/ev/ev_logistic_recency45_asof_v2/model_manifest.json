@@ -1,0 +1,108 @@
+{
+  "artifact": "ev_logistic_recency45_asof_v2.joblib",
+  "asof_feature_audit": {
+    "availability_buffer_hours": 3.0,
+    "history_observations_at_or_after_snapshot_used": 0,
+    "history_observations_excluded_by_snapshot": 24,
+    "rows": 14033,
+    "rows_without_baseline_history": 0
+  },
+  "configuration": {
+    "algorithm": "regularized_logistic_regression",
+    "feature_set": "compact_snapshot_asof_leakage_safe",
+    "history_availability_buffer_hours": 3.0,
+    "minimum_ev": 0.075,
+    "probability_calibration": "none",
+    "recency_half_life_days": 45.0,
+    "train_window_days": 90
+  },
+  "created_at": "2026-07-29T23:46:38.181371+00:00",
+  "dataset_audit": {
+    "duplicate_rows_removed": 0,
+    "eligible_rows": 14033,
+    "input_rows": 72385,
+    "output_rows": 14033
+  },
+  "features": [
+    "league_name_normalized",
+    "period",
+    "scope",
+    "stat_key",
+    "line_value",
+    "over_odds",
+    "under_odds",
+    "market_fair_probability_over",
+    "market_anchor_lambda",
+    "market_overround",
+    "baseline_lambda",
+    "snapshot_lead_hours",
+    "history_role_attack_3",
+    "history_role_defense_3",
+    "history_role_expected_3",
+    "history_role_attack_5",
+    "history_role_defense_5",
+    "history_role_expected_5",
+    "history_role_attack_10",
+    "history_role_defense_10",
+    "history_role_expected_10",
+    "history_role_attack_20",
+    "history_role_defense_20",
+    "history_role_expected_20",
+    "history_all_attack_3",
+    "history_all_defense_3",
+    "history_all_expected_3",
+    "history_all_attack_5",
+    "history_all_defense_5",
+    "history_all_expected_5",
+    "history_all_attack_10",
+    "history_all_defense_10",
+    "history_all_expected_10",
+    "history_all_attack_20",
+    "history_all_defense_20",
+    "history_all_expected_20",
+    "history_role_trend_3_10",
+    "history_all_trend_3_10"
+  ],
+  "forbidden_features": [],
+  "historical_evidence": {
+    "audit_report": "docs/ev-model-experiments.md#experiment-031-snapshot-as-of-correction",
+    "bets": 363,
+    "bootstrap_probability_positive": 0.93084,
+    "clustered_95_interval_pct": [
+      -2.98274585921325,
+      20.991756295155565
+    ],
+    "clv_coverage_pct": 1.1019283746556474,
+    "pnl_units": 33.23,
+    "positive_windows": 6,
+    "roi_pct": 9.15426997245179,
+    "status": "shadow_candidate_only",
+    "unique_matches": 166,
+    "windows": 6
+  },
+  "model_id": "ev_logistic_recency45_asof_v2",
+  "promotion_requirements": [
+    "new untouched forward bets",
+    "complete prematch closing-line capture",
+    "zero timing, mapping, duplicate, and feature-leakage audit failures",
+    "positive match-clustered uncertainty interval"
+  ],
+  "runtime_versions": {
+    "joblib": "1.5.0",
+    "numpy": "2.2.2",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.7.1"
+  },
+  "smoke_test": {
+    "markets_scored": 10,
+    "selections_with_disabled_gate": 10,
+    "serialization_round_trip": "passed"
+  },
+  "status": "shadow_only",
+  "training": {
+    "end": "2026-05-24",
+    "rows": 4724,
+    "source_fingerprint_sha256": "2929981228c4cd40dc10c4d92a198e0f8cf5d3e5522454b87b6a79f3219c45d2",
+    "start": "2026-02-24"
+  }
+}

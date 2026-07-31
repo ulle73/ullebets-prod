@@ -1,0 +1,519 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+from ullebets_v2.analysis.service import run_auto_analysis_pipeline
+from ullebets_v2.model_snapshots.service import run_model_snapshot_build
+
+from tests.v2.test_model_snapshots import FakeModelOracle
+from tests.v2.test_odds_ingest import (
+    FakeHistoricalCollection,
+    FakeHistoricalDatabase,
+    build_legacy_backtest_doc,
+    build_support_docs,
+    fake_transport,
+)
+
+
+class FakeReadCollection:
+    def __init__(self, docs: list[dict]) -> None:
+        self.docs = docs
+
+    def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
+        query = query or {}
+        rows = list(self.docs)
+        for key, value in query.items():
+            if isinstance(value, dict) and "$in" in value:
+                allowed = {str(item) for item in value["$in"]}
+                rows = [row for row in rows if str(row.get(key)) in allowed]
+            else:
+                rows = [row for row in rows if row.get(key) == value]
+        return rows
+
+
+class FakeReadDatabase(dict):
+    def __getitem__(self, collection_name: str) -> FakeReadCollection:
+        return dict.__getitem__(self, collection_name)
+
+
+class NonBooleanReadDatabase(FakeReadDatabase):
+    def __bool__(self) -> bool:
+        raise AssertionError("database truth testing should not be used")
+
+
+class FakeAnalysisOracle:
+    def rank_model_snapshots(
+        self,
+        *,
+        model_snapshot_docs: list[dict],
+        run_meta: dict,
+        learning_profile: dict | None = None,  # noqa: ARG002
+    ) -> dict:
+        shortlist = []
+        candidates = []
+        by_match: dict[str, list[dict]] = {}
+        for snapshot in model_snapshot_docs:
+            candidate = {
+                "runId": run_meta["runId"],
+                "runKey": run_meta["runKey"],
+                "date": run_meta["date"],
+                "strategyId": run_meta["strategyId"],
+                "strategyLabel": run_meta["strategyLabel"],
+                "trackingKey": snapshot["selection_key"],
+                "matchId": snapshot["source_match_id"] or snapshot["match_key"],
+                "homeTeamName": snapshot["home_team_name"],
+                "awayTeamName": snapshot["away_team_name"],
+                "leagueName": snapshot["league_name"],
+                "headline": f"{snapshot['direction']} {snapshot['line_value']} {snapshot['stat_key']}",
+                "primaryEv": snapshot["primary_ev"],
+                "confidenceScore": 70 if snapshot["direction"] == "over" else 45,
+                "agreementPct": 65 if snapshot["direction"] == "over" else 30,
+                "sampleSize": snapshot.get("sample_size"),
+                "strategyScore": 81 if snapshot["direction"] == "over" else 20,
+                "passesStrategyFilters": snapshot["direction"] == "over",
+                "isBestBetForMatch": False,
+                "bet": {
+                    "key": snapshot["bet_key"],
+                    "statKey": snapshot["stat_key"],
+                    "line": snapshot["line_value"],
+                    "direction": snapshot["direction"],
+                    "scope": snapshot["scope"],
+                    "period": snapshot["period"],
+                    "odds": snapshot["selected_odds"],
+                    "homeTeam": snapshot["home_team_name"],
+                    "awayTeam": snapshot["away_team_name"],
+                },
+                "selectionKey": snapshot["selection_key"],
+                "matchKey": snapshot["match_key"],
+                "sourceMatchId": snapshot["source_match_id"] or snapshot["match_key"],
+                "offerKey": snapshot["offer_key"],
+                "proof": {"historicalReady": False},
+                "riskFlags": [],
+                "rankReasons": [],
+                "entries": [],
+                "rationale": "synthetic",
+                "createdAt": datetime(2026, 6, 22, 10, 0, tzinfo=UTC).isoformat(),
+                "updatedAt": datetime(2026, 6, 22, 10, 0, tzinfo=UTC).isoformat(),
+            }
+            candidates.append(candidate)
+            by_match.setdefault(snapshot["match_key"], []).append(candidate)
+
+        for bucket in by_match.values():
+            qualifying = [row for row in bucket if row["passesStrategyFilters"]]
+            if not qualifying:
+                continue
+            best = sorted(qualifying, key=lambda row: (row["strategyScore"], row["primaryEv"]), reverse=True)[0]
+            best["isBestBetForMatch"] = True
+            shortlist.append(best)
+
+        return {
+            "run": {
+                "runId": run_meta["runId"],
+                "runKey": run_meta["runKey"],
+                "date": run_meta["date"],
+                "strategyId": run_meta["strategyId"],
+                "strategyLabel": run_meta["strategyLabel"],
+                "source": run_meta["source"],
+                "checkpointKey": run_meta["checkpointKey"],
+                "checkpointLabel": run_meta["checkpointLabel"],
+                "checkpointTargetDays": run_meta["checkpointTargetDays"],
+                "analyzedMatches": len(by_match),
+                "marketCount": len(candidates),
+                "candidateCount": len(candidates),
+                "qualifyingCandidateCount": len([row for row in candidates if row["passesStrategyFilters"]]),
+                "shortlistCount": len(shortlist),
+                "provenCount": 0,
+                "createdAt": datetime(2026, 6, 22, 10, 0, tzinfo=UTC).isoformat(),
+                "updatedAt": datetime(2026, 6, 22, 10, 0, tzinfo=UTC).isoformat(),
+            },
+            "candidates": candidates,
+            "shortlist": shortlist,
+            "snapshot": {
+                "runId": run_meta["runId"],
+                "runKey": run_meta["runKey"],
+                "date": run_meta["date"],
+                "strategyId": run_meta["strategyId"],
+                "strategyLabel": run_meta["strategyLabel"],
+                "checkpointKey": run_meta["checkpointKey"],
+                "checkpointLabel": run_meta["checkpointLabel"],
+                "checkpointTargetDays": run_meta["checkpointTargetDays"],
+                "analyzedMatches": len(by_match),
+                "shortlist": shortlist,
+                "createdAt": datetime(2026, 6, 22, 10, 0, tzinfo=UTC).isoformat(),
+            },
+        }
+
+
+class CopyingShortlistAnalysisOracle(FakeAnalysisOracle):
+    def rank_model_snapshots(
+        self,
+        *,
+        model_snapshot_docs: list[dict],
+        run_meta: dict,
+        learning_profile: dict | None = None,  # noqa: ARG002
+    ) -> dict:
+        payload = super().rank_model_snapshots(
+            model_snapshot_docs=model_snapshot_docs,
+            run_meta=run_meta,
+            learning_profile=learning_profile,
+        )
+        shortlist = []
+        for item in payload["shortlist"]:
+            shortlist_item = dict(item)
+            shortlist_item["isBestBetForMatch"] = True
+            shortlist.append(shortlist_item)
+            item["isBestBetForMatch"] = False
+        payload["shortlist"] = shortlist
+        payload["snapshot"]["shortlist"] = shortlist
+        payload["run"]["shortlistCount"] = len(shortlist)
+        return payload
+
+
+def build_stored_model_snapshot_docs() -> list[dict]:
+    summary = run_model_snapshot_build(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-forward.yml",
+        snapshot_mode="forward",
+        snapshot_label="CURRENT",
+        dry_run=True,
+        transport=fake_transport,
+        odds_oracle=None,
+        model_oracle=FakeModelOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+        return_documents=True,
+    )
+    return summary["documents"]["model_snapshot_docs"]
+
+
+def test_run_auto_analysis_pipeline_dry_run_builds_candidates_and_shortlist() -> None:
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        analysis_oracle=FakeAnalysisOracle(),
+        dry_run=True,
+        transport=fake_transport,
+        odds_oracle=None,
+        model_oracle=FakeModelOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 2
+    assert summary["valid_model_snapshots"] == 2
+    assert summary["analysis_candidates"] == 2
+    assert summary["qualifying_candidates"] == 1
+    assert summary["analysis_shortlist"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_auto_analysis_pipeline_uses_internal_oracle_by_default() -> None:
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        dry_run=True,
+        transport=fake_transport,
+        odds_oracle=None,
+        model_oracle=FakeModelOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 2
+    assert summary["analysis_candidates"] == 2
+    assert summary["qualifying_candidates"] == 0
+    assert summary["analysis_shortlist"] == 0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+    first_candidate = summary["analysis_candidate_docs"][0]
+    assert first_candidate["bet"] == {
+        "key": "match-1|cornerKicks|total|ALL|over|3.5",
+        "statKey": "cornerKicks",
+        "line": 3.5,
+        "direction": "over",
+        "scope": "total",
+        "period": "ALL",
+        "odds": 1.5,
+        "homeTeam": "Arsenal",
+        "awayTeam": "Bournemouth",
+    }
+    assert first_candidate["headline"] == "Over 3.5 Hornor"
+    assert first_candidate["trackingKey"] == "match-1:match-1|cornerKicks|total|ALL|over|3.5"
+    assert first_candidate["matchDate"] == "2026-06-22T18:00:00+00:00"
+
+
+def test_run_auto_analysis_pipeline_can_read_stored_model_snapshots_from_db() -> None:
+    read_database = FakeReadDatabase(
+        {
+            "model_snapshots": FakeReadCollection(build_stored_model_snapshot_docs()),
+        }
+    )
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        dry_run=True,
+        snapshot_source="db",
+        snapshot_read_database=read_database,
+    )
+
+    assert summary["snapshot_source"] == "db"
+    assert summary["matched_events"] == 1
+    assert summary["raw_docs"] == 0
+    assert summary["market_offers"] == 0
+    assert summary["model_snapshots"] == 2
+    assert summary["valid_model_snapshots"] == 2
+    assert summary["analysis_candidates"] == 2
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_auto_analysis_pipeline_uses_oracle_shortlist_when_candidates_are_unmarked() -> None:
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        analysis_oracle=CopyingShortlistAnalysisOracle(),
+        dry_run=True,
+        transport=fake_transport,
+        odds_oracle=None,
+        model_oracle=FakeModelOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["analysis_candidates"] == 2
+    assert summary["qualifying_candidates"] == 1
+    assert summary["analysis_shortlist"] == 1
+    assert sum(1 for row in summary["analysis_candidate_docs"] if row["is_best_bet_for_match"]) == 1
+
+
+def test_run_auto_analysis_pipeline_db_mode_does_not_truth_test_database_objects() -> None:
+    read_database = NonBooleanReadDatabase(
+        {
+            "model_snapshots": FakeReadCollection(build_stored_model_snapshot_docs()),
+        }
+    )
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        dry_run=True,
+        snapshot_source="db",
+        snapshot_read_database=read_database,
+    )
+
+    assert summary["snapshot_source"] == "db"
+    assert summary["model_snapshots"] == 2
+
+
+def test_run_auto_analysis_pipeline_dry_run_handles_empty_target_window() -> None:
+    summary = run_auto_analysis_pipeline(
+        targets=[],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        dry_run=True,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["target_matches"] == 0
+    assert summary["model_snapshots"] == 0
+    assert summary["analysis_candidates"] == 0
+    assert summary["analysis_shortlist"] == 0
+    assert summary["parity_status_counts"] == {"no_targets": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_auto_analysis_pipeline_marks_historical_source_gap_as_mismatch() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection(
+        [
+            {
+                "matchDate": "2025-10-08",
+                "matchId": 14689178,
+                "league": "Premier League",
+                "homeTeam": "Arsenal",
+                "awayTeam": "Bournemouth",
+                "eventId": "evt-legacy",
+            }
+        ]
+    )
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        analysis_oracle=FakeAnalysisOracle(),
+        dry_run=True,
+        transport=fake_transport,
+        model_oracle=FakeModelOracle(),
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 0
+    assert summary["analysis_candidates"] == 0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_auto_analysis_pipeline_replays_historical_model_snapshots() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        snapshot_mode="backtest",
+        analysis_oracle=FakeAnalysisOracle(),
+        dry_run=True,
+        legacy_backtest_database=historical_database,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 3
+    assert summary["valid_model_snapshots"] == 3
+    assert summary["analysis_candidates"] == 3
+    assert summary["analysis_shortlist"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_auto_analysis_pipeline_can_route_legacy_snapshot_tuples_through_model_oracle() -> None:
+    historical_database = FakeHistoricalDatabase()
+    historical_database["unibet-backtest"] = FakeHistoricalCollection([build_legacy_backtest_doc()])
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-legacy-present",
+                "source_match_id": 14689178,
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "source_date": "2025-10-08",
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        snapshot_mode="backtest",
+        analysis_oracle=FakeAnalysisOracle(),
+        dry_run=True,
+        model_oracle=FakeModelOracle(),
+        legacy_backtest_database=historical_database,
+        use_legacy_snapshot_lines=False,
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["matched_events"] == 1
+    assert summary["model_snapshots"] == 3
+    assert summary["valid_model_snapshots"] == 3
+    assert summary["analysis_candidates"] == 3
+    assert summary["analysis_shortlist"] == 1
+    assert summary["parity_status_counts"] == {"matched": 1}

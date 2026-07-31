@@ -1,0 +1,41 @@
+name: V2 Import fixtures (D+7 only)
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Optional YYYY-MM-DD override. Defaults to D+7 UTC."
+        required: false
+        type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run-script:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 45
+      dry_run: ${{ inputs.dry_run || false }}
+      run_command: |
+        TARGET="${{ inputs.date }}"
+        if [ -z "$TARGET" ]; then
+          TARGET=$(date -u -d '+7 days' +%F)
+        fi
+        python scripts/forward_v2/ingest_fixtures_window.py \
+          --mode live \
+          --date "$TARGET" \
+          --source-workflow import-fixtures-dplus7.yml \
+          --dry-run

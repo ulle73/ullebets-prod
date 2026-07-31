@@ -1,0 +1,45 @@
+name: V2 Run Unibet Closing Odds
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Optional single match date (YYYY-MM-DD)."
+        required: false
+        type: string
+      now:
+        description: "Optional ISO timestamp override for manual replay."
+        required: false
+        type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-closing
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  unibet-closing:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 45
+      checkout_legacy_repo: false
+      dry_run: ${{ inputs.dry_run || false }}
+      run_command: |
+        ARGS=(--mode fixture-db --refresh-derived --dry-run)
+        if [ -n "${{ inputs.date }}" ]; then
+          ARGS+=(--date "${{ inputs.date }}")
+        fi
+        if [ -n "${{ inputs.now }}" ]; then
+          ARGS+=(--now "${{ inputs.now }}")
+        fi
+        python scripts/forward_v2/capture_closing_snapshots.py --source-workflow run-unibet-closing.yml "${ARGS[@]}"

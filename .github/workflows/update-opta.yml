@@ -1,0 +1,31 @@
+name: V2 Update Opta Data
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  update-opta:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 30
+      dry_run: ${{ inputs.dry_run || false }}
+      run_command: |
+        python scripts/forward_v2/sync_support_data.py \
+          --source-workflow update-opta.yml \
+          --dry-run

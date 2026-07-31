@@ -1,0 +1,49 @@
+name: V2 AI User Closing (Pre-Kickoff)
+
+on:
+  schedule:
+    - cron: "15,30,45 18 * * 1-5"
+    - cron: "0,15,30,45 19-23 * * 1-5"
+    - cron: "0 0 * * 2-6"
+    - cron: "30,45 12 * * 6,0"
+    - cron: "0,15,30,45 13-23 * * 6,0"
+  workflow_dispatch:
+    inputs:
+      dates:
+        description: "Datum (YYYY-MM-DD), kommaseparerade eller mellanslag. Tomt = fixture horizon 2 dagar."
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ai-user-closing:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 45
+      dry_run: ${{ inputs.dry_run || false }}
+      run_command: |
+        ARGS=(--mode user-closing --target-mode fixture-db --snapshot-source db --source-workflow ai-user-closing.yml --dry-run)
+        RAW_DATES="${{ inputs.dates }}"
+        if [ -n "$RAW_DATES" ]; then
+          while IFS= read -r TARGET_DATE; do
+            if [ -n "$TARGET_DATE" ]; then
+              ARGS+=(--date "$TARGET_DATE")
+            fi
+          done < <(printf '%s\n' "$RAW_DATES" | tr ', ' '\n' | sed '/^$/d')
+        else
+          ARGS+=(--max-days-ahead 2)
+        fi
+        python scripts/forward_v2/build_ai_bet_exports.py "${ARGS[@]}"

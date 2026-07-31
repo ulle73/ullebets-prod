@@ -1,0 +1,45 @@
+name: V2 Healthcheck
+
+on:
+  schedule:
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+    inputs:
+      test_date:
+        description: "Optional YYYY-MM-DD override for source connectivity checks."
+        required: false
+        type: string
+      max_days_ahead:
+        description: "Fixture DB inspection horizon."
+        required: false
+        default: "7"
+        type: string
+      check_connectivity:
+        description: "Run source connectivity checks."
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  healthcheck:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 30
+      checkout_legacy_repo: true
+      run_command: |
+        ARGS=(--ping-db --check-fixture-db --max-days-ahead "${{ inputs.max_days_ahead || '7' }}")
+        if [ "${{ inputs.check_connectivity }}" = "true" ] || [ "${{ github.event_name }}" = "schedule" ]; then
+          ARGS+=(--check-connectivity)
+        fi
+        if [ -n "${{ inputs.test_date }}" ]; then
+          ARGS+=(--test-date "${{ inputs.test_date }}")
+        fi
+        python scripts/forward_v2/healthcheck_v2.py "${ARGS[@]}"
