@@ -13,6 +13,11 @@ on:
         description: "Optional end date (YYYY-MM-DD). Defaults to today+7 in Stockholm."
         required: false
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -27,6 +32,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 60
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         START="${{ inputs.start_date }}"
         if [ -z "$START" ]; then

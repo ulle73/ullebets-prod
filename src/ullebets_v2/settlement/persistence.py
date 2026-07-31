@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.collections import SETTLED_BETS
+
 
 def persist_settlement_records(
     database: Any,
@@ -13,7 +15,7 @@ def persist_settlement_records(
 ) -> dict[str, int]:
     settled_upserts = 0
     for row in settled_docs:
-        result = database["settled_bets_v2"].update_one(
+        result = database[SETTLED_BETS].update_one(
             {"settlement_key": row["settlement_key"]},
             {"$set": row},
             upsert=True,

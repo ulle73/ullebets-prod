@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.collections import FORWARD_BETS, PREDICTION_EXPORTS
+
 
 def persist_prediction_export_records(
     database: Any,
@@ -14,7 +16,7 @@ def persist_prediction_export_records(
 ) -> dict[str, int]:
     export_upserts = 0
     for row in prediction_export_docs:
-        result = database["prediction_exports_v2"].update_one(
+        result = database[PREDICTION_EXPORTS].update_one(
             {"prediction_key": row["prediction_key"]},
             {"$set": row},
             upsert=True,
@@ -23,7 +25,7 @@ def persist_prediction_export_records(
 
     forward_bet_upserts = 0
     for row in forward_bet_docs:
-        result = database["forward_bets_v2"].update_one(
+        result = database[FORWARD_BETS].update_one(
             {"prediction_key": row["prediction_key"]},
             {"$set": row},
             upsert=True,

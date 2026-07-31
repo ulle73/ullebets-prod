@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.parity.reports import build_audit_report_row, build_health_report_row, build_parity_report_row
+from ullebets_v2.storage.collections import FORWARD_BETS, PREDICTION_EXPORTS
 
 
 def utc_now() -> datetime:
@@ -32,7 +33,7 @@ def build_prediction_export_parity_rows(
                     "old_inputs": ["analysis outputs", "odds", "EV"],
                     "old_outputs": ["ai-generated-bets"],
                     "v2_job": f"build_ai_bet_exports.py --mode {export_mode}",
-                    "v2_outputs": ["prediction_exports_v2", "forward_bets_v2"],
+                    "v2_outputs": [PREDICTION_EXPORTS, FORWARD_BETS],
                     "smoke_test": "dry-run with empty candidate set",
                     "parity_proof": "treat empty export windows as clean no-op while preserving immutable output schemas",
                 },
@@ -55,7 +56,7 @@ def build_prediction_export_parity_rows(
                 "old_inputs": ["analysis outputs", "odds", "EV"],
                 "old_outputs": ["ai-generated-bets"],
                 "v2_job": f"build_ai_bet_exports.py --mode {export_mode}",
-                "v2_outputs": ["prediction_exports_v2", "forward_bets_v2"],
+                "v2_outputs": [PREDICTION_EXPORTS, FORWARD_BETS],
                 "smoke_test": "dry-run export build from canonical analysis outputs",
                 "parity_proof": "V2 exports immutable prediction docs and separate forward bet exposures from canonical analysis rows, preserving mode-specific output counts without reusing legacy mutable documents",
             },

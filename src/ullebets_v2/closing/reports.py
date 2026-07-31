@@ -7,15 +7,28 @@ from ullebets_v2.parity.reports import build_audit_report_row, build_health_repo
 from ullebets_v2.parity.workflow_matrix import WORKFLOW_PARITY_MATRIX
 
 
+CLOSING_WORKFLOW = "run-unibet-closing.yml"
+
+
 def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
 
 def _workflow_entry(old_workflow: str) -> dict[str, Any]:
+    matching_entry = next(
+        (
+            entry
+            for entry in WORKFLOW_PARITY_MATRIX
+            if entry["old_workflow"] == old_workflow
+        ),
+        None,
+    )
+    if matching_entry is not None:
+        return matching_entry
     return next(
         entry
         for entry in WORKFLOW_PARITY_MATRIX
-        if entry["old_workflow"] == old_workflow
+        if entry["old_workflow"] == CLOSING_WORKFLOW
     )
 
 

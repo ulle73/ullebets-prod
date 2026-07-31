@@ -315,6 +315,34 @@ def test_run_fixture_ingest_window_live_writes_job_and_reports() -> None:
     assert database["audit_reports"].count_documents() == 1
 
 
+def test_run_fixture_ingest_window_replay_uses_payload_overrides_when_file_is_missing() -> None:
+    support_docs = build_support_docs()
+    old_payload = build_old_fixture_payload()
+    database = FakeDatabase()
+
+    summary = run_fixture_ingest_window(
+        mode="replay",
+        dates=["2025-10-08"],
+        support_docs=support_docs,
+        source_workflow="import-fixtures-rolling.yml",
+        old_payloads_by_date={"2025-10-08": old_payload},
+        source_dir=Path(r"C:\missing\legacy-fixtures"),
+        replay_source_paths_by_date={
+            "2025-10-08": Path("mongodb-match-for-date") / "fixtures-2025-10-08.json"
+        },
+        database=database,
+        dry_run=False,
+    )
+
+    assert summary["processed_dates"] == 1
+    assert summary["missing_dates"] == []
+    assert summary["canonical_docs"] == 1
+    assert database["job_runs"].count_documents() == 1
+    assert database["raw_fixtures"].count_documents() == 1
+    assert database["fixtures_canonical"].count_documents() == 1
+    assert database["fixtures_canonical"].docs[0]["source_path"] == "mongodb-match-for-date\\fixtures-2025-10-08.json"
+
+
 def test_run_fixture_ingest_window_live_without_legacy_oracle_uses_synthetic_source_path() -> None:
     support_docs = build_support_docs()
     old_payload = build_old_fixture_payload()
@@ -396,6 +424,33 @@ def test_run_fixture_ingest_window_live_distinguishes_empty_from_source_failure(
             headers={"content-type": "application/json"},
             data=None,
         )
+
+    summary = run_fixture_ingest_window(
+        mode="live",
+        dates=["2026-06-29"],
+        support_docs=support_docs,
+        source_workflow="import-fixtures-rolling.yml",
+        old_payloads_by_date={},
+        database=None,
+        dry_run=True,
+        source_config=FixtureSourceConfig.from_env({}),
+        transport=transport,
+        source_dir=Path(r"C:\dev\frontend\ullebets-vecel\matches-for-date"),
+    )
+
+    assert summary["processed_dates"] == 1
+    assert summary["canonical_docs"] == 0
+    assert summary["parity_reports"] == 1
+    assert summary["audit_reports"] == 1
+    assert summary["parity_status_counts"] == {"missing_oracle": 1}
+    assert summary["audit_status_counts"] == {"warn": 1}
+
+
+def test_run_fixture_ingest_window_live_handles_transport_timeout_without_crashing() -> None:
+    support_docs = build_support_docs()
+
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
+        raise TimeoutError("read timed out")
 
     summary = run_fixture_ingest_window(
         mode="live",

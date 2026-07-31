@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.parity.reports import build_audit_report_row, build_health_report_row, build_parity_report_row
+from ullebets_v2.storage.collections import MATCHUPS_LEAGUE_AVG, MATCHUPS_SCORE
 
 
 def utc_now() -> datetime:
@@ -31,7 +32,7 @@ def build_matchup_settlement_parity_rows(
                     "old_inputs": ["matchup collections", "teamstats", "RapidAPI fallback"],
                     "old_outputs": ["enriched matchup outcomes"],
                     "v2_job": "settle_matchups_outputs.py",
-                    "v2_outputs": ["matchups_score_v2", "matchups_league_avg_v2", "audit_reports"],
+                    "v2_outputs": [MATCHUPS_SCORE, MATCHUPS_LEAGUE_AVG, "audit_reports"],
                     "smoke_test": "dry-run on an empty snapshot date window",
                     "parity_proof": "treat empty matchup windows as a clean no-op while preserving settled output schemas",
                 },
@@ -57,7 +58,7 @@ def build_matchup_settlement_parity_rows(
                 "old_inputs": ["matchup collections", "teamstats", "RapidAPI fallback"],
                 "old_outputs": ["enriched matchup outcomes"],
                 "v2_job": "settle_matchups_outputs.py",
-                "v2_outputs": ["matchups_score_v2", "matchups_league_avg_v2", "audit_reports"],
+                "v2_outputs": [MATCHUPS_SCORE, MATCHUPS_LEAGUE_AVG, "audit_reports"],
                 "smoke_test": "dry-run against canonical matchup rows and canonical actuals",
                 "parity_proof": "V2 enriches matchup rows from canonical match stats instead of fallback-first settlement, and marks unresolved rows explicitly instead of silently leaving them ambiguous",
             },

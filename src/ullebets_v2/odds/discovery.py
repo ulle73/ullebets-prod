@@ -110,6 +110,7 @@ def build_list_view_raw_doc(
     source_url: str,
     payload: Any,
     fetched_at: datetime,
+    source_date: str | None = None,
 ) -> dict[str, Any]:
     payload_hash = stable_json_hash(payload)
     return {
@@ -126,6 +127,7 @@ def build_list_view_raw_doc(
         "source_provider": "kambi",
         "source_url": source_url,
         "fetched_at": fetched_at,
+        "source_date": source_date,
         "match_key": None,
         "event_id": None,
         "league_key": league_doc.get("league_key"),

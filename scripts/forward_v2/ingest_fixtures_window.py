@@ -19,7 +19,7 @@ from ullebets_v2.fixtures.oracle import resolve_fixture_oracle_context
 from ullebets_v2.fixtures.replay import iter_target_dates
 from ullebets_v2.fixtures.service import run_fixture_ingest_window
 from ullebets_v2.safety import ensure_v2_database
-from ullebets_v2.storage.mongo import get_database
+from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 from ullebets_v2.support.loaders import load_support_documents
 
 
@@ -58,11 +58,13 @@ def main() -> int:
         league_urls_path=config.default_league_urls_path(),
     )
     dates = resolve_dates(args)
-    source_dir, old_payloads_by_date = resolve_fixture_oracle_context(
+    legacy_match_database = get_legacy_app_database(config) if args.mode == "replay" else None
+    source_dir, old_payloads_by_date, source_paths_by_date = resolve_fixture_oracle_context(
         mode=args.mode,
         dates=dates,
         old_repo_root=config.old_repo_root,
         legacy_oracle_dir=args.legacy_oracle_dir,
+        legacy_match_database=legacy_match_database,
     )
     dotenv_values = load_dotenv_map(config.env_file)
     merged_env = dict(dotenv_values)
@@ -76,6 +78,7 @@ def main() -> int:
         source_workflow=args.source_workflow,
         old_payloads_by_date=old_payloads_by_date,
         source_dir=source_dir,
+        replay_source_paths_by_date=source_paths_by_date,
         database=database,
         dry_run=args.dry_run,
         source_config=source_config,

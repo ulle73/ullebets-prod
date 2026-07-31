@@ -40,14 +40,22 @@ def load_replay_source_rows(
     dates: list[str] | None = None,
     legacy_teamstats_database: Any | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
+    if dates and legacy_teamstats_database is not None:
+        mongo_rows = build_teamstats_source_rows_from_database(
+            legacy_teamstats_database,
+            dates=dates,
+        )
+        if mongo_rows:
+            return mongo_rows, "mongodb_fallback"
+
     file_rows = filter_source_rows_by_dates(build_teamstats_source_rows(source_dir), dates)
     if file_rows:
         return file_rows, "files"
 
     if legacy_teamstats_database is not None:
-        mongo_rows = filter_source_rows_by_dates(
-            build_teamstats_source_rows_from_database(legacy_teamstats_database),
-            dates,
+        mongo_rows = build_teamstats_source_rows_from_database(
+            legacy_teamstats_database,
+            dates=dates,
         )
         if mongo_rows:
             return mongo_rows, "mongodb_fallback"

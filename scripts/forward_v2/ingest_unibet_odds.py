@@ -11,12 +11,13 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from ullebets_v2.config import V2Config
+from ullebets_v2.date_windows import resolve_requested_dates, resolve_target_limit
 from ullebets_v2.odds.oracle import OriginalJsOracle
 from ullebets_v2.odds.service import (
     build_smoke_targets_for_league,
     inspect_fixture_target_window_from_database,
+    load_historical_replay_targets,
     load_fixture_targets_from_database,
-    load_legacy_backtest_targets,
     load_replay_fixture_targets,
     run_unibet_odds_ingest,
 )
@@ -35,8 +36,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--source-workflow")
     parser.add_argument("--league", help="Required for smoke-live mode.")
-    parser.add_argument("--limit", type=int, default=1)
+    parser.add_argument("--limit", type=int)
     parser.add_argument("--max-days-ahead", type=int, default=7)
+    parser.add_argument("--start-date")
+    parser.add_argument("--end-date")
     parser.add_argument(
         "--date",
         dest="dates",
@@ -46,6 +49,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--leagues-path", type=Path)
     parser.add_argument("--league-urls-path", type=Path)
+    parser.add_argument(
+        "--include-match-rows",
+        action="store_true",
+        help="Print the full per-match diagnostics payload instead of a compact summary.",
+    )
     oracle_group = parser.add_mutually_exclusive_group()
     oracle_group.add_argument(
         "--use-original-oracle",
@@ -67,45 +75,60 @@ def main() -> int:
         leagues_path=args.leagues_path or config.default_leagues_path(),
         league_urls_path=args.league_urls_path or config.default_league_urls_path(),
     )
+    requested_dates = resolve_requested_dates(
+        explicit_dates=args.dates,
+        start_date=args.start_date,
+        end_date=args.end_date,
+        allow_empty=True,
+    )
 
     read_database = None
     target_window = None
     if args.mode == "replay-fixtures":
-        if not args.dates:
-            raise RuntimeError("--date is required in replay-fixtures mode.")
+        if not requested_dates:
+            raise RuntimeError("--date or --start-date/--end-date is required in replay-fixtures mode.")
         source_workflow = args.source_workflow or "run-unibet-backtests.yml"
         targets = load_replay_fixture_targets(
-            dates=args.dates,
+            dates=requested_dates,
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
             legacy_match_database=get_legacy_app_database(config),
         )
     elif args.mode == "legacy-backtest":
-        if not args.dates:
-            raise RuntimeError("--date is required in legacy-backtest mode.")
+        if not requested_dates:
+            raise RuntimeError("--date or --start-date/--end-date is required in legacy-backtest mode.")
         source_workflow = args.source_workflow or "run-unibet-backtests.yml"
-        targets = load_legacy_backtest_targets(
-            dates=args.dates,
+        read_database = get_database(config)
+        targets, target_source = load_historical_replay_targets(
+            database=read_database,
+            dates=requested_dates,
             support_docs=support_docs,
             legacy_backtest_database=get_legacy_app_database(config),
             legacy_match_database=get_legacy_app_database(config),
-            limit=args.limit if args.limit > 0 else None,
+            limit=resolve_target_limit(args.limit),
         )
+        target_window = {
+            "target_source": target_source,
+            "requested_dates": list(requested_dates),
+            "selected_target_match_count": len(targets),
+        }
     elif args.mode == "fixture-db":
         source_workflow = args.source_workflow or "run-unibet-backtests.yml"
         read_database = get_database(config)
         target_window = inspect_fixture_target_window_from_database(
             database=read_database,
-            dates=args.dates or None,
+            dates=requested_dates or None,
             max_days_ahead=args.max_days_ahead,
             league_name=args.league,
+            forward_only=True,
         )
         targets = load_fixture_targets_from_database(
             database=read_database,
-            dates=args.dates or None,
+            dates=requested_dates or None,
             max_days_ahead=args.max_days_ahead,
             league_name=args.league,
-            limit=args.limit if args.limit > 0 else None,
+            forward_only=True,
+            limit=resolve_target_limit(args.limit),
         )
     else:
         if not args.league:
@@ -114,11 +137,11 @@ def main() -> int:
         targets = build_smoke_targets_for_league(
             league_name=args.league,
             support_docs=support_docs,
-            limit=args.limit,
+            limit=resolve_target_limit(args.limit, default_when_unspecified=1),
             max_days_ahead=args.max_days_ahead,
         )
 
-    database = None if args.dry_run else (read_database or get_database(config))
+    database = None if args.dry_run else (read_database if read_database is not None else get_database(config))
     legacy_backtest_database = get_legacy_app_database(config) if args.mode in {"replay-fixtures", "legacy-backtest"} else None
     oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_oracle else None
     summary = run_unibet_odds_ingest(
@@ -135,7 +158,11 @@ def main() -> int:
         summary["target_window"] = target_window
         if not targets:
             summary["empty_reason"] = target_window.get("empty_reason")
-    print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
+    output_summary = dict(summary)
+    if not args.include_match_rows and "match_rows" in output_summary:
+        output_summary["match_rows_sample"] = output_summary["match_rows"][:3]
+        output_summary.pop("match_rows", None)
+    print(json.dumps(output_summary, indent=2, ensure_ascii=False, default=str))
     return 0
 
 

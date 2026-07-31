@@ -7,6 +7,11 @@ on:
         description: "Match date to capture manually (YYYY-MM-DD)"
         required: true
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -22,6 +27,7 @@ jobs:
     with:
       timeout_minutes: 60
       checkout_legacy_repo: false
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         python scripts/forward_v2/build_model_snapshots.py \
           --mode fixture-db \

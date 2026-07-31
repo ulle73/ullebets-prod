@@ -190,7 +190,7 @@ def default_transport(url: str, headers: dict[str, str], timeout_seconds: int) -
             )
     except HTTPError as exc:
         return HttpJsonResponse(status=exc.code, headers=dict(exc.headers.items()), data=None)
-    except URLError:
+    except (URLError, TimeoutError):
         return HttpJsonResponse(status=0, headers={}, data=None)
 
 
@@ -715,8 +715,12 @@ def build_live_match_enrichment_source_rows(
             "timestamp": match_timestamp,
             "date": source_date,
             "savedAt": now.isoformat(),
+            "leagueKey": target.get("league_key"),
+            "mappingConfidence": target.get("mapping_confidence"),
+            "homeTeamKey": target.get("home_team_key"),
             "homeTeamId": home_payload.get("id") or target.get("home_team_id"),
             "homeTeamName": home_payload.get("name") or target.get("home_team_name"),
+            "awayTeamKey": target.get("away_team_key"),
             "awayTeamId": away_payload.get("id") or target.get("away_team_id"),
             "awayTeamName": away_payload.get("name") or target.get("away_team_name"),
             "matchDetails": format_match_details(stats_result.data),

@@ -22,6 +22,11 @@ on:
         description: "Optional ISO timestamp override for replay."
         required: false
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -36,6 +41,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 60
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         ARGS=(--mode fixture-db --snapshot-source db --source-workflow run-auto-analysis-checkpoints.yml --strategy "${{ inputs.strategy || 'balanced' }}" --dry-run)
         if [ -n "${{ inputs.checkpoint }}" ]; then

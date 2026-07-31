@@ -27,6 +27,7 @@ def run_fixture_ingest_window(
     source_workflow: str,
     old_payloads_by_date: dict[str, dict[str, Any]],
     source_dir: Path | None,
+    replay_source_paths_by_date: dict[str, Path] | None = None,
     database: Any | None = None,
     dry_run: bool = False,
     source_config: FixtureSourceConfig | None = None,
@@ -40,13 +41,18 @@ def run_fixture_ingest_window(
 
     for date_str in dates:
         if mode == "replay":
-            source_path = source_dir / f"fixtures-{date_str}.json"
-            if not source_path.exists():
+            payload = old_payloads_by_date.get(date_str)
+            source_path = (replay_source_paths_by_date or {}).get(date_str)
+            if payload is None and source_dir is not None:
+                candidate_path = source_dir / f"fixtures-{date_str}.json"
+                if candidate_path.exists():
+                    payload = load_fixture_payload(candidate_path)
+                    source_path = candidate_path
+            if payload is None:
                 missing_dates.append(date_str)
                 continue
-            payload = load_fixture_payload(source_path)
             live_raw_docs: list[dict[str, Any]] = []
-            source_path_for_docs = source_path
+            source_path_for_docs = source_path or Path("legacy-fixtures") / f"fixtures-{date_str}.json"
         elif mode == "live":
             if source_config is None:
                 raise RuntimeError("source_config is required for live mode.")

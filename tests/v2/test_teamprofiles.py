@@ -2,10 +2,67 @@ from datetime import UTC, datetime
 from pathlib import Path
 import json
 
+from ullebets_v2.teamprofiles.persistence import persist_teamprofile_records
 from ullebets_v2.enrichment.replay import build_match_enrichment_documents, build_teamstats_source_rows
 from ullebets_v2.teamprofiles.service import run_teamprofile_build
 
 from tests.v2.test_match_enrichment import build_support_docs, build_match_record
+
+
+class FakeUpdateResult:
+    def __init__(self, *, upserted: bool) -> None:
+        self.upserted_id = "new" if upserted else None
+
+
+class FakeDeleteResult:
+    def __init__(self, deleted_count: int) -> None:
+        self.deleted_count = deleted_count
+
+
+class FakeCollection:
+    def __init__(self, docs: list[dict] | None = None) -> None:
+        self.docs = list(docs or [])
+
+    def _matches(self, doc: dict, query: dict) -> bool:
+        for key, value in query.items():
+            if isinstance(value, dict) and "$nin" in value:
+                if doc.get(key) in value["$nin"]:
+                    return False
+                continue
+            if doc.get(key) != value:
+                return False
+        return True
+
+    def update_one(self, query: dict, update: dict, upsert: bool = False) -> FakeUpdateResult:
+        for doc in self.docs:
+            if self._matches(doc, query):
+                for key, value in update.get("$set", {}).items():
+                    doc[key] = value
+                return FakeUpdateResult(upserted=False)
+        if not upsert:
+            return FakeUpdateResult(upserted=False)
+        new_doc = dict(query)
+        new_doc.update(update.get("$set", {}))
+        self.docs.append(new_doc)
+        return FakeUpdateResult(upserted=True)
+
+    def delete_many(self, query: dict) -> FakeDeleteResult:
+        remaining = [doc for doc in self.docs if not self._matches(doc, query)]
+        deleted_count = len(self.docs) - len(remaining)
+        self.docs = remaining
+        return FakeDeleteResult(deleted_count)
+
+    def count_documents(self, query: dict | None = None) -> int:
+        if not query:
+            return len(self.docs)
+        return sum(1 for doc in self.docs if self._matches(doc, query))
+
+
+class FakeDatabase(dict):
+    def __getitem__(self, collection_name: str) -> FakeCollection:
+        if collection_name not in self:
+            self[collection_name] = FakeCollection()
+        return dict.__getitem__(self, collection_name)
 
 
 def build_second_match() -> dict:
@@ -190,3 +247,35 @@ def test_run_teamprofile_build_accepts_missing_raw_artifacts_with_legacy_rows() 
     profile = next(row for row in summary["profile_docs"] if row["team_key"] == "a-league-men:2946")
     assert profile["specials"]["firstGoal"]["scoreFirstPercentage"] is None
     assert profile["specials"]["shotsPerTenMinutes"]["for"]["0-10"] is None
+
+
+def test_persist_teamprofile_records_replaces_stale_docs_for_same_profile_date() -> None:
+    database = FakeDatabase(
+        {
+            "teamprofiles": FakeCollection(
+                [
+                    {"profile_key": "current|unknown:None|home", "profile_date": "current", "team_key": "unknown:None"},
+                    {"profile_key": "2025-10-18|old-team|away", "profile_date": "2025-10-18", "team_key": "old-team"},
+                    {"profile_key": "2025-10-17|keep-team|home", "profile_date": "2025-10-17", "team_key": "keep-team"},
+                ]
+            )
+        }
+    )
+
+    metrics = persist_teamprofile_records(
+        database,
+        profile_docs=[
+            {"profile_key": "current|team-a|home", "profile_date": "current", "team_key": "team-a"},
+            {"profile_key": "current|team-b|away", "profile_date": "current", "team_key": "team-b"},
+        ],
+        parity_rows=[],
+        audit_rows=[],
+        health_rows=[],
+        replace_profile_date="current",
+    )
+
+    assert metrics["teamprofile_deleted"] == 1
+    assert database["teamprofiles"].count_documents({"profile_date": "current"}) == 2
+    assert database["teamprofiles"].count_documents({"profile_key": "current|unknown:None|home"}) == 0
+    assert database["teamprofiles"].count_documents({"profile_key": "2025-10-18|old-team|away"}) == 1
+    assert database["teamprofiles"].count_documents({"profile_key": "2025-10-17|keep-team|home"}) == 1

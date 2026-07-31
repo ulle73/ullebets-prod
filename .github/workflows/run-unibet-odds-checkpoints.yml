@@ -15,13 +15,18 @@ on:
         default: "7"
         type: string
       checkpoint:
-        description: "Optional checkpoint filter (T_MINUS_3D, T_MINUS_2D, T_MINUS_1D, T_MINUS_10M)"
+        description: "Optional filter (T_MINUS_3D, T_MINUS_2D, T_MINUS_1D, T_MINUS_12H, T_MINUS_2H, T_MINUS_10M)"
         required: false
         type: string
       now:
         description: "Optional ISO timestamp override for manual replay"
         required: false
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -37,8 +42,9 @@ jobs:
     with:
       timeout_minutes: 45
       checkout_legacy_repo: false
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
-        ARGS=(--mode fixture-db --source-workflow run-unibet-odds-checkpoints.yml --max-days-ahead "${{ inputs.days_ahead || '7' }}" --dry-run)
+        ARGS=(--mode fixture-db --source-workflow run-unibet-odds-checkpoints.yml --max-days-ahead "${{ inputs.days_ahead || '7' }}" --exclude-checkpoint T_MINUS_10M --dry-run)
         if [ -n "${{ inputs.date }}" ]; then
           ARGS+=(--date "${{ inputs.date }}")
         fi

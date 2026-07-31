@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.collections import MATCHUPS_LEAGUE_AVG, MATCHUPS_SCORE
+
 
 def persist_matchup_settlement_records(
     database: Any,
@@ -14,7 +16,7 @@ def persist_matchup_settlement_records(
 ) -> dict[str, int]:
     score_updates = 0
     for row in score_docs:
-        result = database["matchups_score_v2"].update_one(
+        result = database[MATCHUPS_SCORE].update_one(
             {"entry_key": row["entry_key"]},
             {"$set": row},
             upsert=True,
@@ -23,7 +25,7 @@ def persist_matchup_settlement_records(
 
     league_avg_updates = 0
     for row in league_avg_docs:
-        result = database["matchups_league_avg_v2"].update_one(
+        result = database[MATCHUPS_LEAGUE_AVG].update_one(
             {"entry_key": row["entry_key"]},
             {"$set": row},
             upsert=True,

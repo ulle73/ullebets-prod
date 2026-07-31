@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
+from ullebets_v2.storage.collections import SETTLED_BETS
 from ullebets_v2.teamprofiles.service import build_teamprofile_docs
 from ullebets_v2.training_exports.features import (
     FEATURE_MODES,
@@ -122,7 +123,12 @@ def _build_formula_predictions(ev_details: dict[str, Any] | None) -> dict[str, f
 
 
 def _load_training_sources(database: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    settled_docs = list(database["settled_bets_v2"].find({"settlement_status": "settled"}, projection={"_id": 0}))
+    settled_docs = [
+        row
+        for row in database[SETTLED_BETS].find({"settlement_status": "settled"}, projection={"_id": 0})
+        if row.get("selection_source") in {None, "model_snapshot"}
+        and row.get("snapshot_mode") in {None, "backtest"}
+    ]
     market_offers = list(database["market_offers"].find({}, projection={"_id": 0}))
     match_results = list(database["match_results_canonical"].find({}, projection={"_id": 0}))
     match_stats = list(database["match_stats_canonical"].find({}, projection={"_id": 0}))
@@ -288,7 +294,7 @@ def run_training_export_build(
                 "date": source_date,
                 "homeTeam": result_row.get("home_team_name"),
                 "awayTeam": result_row.get("away_team_name"),
-                "source": "settled_bets_v2",
+                "source": SETTLED_BETS,
                 "supervised": False,
                 "line": _safe_float(settled.get("line_value")),
                 "odds": _safe_float(settled.get("selected_odds")),

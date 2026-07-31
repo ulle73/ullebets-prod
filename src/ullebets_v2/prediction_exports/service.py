@@ -3,6 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from ullebets_v2.analysis.service import (
+    build_analysis_run_key,
+    load_analysis_candidate_docs_from_database,
+    load_analysis_run_doc_from_database,
+)
 from ullebets_v2.analysis.service import run_auto_analysis_pipeline
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
 from ullebets_v2.prediction_exports.combos import build_combos
@@ -17,6 +22,66 @@ from ullebets_v2.support.schemas import stable_json_hash
 
 def utc_now() -> datetime:
     return datetime.now(tz=UTC)
+
+
+def _target_match_keys(targets: list[dict[str, Any]] | None) -> list[str]:
+    return sorted(
+        {
+            str(target.get("match_key") or "")
+            for target in (targets or [])
+            if str(target.get("match_key") or "")
+        }
+    )
+
+
+def _coerce_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _stored_analysis_covers_targets(
+    *,
+    analysis_run_doc: dict[str, Any] | None,
+    analysis_candidate_docs: list[dict[str, Any]] | None,
+    target_match_keys: list[str],
+) -> bool:
+    if analysis_run_doc is None or not analysis_candidate_docs:
+        return False
+    if not target_match_keys:
+        return True
+
+    stored_match_keys = sorted(
+        {
+            str(row.get("match_key") or "")
+            for row in (analysis_candidate_docs or [])
+            if str(row.get("match_key") or "")
+        }
+    )
+    if stored_match_keys != target_match_keys:
+        return False
+
+    analyzed_match_count = _coerce_int(
+        analysis_run_doc.get("analyzedMatches", analysis_run_doc.get("analyzed_matches"))
+    )
+    if analyzed_match_count is not None and analyzed_match_count < len(target_match_keys):
+        return False
+
+    expected_candidate_count = _coerce_int(
+        analysis_run_doc.get("candidateCount", analysis_run_doc.get("candidate_count"))
+    )
+    if (
+        expected_candidate_count is not None
+        and analyzed_match_count is not None
+        and analyzed_match_count == len(target_match_keys)
+        and expected_candidate_count != len(analysis_candidate_docs)
+    ):
+        return False
+
+    return True
 
 
 def _candidate_sort_key(row: dict[str, Any]) -> tuple[float, float]:
@@ -247,34 +312,64 @@ def run_prediction_export_pipeline(
 ) -> dict[str, Any]:
     generated_at = fetched_at or utc_now()
     analysis_summary: dict[str, Any] | None = None
+    analysis_source = "provided" if analysis_run_doc is not None and analysis_candidate_docs is not None else "build"
     if analysis_run_doc is None or analysis_candidate_docs is None:
         if targets is None or support_docs is None:
             raise RuntimeError("targets and support_docs are required when analysis docs are not supplied.")
-        analysis_summary = run_auto_analysis_pipeline(
-            targets=targets,
-            support_docs=support_docs,
-            source_workflow=source_workflow,
-            strategy_id=strategy_id,
-            run_date=run_date,
-            checkpoint_key=checkpoint_key,
-            checkpoint_label=checkpoint_label,
-            checkpoint_target_days=checkpoint_target_days,
-            snapshot_mode=snapshot_mode,
-            snapshot_label=snapshot_label,
-            analysis_oracle=analysis_oracle,
-            database=database if not dry_run else None,
-            dry_run=dry_run,
-            transport=transport,
-            odds_oracle=odds_oracle,
-            model_oracle=model_oracle,
-            legacy_backtest_database=legacy_backtest_database,
-            use_legacy_snapshot_lines=use_legacy_snapshot_lines,
-            fetched_at=generated_at,
-            snapshot_source=snapshot_source,
-            snapshot_read_database=snapshot_read_database,
-        )
-        analysis_run_doc = analysis_summary.get("analysis_run")
-        analysis_candidate_docs = analysis_summary.get("analysis_candidate_docs", [])
+        read_database = snapshot_read_database if snapshot_read_database is not None else database
+        if read_database is not None:
+            effective_run_date = str(run_date or generated_at.date().isoformat())
+            run_id = build_analysis_run_key(
+                date=effective_run_date,
+                strategy_id=strategy_id,
+                checkpoint_key=checkpoint_key,
+            )
+            target_match_keys = _target_match_keys(targets)
+            stored_run_doc = load_analysis_run_doc_from_database(
+                read_database,
+                run_id=run_id,
+            )
+            stored_candidate_docs = load_analysis_candidate_docs_from_database(
+                read_database,
+                run_id=run_id,
+                match_keys=target_match_keys,
+            )
+            if _stored_analysis_covers_targets(
+                analysis_run_doc=stored_run_doc,
+                analysis_candidate_docs=stored_candidate_docs,
+                target_match_keys=target_match_keys,
+            ):
+                analysis_run_doc = stored_run_doc
+                analysis_candidate_docs = stored_candidate_docs
+                analysis_source = "db"
+        # Export jobs consume analysis output but should not mutate analysis collections.
+        if analysis_run_doc is None or analysis_candidate_docs is None:
+            analysis_summary = run_auto_analysis_pipeline(
+                targets=targets,
+                support_docs=support_docs,
+                source_workflow=source_workflow,
+                strategy_id=strategy_id,
+                run_date=run_date,
+                checkpoint_key=checkpoint_key,
+                checkpoint_label=checkpoint_label,
+                checkpoint_target_days=checkpoint_target_days,
+                snapshot_mode=snapshot_mode,
+                snapshot_label=snapshot_label,
+                analysis_oracle=analysis_oracle,
+                database=None,
+                dry_run=True,
+                transport=transport,
+                odds_oracle=odds_oracle,
+                model_oracle=model_oracle,
+                legacy_backtest_database=legacy_backtest_database,
+                use_legacy_snapshot_lines=use_legacy_snapshot_lines,
+                fetched_at=generated_at,
+                snapshot_source=snapshot_source,
+                snapshot_read_database=snapshot_read_database,
+            )
+            analysis_run_doc = analysis_summary.get("analysis_run")
+            analysis_candidate_docs = analysis_summary.get("analysis_candidate_docs", [])
+            analysis_source = "build"
 
     source_candidates = _source_candidates_for_mode(export_mode, analysis_candidate_docs or [])
     prediction_export_docs = build_prediction_export_docs(
@@ -315,6 +410,7 @@ def run_prediction_export_pipeline(
         "job": "build_ai_bet_exports",
         "generated_at": generated_at.isoformat(),
         "export_mode": export_mode,
+        "analysis_source": analysis_source,
         "analysis_candidates": len(analysis_candidate_docs or []),
         "source_candidates": len(source_candidates),
         "prediction_exports": len(prediction_export_docs),

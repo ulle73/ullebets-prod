@@ -6,6 +6,19 @@ from .config import V2Config
 EXPECTED_V2_DB = "ullebets_v2"
 
 
+def ensure_no_simulated_time_write(
+    *,
+    time_override: object | None,
+    dry_run: bool,
+    job_name: str,
+) -> None:
+    if time_override is not None and not dry_run:
+        raise RuntimeError(
+            f"{job_name} refuses a production write with simulated time. "
+            "Use --now only together with --dry-run."
+        )
+
+
 def ensure_distinct_database_roles(config: V2Config) -> dict[str, str]:
     conflicts = config.database_role_conflicts()
     if conflicts:

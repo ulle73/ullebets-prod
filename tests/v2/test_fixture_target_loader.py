@@ -48,18 +48,21 @@ def build_database() -> FakeDatabase:
                 "source_date": "2025-10-09",
                 "league_name": "La Liga",
                 "start_time": datetime(2025, 10, 9, 18, 0, tzinfo=UTC),
+                "status_type": "postponed",
             },
             {
                 "match_key": "m1",
                 "source_date": "2025-10-08",
                 "league_name": "Premier League",
                 "start_time": datetime(2025, 10, 8, 18, 0, tzinfo=UTC),
+                "status_type": "notstarted",
             },
             {
                 "match_key": "m3",
                 "source_date": "2025-10-20",
                 "league_name": "Premier League",
                 "start_time": datetime(2025, 10, 20, 18, 0, tzinfo=UTC),
+                "status_type": "notstarted",
             },
         ]
     )
@@ -153,6 +156,27 @@ def test_load_fixture_targets_from_database_uses_future_window_and_league_filter
     )
 
     assert [row["match_key"] for row in targets] == ["m1"]
+
+
+def test_load_fixture_targets_from_database_forward_only_excludes_postponed_rows() -> None:
+    targets = load_fixture_targets_from_database(
+        database=build_database(),
+        dates=["2025-10-09", "2025-10-08"],
+        forward_only=True,
+    )
+
+    assert [row["match_key"] for row in targets] == ["m1"]
+
+
+def test_inspect_fixture_target_window_from_database_respects_forward_only_filter() -> None:
+    context = inspect_fixture_target_window_from_database(
+        database=build_database(),
+        dates=["2025-10-09"],
+        forward_only=True,
+    )
+
+    assert context["available_target_match_count"] == 0
+    assert context["empty_reason"] == "no_fixtures_for_requested_dates"
 
 
 def test_inspect_fixture_target_window_from_database_flags_empty_requested_window_with_later_fixtures() -> None:

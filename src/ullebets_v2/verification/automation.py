@@ -25,6 +25,8 @@ REQUIRED_ENV_KEYS = [
     "DEFAULT_LEAGUE_RANKING_URL",
 ]
 
+WORKFLOW_DRY_RUN_INPUT_DESCRIPTION = 'description: "Run without writes (smoke test)."'
+WORKFLOW_DRY_RUN_RUNNER_WIRING = "dry_run: ${{ inputs.dry_run || false }}"
 HELPER_WORKFLOW_FILES = ["v2-healthcheck.yml", "v2-python-job.yml"]
 FORBIDDEN_DIRECT_WORKFLOW_FRAGMENTS = ["npm ", "pnpm ", "yarn ", "node ", "pages/api", "next "]
 HELPER_WORKFLOW_RULES = {
@@ -250,7 +252,9 @@ def _inspect_parity_workflow_file(workflow_path: Path) -> dict[str, Any]:
     ]
     forbidden_fragments = [fragment for fragment in content_rules["forbidden_fragments"] if fragment in text]
     source_workflow_flag_present = f"--source-workflow {file_name}" in text
-    dry_run_flag_present = "--dry-run" in text
+    dry_run_flag_present = "--dry-run" in text or "dry_run:" in text or "ULLEBETS_V2_DRY_RUN" in text
+    workflow_dispatch_dry_run_present = WORKFLOW_DRY_RUN_INPUT_DESCRIPTION in text
+    runner_dry_run_wiring_present = WORKFLOW_DRY_RUN_RUNNER_WIRING in text
     uses_reusable_runner = "uses: ./.github/workflows/v2-python-job.yml" in text
     checkout_legacy_repo = _extract_checkout_legacy_repo_setting(text)
     requires_legacy_repo = bool(legacy_contract["expected_checkout_legacy_repo"])
@@ -265,6 +269,10 @@ def _inspect_parity_workflow_file(workflow_path: Path) -> dict[str, Any]:
         findings.append("missing_explicit_source_workflow")
     if not dry_run_flag_present:
         findings.append("missing_dry_run_guard")
+    if not workflow_dispatch_dry_run_present:
+        findings.append("missing_workflow_dispatch_dry_run_input")
+    if not runner_dry_run_wiring_present:
+        findings.append("missing_runner_dry_run_wiring")
     if requires_legacy_repo and checkout_legacy_repo != "true":
         findings.append("missing_legacy_repo_checkout")
     if direct_legacy_fragments:
@@ -282,6 +290,8 @@ def _inspect_parity_workflow_file(workflow_path: Path) -> dict[str, Any]:
         "missing_scripts": missing_scripts,
         "source_workflow_flag_present": source_workflow_flag_present,
         "dry_run_flag_present": dry_run_flag_present,
+        "workflow_dispatch_dry_run_present": workflow_dispatch_dry_run_present,
+        "runner_dry_run_wiring_present": runner_dry_run_wiring_present,
         "uses_reusable_runner": uses_reusable_runner,
         "requires_legacy_repo": requires_legacy_repo,
         "checkout_legacy_repo": checkout_legacy_repo,

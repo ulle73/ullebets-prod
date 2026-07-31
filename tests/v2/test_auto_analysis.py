@@ -36,6 +36,11 @@ class FakeReadDatabase(dict):
         return dict.__getitem__(self, collection_name)
 
 
+class NonBooleanReadDatabase(FakeReadDatabase):
+    def __bool__(self) -> bool:
+        raise AssertionError("database truth testing should not be used")
+
+
 class FakeAnalysisOracle:
     def rank_model_snapshots(
         self,
@@ -137,6 +142,31 @@ class FakeAnalysisOracle:
                 "createdAt": datetime(2026, 6, 22, 10, 0, tzinfo=UTC).isoformat(),
             },
         }
+
+
+class CopyingShortlistAnalysisOracle(FakeAnalysisOracle):
+    def rank_model_snapshots(
+        self,
+        *,
+        model_snapshot_docs: list[dict],
+        run_meta: dict,
+        learning_profile: dict | None = None,  # noqa: ARG002
+    ) -> dict:
+        payload = super().rank_model_snapshots(
+            model_snapshot_docs=model_snapshot_docs,
+            run_meta=run_meta,
+            learning_profile=learning_profile,
+        )
+        shortlist = []
+        for item in payload["shortlist"]:
+            shortlist_item = dict(item)
+            shortlist_item["isBestBetForMatch"] = True
+            shortlist.append(shortlist_item)
+            item["isBestBetForMatch"] = False
+        payload["shortlist"] = shortlist
+        payload["snapshot"]["shortlist"] = shortlist
+        payload["run"]["shortlistCount"] = len(shortlist)
+        return payload
 
 
 def build_stored_model_snapshot_docs() -> list[dict]:
@@ -246,6 +276,7 @@ def test_run_auto_analysis_pipeline_uses_internal_oracle_by_default() -> None:
     }
     assert first_candidate["headline"] == "Over 3.5 Hornor"
     assert first_candidate["trackingKey"] == "match-1:match-1|cornerKicks|total|ALL|over|3.5"
+    assert first_candidate["matchDate"] == "2026-06-22T18:00:00+00:00"
 
 
 def test_run_auto_analysis_pipeline_can_read_stored_model_snapshots_from_db() -> None:
@@ -285,6 +316,67 @@ def test_run_auto_analysis_pipeline_can_read_stored_model_snapshots_from_db() ->
     assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_auto_analysis_pipeline_uses_oracle_shortlist_when_candidates_are_unmarked() -> None:
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        analysis_oracle=CopyingShortlistAnalysisOracle(),
+        dry_run=True,
+        transport=fake_transport,
+        odds_oracle=None,
+        model_oracle=FakeModelOracle(),
+        fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["analysis_candidates"] == 2
+    assert summary["qualifying_candidates"] == 1
+    assert summary["analysis_shortlist"] == 1
+    assert sum(1 for row in summary["analysis_candidate_docs"] if row["is_best_bet_for_match"]) == 1
+
+
+def test_run_auto_analysis_pipeline_db_mode_does_not_truth_test_database_objects() -> None:
+    read_database = NonBooleanReadDatabase(
+        {
+            "model_snapshots": FakeReadCollection(build_stored_model_snapshot_docs()),
+        }
+    )
+
+    summary = run_auto_analysis_pipeline(
+        targets=[
+            {
+                "match_key": "match-1",
+                "source_match_id": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-auto-analysis-checkpoints.yml",
+        strategy_id="balanced",
+        dry_run=True,
+        snapshot_source="db",
+        snapshot_read_database=read_database,
+    )
+
+    assert summary["snapshot_source"] == "db"
+    assert summary["model_snapshots"] == 2
 
 
 def test_run_auto_analysis_pipeline_dry_run_handles_empty_target_window() -> None:

@@ -14,6 +14,11 @@ on:
         required: false
         default: ""
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -28,6 +33,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 45
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         ARGS=(--mode user-closing --target-mode fixture-db --snapshot-source db --source-workflow ai-user-closing.yml --dry-run)
         RAW_DATES="${{ inputs.dates }}"

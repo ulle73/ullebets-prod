@@ -16,6 +16,7 @@ from ullebets_v2.odds.service import inspect_fixture_target_window_from_database
 from ullebets_v2.parity.reports import build_audit_report_row, build_health_report_row, materialize_parity_rows
 from ullebets_v2.safety import ensure_v2_database
 from ullebets_v2.source_connectivity.service import run_source_connectivity_audit
+from ullebets_v2.storage.collections import inspect_collection_name_contract
 from ullebets_v2.storage.indexes import build_core_index_plan
 from ullebets_v2.storage.mongo import get_database, list_database_names, ping_database
 from ullebets_v2.verification.automation import (
@@ -134,6 +135,16 @@ def main() -> int:
             metrics={
                 "workflow_missing_count": len(workflow_report["missing_parity_files"]) + len(workflow_report["missing_helper_files"]),
                 "workflow_invalid_content_count": len(workflow_report.get("invalid_content_files", [])),
+                "workflow_missing_dispatch_dry_run_count": sum(
+                    1
+                    for row in workflow_report.get("file_reports", [])
+                    if row.get("kind") == "parity" and not row.get("workflow_dispatch_dry_run_present", False)
+                ),
+                "workflow_missing_runner_dry_run_count": sum(
+                    1
+                    for row in workflow_report.get("file_reports", [])
+                    if row.get("kind") == "parity" and not row.get("runner_dry_run_wiring_present", False)
+                ),
                 "env_missing_count": len(env_report["missing_required_keys"]),
                 "database_role_conflict_count": len(database_role_report["conflicts"]),
                 "old_repo_root_exists": config.old_repo_root.exists(),
@@ -149,6 +160,16 @@ def main() -> int:
             metrics={
                 "workflow_missing_count": len(workflow_report["missing_parity_files"]) + len(workflow_report["missing_helper_files"]),
                 "workflow_invalid_content_count": len(workflow_report.get("invalid_content_files", [])),
+                "workflow_missing_dispatch_dry_run_count": sum(
+                    1
+                    for row in workflow_report.get("file_reports", [])
+                    if row.get("kind") == "parity" and not row.get("workflow_dispatch_dry_run_present", False)
+                ),
+                "workflow_missing_runner_dry_run_count": sum(
+                    1
+                    for row in workflow_report.get("file_reports", [])
+                    if row.get("kind") == "parity" and not row.get("runner_dry_run_wiring_present", False)
+                ),
                 "env_missing_count": len(env_report["missing_required_keys"]),
                 "database_role_conflict_count": len(database_role_report["conflicts"]),
                 "workflow_existing_count": workflow_report["existing_workflow_count"],
@@ -167,10 +188,16 @@ def main() -> int:
         visible_databases = list_database_names(config)
         payload["database_roles"] = _build_database_role_report(config, visible_databases=visible_databases)
 
+    if database is not None:
+        payload["collection_contract"] = inspect_collection_name_contract(database)
+        if payload["collection_contract"]["status"] != "ok" and payload["overall_status"] == "ok":
+            payload["overall_status"] = "warn"
+
     if args.check_fixture_db and database is not None:
         payload["fixture_window"] = inspect_fixture_target_window_from_database(
             database=database,
             max_days_ahead=args.max_days_ahead,
+            forward_only=True,
         )
 
     if args.check_connectivity:

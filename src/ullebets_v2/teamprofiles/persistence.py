@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.collections import TEAMPROFILES
+
 
 def persist_teamprofile_records(
     database: Any,
@@ -10,15 +12,27 @@ def persist_teamprofile_records(
     parity_rows: list[dict[str, Any]],
     audit_rows: list[dict[str, Any]],
     health_rows: list[dict[str, Any]],
+    replace_profile_date: str | None = None,
 ) -> dict[str, int]:
     profile_upserts = 0
     for row in profile_docs:
-        result = database["teamprofiles_v2"].update_one(
+        result = database[TEAMPROFILES].update_one(
             {"profile_key": row["profile_key"]},
             {"$set": row},
             upsert=True,
         )
         profile_upserts += 1 if result.upserted_id is not None else 0
+
+    deleted_profiles = 0
+    if replace_profile_date and profile_docs:
+        keep_profile_keys = [str(row["profile_key"]) for row in profile_docs if row.get("profile_key")]
+        delete_result = database[TEAMPROFILES].delete_many(
+            {
+                "profile_date": replace_profile_date,
+                "profile_key": {"$nin": keep_profile_keys},
+            }
+        )
+        deleted_profiles = int(getattr(delete_result, "deleted_count", 0) or 0)
 
     parity_upserts = 0
     for row in parity_rows:
@@ -53,6 +67,7 @@ def persist_teamprofile_records(
 
     return {
         "teamprofile_upserts": profile_upserts,
+        "teamprofile_deleted": deleted_profiles,
         "parity_upserts": parity_upserts,
         "audit_upserts": audit_upserts,
         "health_upserts": health_upserts,

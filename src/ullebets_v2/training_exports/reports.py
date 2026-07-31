@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.parity.reports import build_audit_report_row, build_health_report_row, build_parity_report_row
+from ullebets_v2.storage.collections import TRAINING_EXPORTS
 
 
 def utc_now() -> datetime:
@@ -32,7 +33,7 @@ def build_training_export_parity_rows(
                     "old_inputs": ["corrected backtests", "support/team profiles"],
                     "old_outputs": ["training datasets", "trained model files"],
                     "v2_job": "build_training_exports.py",
-                    "v2_outputs": ["training_exports_v2", "parity_reports"],
+                    "v2_outputs": [TRAINING_EXPORTS, "parity_reports"],
                     "smoke_test": "dry-run with empty settled sample set",
                     "parity_proof": "empty corrected sample windows stay explicit no-target outputs rather than failing the workflow",
                 },
@@ -54,7 +55,7 @@ def build_training_export_parity_rows(
                 "old_inputs": ["corrected backtests", "support/team profiles"],
                 "old_outputs": ["training datasets", "trained model files"],
                 "v2_job": "build_training_exports.py",
-                "v2_outputs": ["training_exports_v2", "parity_reports"],
+                "v2_outputs": [TRAINING_EXPORTS, "parity_reports"],
                 "smoke_test": "dry-run export build from settled V2 bets",
                 "parity_proof": "V2 rebuilds train/val/test samples from settled selections plus pre-match-only profile snapshots derived from canonical history",
             },

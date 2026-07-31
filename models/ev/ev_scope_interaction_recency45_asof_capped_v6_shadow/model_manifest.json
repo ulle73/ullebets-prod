@@ -1,0 +1,2337 @@
+{
+  "artifact": "ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib",
+  "artifact_sha256": "49fd8ca57f127fa31ad3167643bd9f80bb53542bb108fb265d2edf5dff76e398",
+  "configuration": {
+    "algorithm": "nested_temporal_logistic_with_regularized_scope_slope_deviations",
+    "base_feature_set": "compact_snapshot_asof_leakage_safe",
+    "c_grid": [
+      0.01,
+      0.03,
+      0.1,
+      0.25,
+      0.75,
+      2.0
+    ],
+    "category_column": "scope",
+    "deviation_values": [
+      "home",
+      "away"
+    ],
+    "history_availability_buffer_hours": 3.0,
+    "interaction_source_columns": [
+      "line_value",
+      "market_fair_probability_over",
+      "market_anchor_lambda",
+      "baseline_lambda",
+      "history_role_expected_10",
+      "history_all_expected_10",
+      "history_role_trend_3_10",
+      "history_all_trend_3_10"
+    ],
+    "maximum_ev": 0.25,
+    "minimum_ev": 0.075,
+    "probability_calibration": "none",
+    "recency_half_life_days": 45.0,
+    "regularization_selection_source": "inner_temporal_validation",
+    "selected_logistic_c": 0.01,
+    "train_window_days": 90,
+    "validation_window_days": 21
+  },
+  "created_at": "2026-07-30T03:29:56.304577+00:00",
+  "derived_runtime_features": [
+    "category_interaction__scope__home__line_value",
+    "category_interaction__scope__away__line_value",
+    "category_interaction__scope__home__market_fair_probability_over",
+    "category_interaction__scope__away__market_fair_probability_over",
+    "category_interaction__scope__home__market_anchor_lambda",
+    "category_interaction__scope__away__market_anchor_lambda",
+    "category_interaction__scope__home__baseline_lambda",
+    "category_interaction__scope__away__baseline_lambda",
+    "category_interaction__scope__home__history_role_expected_10",
+    "category_interaction__scope__away__history_role_expected_10",
+    "category_interaction__scope__home__history_all_expected_10",
+    "category_interaction__scope__away__history_all_expected_10",
+    "category_interaction__scope__home__history_role_trend_3_10",
+    "category_interaction__scope__away__history_role_trend_3_10",
+    "category_interaction__scope__home__history_all_trend_3_10",
+    "category_interaction__scope__away__history_all_trend_3_10"
+  ],
+  "features": [
+    "league_name_normalized",
+    "period",
+    "scope",
+    "stat_key",
+    "line_value",
+    "over_odds",
+    "under_odds",
+    "market_fair_probability_over",
+    "market_anchor_lambda",
+    "market_overround",
+    "baseline_lambda",
+    "snapshot_lead_hours",
+    "history_role_attack_3",
+    "history_role_defense_3",
+    "history_role_expected_3",
+    "history_role_attack_5",
+    "history_role_defense_5",
+    "history_role_expected_5",
+    "history_role_attack_10",
+    "history_role_defense_10",
+    "history_role_expected_10",
+    "history_role_attack_20",
+    "history_role_defense_20",
+    "history_role_expected_20",
+    "history_all_attack_3",
+    "history_all_defense_3",
+    "history_all_expected_3",
+    "history_all_attack_5",
+    "history_all_defense_5",
+    "history_all_expected_5",
+    "history_all_attack_10",
+    "history_all_defense_10",
+    "history_all_expected_10",
+    "history_all_attack_20",
+    "history_all_defense_20",
+    "history_all_expected_20",
+    "history_role_trend_3_10",
+    "history_all_trend_3_10"
+  ],
+  "forbidden_features": [],
+  "forward_mode": "score_only",
+  "historical_evidence": {
+    "comparison_family_size": 124,
+    "falsification": {
+      "candidates": [
+        {
+          "calibration": {
+            "expected_calibration_error": 0.040870966864227046,
+            "market_brier": 0.2533907566086365,
+            "mean_market_probability": 0.48214892636579953,
+            "mean_model_probability": 0.5731499212735787,
+            "model_brier": 0.23975352292194835,
+            "observed_win_rate": 0.6068376068376068,
+            "settled_non_push_rows": 234
+          },
+          "candidate": "nested_logistic_scope_deviations",
+          "cluster_inference": {
+            "clusters": 132,
+            "high_95_pct": 32.141177593174675,
+            "low_95_pct": 3.621130132945248,
+            "multiple_comparison_adjusted_p_value": 0.6715732842671573,
+            "one_sided_null_p_value": 0.005459945400545995,
+            "probability_positive": 0.99292
+          },
+          "concentration": {
+            "league_bet_hhi": 0.23873182847541827,
+            "roi_without_top_net_pnl_league_pct": 8.285714285714283,
+            "top_net_pnl_league": "Serie A",
+            "top_net_pnl_share_of_total": 0.7112375533428165,
+            "top_net_pnl_units": 30.0
+          },
+          "evidence_limit": "Passing the mechanical gate does not convert inspected or hypothesis-generating history into untouched confirmation.",
+          "failure_reasons": [
+            "not significant after experiment-count correction"
+          ],
+          "historical_edge_status": "not_confirmed",
+          "leave_one_league_out": {
+            "all_positive": true,
+            "group_column": "league_name_normalized",
+            "groups": 6,
+            "maximum_roi_pct": 22.032085561497325,
+            "minimum_roi_pct": 8.285714285714283,
+            "rows": [
+              {
+                "bets": 232,
+                "excluded_group": "A-League Men",
+                "matches": 130,
+                "pnl_units": 40.58,
+                "roi_pct": 17.491379310344826
+              },
+              {
+                "bets": 207,
+                "excluded_group": "Bundesliga",
+                "matches": 116,
+                "pnl_units": 34.98,
+                "roi_pct": 16.89855072463768
+              },
+              {
+                "bets": 194,
+                "excluded_group": "La Liga",
+                "matches": 102,
+                "pnl_units": 42.31,
+                "roi_pct": 21.809278350515466
+              },
+              {
+                "bets": 187,
+                "excluded_group": "Ligue 1",
+                "matches": 109,
+                "pnl_units": 41.199999999999996,
+                "roi_pct": 22.032085561497325
+              },
+              {
+                "bets": 203,
+                "excluded_group": "Premier League",
+                "matches": 111,
+                "pnl_units": 39.65,
+                "roi_pct": 19.532019704433498
+              },
+              {
+                "bets": 147,
+                "excluded_group": "Serie A",
+                "matches": 92,
+                "pnl_units": 12.179999999999996,
+                "roi_pct": 8.285714285714283
+              }
+            ]
+          },
+          "leave_one_test_window_out": {
+            "all_positive": true,
+            "group_column": "test_start",
+            "groups": 6,
+            "maximum_roi_pct": 23.439153439153436,
+            "minimum_roi_pct": 14.694063926940636,
+            "rows": [
+              {
+                "bets": 189,
+                "excluded_group": "2026-02-19",
+                "matches": 105,
+                "pnl_units": 44.3,
+                "roi_pct": 23.439153439153436
+              },
+              {
+                "bets": 219,
+                "excluded_group": "2026-03-05",
+                "matches": 122,
+                "pnl_units": 32.17999999999999,
+                "roi_pct": 14.694063926940636
+              },
+              {
+                "bets": 185,
+                "excluded_group": "2026-03-19",
+                "matches": 111,
+                "pnl_units": 34.71000000000001,
+                "roi_pct": 18.762162162162166
+              },
+              {
+                "bets": 188,
+                "excluded_group": "2026-04-02",
+                "matches": 107,
+                "pnl_units": 34.45,
+                "roi_pct": 18.324468085106385
+              },
+              {
+                "bets": 191,
+                "excluded_group": "2026-04-30",
+                "matches": 109,
+                "pnl_units": 31.569999999999997,
+                "roi_pct": 16.528795811518325
+              },
+              {
+                "bets": 198,
+                "excluded_group": "2026-05-14",
+                "matches": 106,
+                "pnl_units": 33.69,
+                "roi_pct": 17.015151515151512
+              }
+            ]
+          },
+          "mechanical_gate_status": "fails",
+          "performance": {
+            "bets": 234,
+            "matches": 132,
+            "pnl_units": 42.18,
+            "roi_pct": 18.025641025641026
+          },
+          "price_stress": {
+            "minus_0.02_decimal": {
+              "bets": 234,
+              "matches": 132,
+              "pnl_units": 39.339999999999996,
+              "roi_pct": 16.81196581196581
+            },
+            "minus_0.05_decimal": {
+              "bets": 234,
+              "matches": 132,
+              "pnl_units": 35.080000000000005,
+              "roi_pct": 14.991452991452995
+            },
+            "minus_0.10_decimal": {
+              "bets": 234,
+              "matches": 132,
+              "pnl_units": 27.97999999999999,
+              "roi_pct": 11.957264957264952
+            },
+            "recorded_odds": {
+              "bets": 234,
+              "matches": 132,
+              "pnl_units": 42.18,
+              "roi_pct": 18.025641025641026
+            }
+          },
+          "segments": {
+            "league": [
+              {
+                "bets": 87,
+                "league_name_normalized": "Serie A",
+                "matches": 40,
+                "pnl_units": 30.0,
+                "roi_pct": 34.48275862068966
+              },
+              {
+                "bets": 47,
+                "league_name_normalized": "Ligue 1",
+                "matches": 23,
+                "pnl_units": 0.98,
+                "roi_pct": 2.0851063829787235
+              },
+              {
+                "bets": 40,
+                "league_name_normalized": "La Liga",
+                "matches": 30,
+                "pnl_units": -0.13000000000000078,
+                "roi_pct": -0.32500000000000195
+              },
+              {
+                "bets": 31,
+                "league_name_normalized": "Premier League",
+                "matches": 21,
+                "pnl_units": 2.5300000000000002,
+                "roi_pct": 8.161290322580646
+              },
+              {
+                "bets": 27,
+                "league_name_normalized": "Bundesliga",
+                "matches": 16,
+                "pnl_units": 7.2,
+                "roi_pct": 26.666666666666668
+              },
+              {
+                "bets": 2,
+                "league_name_normalized": "A-League Men",
+                "matches": 2,
+                "pnl_units": 1.6,
+                "roi_pct": 80.0
+              }
+            ],
+            "period": [
+              {
+                "bets": 122,
+                "matches": 93,
+                "period": "ALL",
+                "pnl_units": 23.49,
+                "roi_pct": 19.254098360655735
+              },
+              {
+                "bets": 66,
+                "matches": 54,
+                "period": "1ST",
+                "pnl_units": 7.93,
+                "roi_pct": 12.015151515151516
+              },
+              {
+                "bets": 46,
+                "matches": 40,
+                "period": "2ND",
+                "pnl_units": 10.76,
+                "roi_pct": 23.391304347826086
+              }
+            ],
+            "scope": [
+              {
+                "bets": 84,
+                "matches": 68,
+                "pnl_units": 23.36,
+                "roi_pct": 27.809523809523807,
+                "scope": "away"
+              },
+              {
+                "bets": 78,
+                "matches": 57,
+                "pnl_units": 19.36,
+                "roi_pct": 24.820512820512818,
+                "scope": "total"
+              },
+              {
+                "bets": 72,
+                "matches": 57,
+                "pnl_units": -0.54,
+                "roi_pct": -0.7500000000000001,
+                "scope": "home"
+              }
+            ],
+            "stat": [
+              {
+                "bets": 203,
+                "matches": 115,
+                "pnl_units": 36.08,
+                "roi_pct": 17.773399014778324,
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 19,
+                "matches": 17,
+                "pnl_units": 2.3199999999999994,
+                "roi_pct": 12.21052631578947,
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 12,
+                "matches": 12,
+                "pnl_units": 3.7800000000000002,
+                "roi_pct": 31.5,
+                "stat_key": "totalShots"
+              }
+            ],
+            "stat_period_scope": [
+              {
+                "bets": 38,
+                "matches": 38,
+                "period": "ALL",
+                "pnl_units": 14.82,
+                "roi_pct": 39.0,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 37,
+                "matches": 37,
+                "period": "1ST",
+                "pnl_units": 9.33,
+                "roi_pct": 25.216216216216214,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 34,
+                "matches": 34,
+                "period": "2ND",
+                "pnl_units": 9.6,
+                "roi_pct": 28.235294117647058,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 31,
+                "matches": 31,
+                "period": "ALL",
+                "pnl_units": 9.299999999999999,
+                "roi_pct": 30.0,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 22,
+                "matches": 22,
+                "period": "1ST",
+                "pnl_units": -3.84,
+                "roi_pct": -17.454545454545453,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 22,
+                "matches": 22,
+                "period": "ALL",
+                "pnl_units": -6.73,
+                "roi_pct": -30.59090909090909,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 15,
+                "matches": 15,
+                "period": "ALL",
+                "pnl_units": 4.239999999999999,
+                "roi_pct": 28.266666666666662,
+                "scope": "home",
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 10,
+                "matches": 10,
+                "period": "ALL",
+                "pnl_units": 3.8400000000000003,
+                "roi_pct": 38.4,
+                "scope": "home",
+                "stat_key": "totalShots"
+              },
+              {
+                "bets": 9,
+                "matches": 9,
+                "period": "2ND",
+                "pnl_units": -0.79,
+                "roi_pct": -8.777777777777779,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 7,
+                "matches": 7,
+                "period": "1ST",
+                "pnl_units": 2.4399999999999995,
+                "roi_pct": 34.85714285714285,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 4,
+                "matches": 4,
+                "period": "ALL",
+                "pnl_units": -1.92,
+                "roi_pct": -48.0,
+                "scope": "total",
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 3,
+                "matches": 3,
+                "period": "2ND",
+                "pnl_units": 1.9500000000000002,
+                "roi_pct": 65.0,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 2,
+                "matches": 2,
+                "period": "ALL",
+                "pnl_units": -0.06000000000000005,
+                "roi_pct": -3.0000000000000027,
+                "scope": "total",
+                "stat_key": "totalShots"
+              }
+            ]
+          }
+        },
+        {
+          "calibration": {
+            "expected_calibration_error": 0.05758691020768446,
+            "market_brier": 0.24840346594330215,
+            "mean_market_probability": 0.4799214132788799,
+            "mean_model_probability": 0.5738768403757031,
+            "model_brier": 0.24966362963994249,
+            "observed_win_rate": 0.5214285714285715,
+            "settled_non_push_rows": 280
+          },
+          "candidate": "nested_logistic_period_deviations",
+          "cluster_inference": {
+            "clusters": 160,
+            "high_95_pct": 13.908422214538389,
+            "low_95_pct": -12.583033517835176,
+            "multiple_comparison_adjusted_p_value": 1.0,
+            "one_sided_null_p_value": 0.45135548644513557,
+            "probability_positive": 0.55089
+          },
+          "concentration": {
+            "league_bet_hhi": 0.2129591836734694,
+            "roi_without_top_net_pnl_league_pct": -5.646766169154228,
+            "top_net_pnl_league": "Serie A",
+            "top_net_pnl_share_of_total": 6.022123893805315,
+            "top_net_pnl_units": 13.61
+          },
+          "evidence_limit": "Passing the mechanical gate does not convert inspected or hypothesis-generating history into untouched confirmation.",
+          "failure_reasons": [
+            "match-clustered 95% interval crosses zero",
+            "not significant after experiment-count correction",
+            "edge does not survive every leave-one-league-out test",
+            "edge does not survive every leave-one-window-out test"
+          ],
+          "historical_edge_status": "not_confirmed",
+          "leave_one_league_out": {
+            "all_positive": false,
+            "group_column": "league_name_normalized",
+            "groups": 6,
+            "maximum_roi_pct": 4.3500000000000005,
+            "minimum_roi_pct": -5.646766169154228,
+            "rows": [
+              {
+                "bets": 279,
+                "excluded_group": "A-League Men",
+                "matches": 159,
+                "pnl_units": 1.3899999999999988,
+                "roi_pct": 0.4982078853046591
+              },
+              {
+                "bets": 243,
+                "excluded_group": "Bundesliga",
+                "matches": 138,
+                "pnl_units": 1.6600000000000015,
+                "roi_pct": 0.6831275720164615
+              },
+              {
+                "bets": 238,
+                "excluded_group": "La Liga",
+                "matches": 135,
+                "pnl_units": 4.5399999999999965,
+                "roi_pct": 1.9075630252100826
+              },
+              {
+                "bets": 219,
+                "excluded_group": "Ligue 1",
+                "matches": 127,
+                "pnl_units": 5.489999999999998,
+                "roi_pct": 2.5068493150684925
+              },
+              {
+                "bets": 220,
+                "excluded_group": "Premier League",
+                "matches": 124,
+                "pnl_units": 9.57,
+                "roi_pct": 4.3500000000000005
+              },
+              {
+                "bets": 201,
+                "excluded_group": "Serie A",
+                "matches": 117,
+                "pnl_units": -11.349999999999998,
+                "roi_pct": -5.646766169154228
+              }
+            ]
+          },
+          "leave_one_test_window_out": {
+            "all_positive": false,
+            "group_column": "test_start",
+            "groups": 6,
+            "maximum_roi_pct": 7.538461538461536,
+            "minimum_roi_pct": -2.942222222222223,
+            "rows": [
+              {
+                "bets": 208,
+                "excluded_group": "2026-02-19",
+                "matches": 120,
+                "pnl_units": 15.679999999999993,
+                "roi_pct": 7.538461538461536
+              },
+              {
+                "bets": 256,
+                "excluded_group": "2026-03-05",
+                "matches": 142,
+                "pnl_units": -4.969999999999995,
+                "roi_pct": -1.9414062499999982
+              },
+              {
+                "bets": 225,
+                "excluded_group": "2026-03-19",
+                "matches": 135,
+                "pnl_units": -6.620000000000001,
+                "roi_pct": -2.942222222222223
+              },
+              {
+                "bets": 253,
+                "excluded_group": "2026-04-02",
+                "matches": 143,
+                "pnl_units": 5.169999999999998,
+                "roi_pct": 2.0434782608695645
+              },
+              {
+                "bets": 228,
+                "excluded_group": "2026-04-30",
+                "matches": 131,
+                "pnl_units": -5.019999999999998,
+                "roi_pct": -2.2017543859649114
+              },
+              {
+                "bets": 230,
+                "excluded_group": "2026-05-14",
+                "matches": 129,
+                "pnl_units": 7.059999999999997,
+                "roi_pct": 3.069565217391303
+              }
+            ]
+          },
+          "mechanical_gate_status": "fails",
+          "performance": {
+            "bets": 280,
+            "matches": 160,
+            "pnl_units": 2.259999999999998,
+            "roi_pct": 0.8071428571428565
+          },
+          "price_stress": {
+            "minus_0.02_decimal": {
+              "bets": 280,
+              "matches": 160,
+              "pnl_units": -0.6600000000000064,
+              "roi_pct": -0.23571428571428796
+            },
+            "minus_0.05_decimal": {
+              "bets": 280,
+              "matches": 160,
+              "pnl_units": -5.039999999999995,
+              "roi_pct": -1.799999999999998
+            },
+            "minus_0.10_decimal": {
+              "bets": 280,
+              "matches": 160,
+              "pnl_units": -12.340000000000012,
+              "roi_pct": -4.407142857142862
+            },
+            "recorded_odds": {
+              "bets": 280,
+              "matches": 160,
+              "pnl_units": 2.259999999999998,
+              "roi_pct": 0.8071428571428565
+            }
+          },
+          "segments": {
+            "league": [
+              {
+                "bets": 79,
+                "league_name_normalized": "Serie A",
+                "matches": 43,
+                "pnl_units": 13.61,
+                "roi_pct": 17.22784810126582
+              },
+              {
+                "bets": 61,
+                "league_name_normalized": "Ligue 1",
+                "matches": 33,
+                "pnl_units": -3.2299999999999995,
+                "roi_pct": -5.295081967213114
+              },
+              {
+                "bets": 60,
+                "league_name_normalized": "Premier League",
+                "matches": 36,
+                "pnl_units": -7.3100000000000005,
+                "roi_pct": -12.183333333333334
+              },
+              {
+                "bets": 42,
+                "league_name_normalized": "La Liga",
+                "matches": 25,
+                "pnl_units": -2.2800000000000002,
+                "roi_pct": -5.428571428571429
+              },
+              {
+                "bets": 37,
+                "league_name_normalized": "Bundesliga",
+                "matches": 22,
+                "pnl_units": 0.6000000000000003,
+                "roi_pct": 1.6216216216216224
+              },
+              {
+                "bets": 1,
+                "league_name_normalized": "A-League Men",
+                "matches": 1,
+                "pnl_units": 0.8700000000000001,
+                "roi_pct": 87.00000000000001
+              }
+            ],
+            "period": [
+              {
+                "bets": 125,
+                "matches": 96,
+                "period": "1ST",
+                "pnl_units": 0.010000000000000897,
+                "roi_pct": 0.008000000000000718
+              },
+              {
+                "bets": 81,
+                "matches": 62,
+                "period": "ALL",
+                "pnl_units": 9.45,
+                "roi_pct": 11.666666666666666
+              },
+              {
+                "bets": 74,
+                "matches": 62,
+                "period": "2ND",
+                "pnl_units": -7.199999999999999,
+                "roi_pct": -9.729729729729728
+              }
+            ],
+            "scope": [
+              {
+                "bets": 107,
+                "matches": 85,
+                "pnl_units": 16.19,
+                "roi_pct": 15.130841121495328,
+                "scope": "total"
+              },
+              {
+                "bets": 105,
+                "matches": 87,
+                "pnl_units": 3.5700000000000003,
+                "roi_pct": 3.4000000000000004,
+                "scope": "away"
+              },
+              {
+                "bets": 68,
+                "matches": 56,
+                "pnl_units": -17.5,
+                "roi_pct": -25.735294117647058,
+                "scope": "home"
+              }
+            ],
+            "stat": [
+              {
+                "bets": 262,
+                "matches": 154,
+                "pnl_units": 2.6400000000000006,
+                "roi_pct": 1.0076335877862597,
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 13,
+                "matches": 12,
+                "pnl_units": 0.7399999999999998,
+                "roi_pct": 5.69230769230769,
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 5,
+                "matches": 4,
+                "pnl_units": -1.12,
+                "roi_pct": -22.400000000000002,
+                "stat_key": "totalShots"
+              }
+            ],
+            "stat_period_scope": [
+              {
+                "bets": 56,
+                "matches": 56,
+                "period": "1ST",
+                "pnl_units": 7.19,
+                "roi_pct": 12.839285714285714,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 40,
+                "matches": 40,
+                "period": "2ND",
+                "pnl_units": 7.010000000000001,
+                "roi_pct": 17.525000000000002,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 35,
+                "matches": 35,
+                "period": "1ST",
+                "pnl_units": -10.55,
+                "roi_pct": -30.142857142857142,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 34,
+                "matches": 34,
+                "period": "1ST",
+                "pnl_units": 3.37,
+                "roi_pct": 9.911764705882353,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 28,
+                "matches": 28,
+                "period": "ALL",
+                "pnl_units": 6.779999999999999,
+                "roi_pct": 24.21428571428571,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 25,
+                "matches": 25,
+                "period": "ALL",
+                "pnl_units": 5.75,
+                "roi_pct": 23.0,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 23,
+                "matches": 23,
+                "period": "2ND",
+                "pnl_units": -10.620000000000001,
+                "roi_pct": -46.173913043478265,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 11,
+                "matches": 11,
+                "period": "2ND",
+                "pnl_units": -3.59,
+                "roi_pct": -32.63636363636363,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 10,
+                "matches": 10,
+                "period": "ALL",
+                "pnl_units": -2.7,
+                "roi_pct": -27.0,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 9,
+                "matches": 9,
+                "period": "ALL",
+                "pnl_units": 0.4099999999999997,
+                "roi_pct": 4.555555555555553,
+                "scope": "home",
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 3,
+                "matches": 3,
+                "period": "ALL",
+                "pnl_units": -0.9199999999999999,
+                "roi_pct": -30.666666666666664,
+                "scope": "total",
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 3,
+                "matches": 3,
+                "period": "ALL",
+                "pnl_units": -1.07,
+                "roi_pct": -35.66666666666667,
+                "scope": "home",
+                "stat_key": "totalShots"
+              },
+              {
+                "bets": 2,
+                "matches": 2,
+                "period": "ALL",
+                "pnl_units": -0.050000000000000044,
+                "roi_pct": -2.500000000000002,
+                "scope": "total",
+                "stat_key": "totalShots"
+              },
+              {
+                "bets": 1,
+                "matches": 1,
+                "period": "ALL",
+                "pnl_units": 1.25,
+                "roi_pct": 125.0,
+                "scope": "away",
+                "stat_key": "shotsOnGoal"
+              }
+            ]
+          }
+        },
+        {
+          "calibration": {
+            "expected_calibration_error": 0.020040813141174674,
+            "market_brier": 0.24652194483058537,
+            "mean_market_probability": 0.48370520926513755,
+            "mean_model_probability": 0.5794471195880496,
+            "model_brier": 0.24035192028066182,
+            "observed_win_rate": 0.5621468926553672,
+            "settled_non_push_rows": 354
+          },
+          "candidate": "nested_logistic_scope_period_deviations",
+          "cluster_inference": {
+            "clusters": 193,
+            "high_95_pct": 19.189685872875522,
+            "low_95_pct": -4.2903294733939905,
+            "multiple_comparison_adjusted_p_value": 1.0,
+            "one_sided_null_p_value": 0.10132898671013289,
+            "probability_positive": 0.8937
+          },
+          "concentration": {
+            "league_bet_hhi": 0.21038015895815376,
+            "roi_without_top_net_pnl_league_pct": 1.2529644268774696,
+            "top_net_pnl_league": "Serie A",
+            "top_net_pnl_share_of_total": 0.8812734082397004,
+            "top_net_pnl_units": 23.53
+          },
+          "evidence_limit": "Passing the mechanical gate does not convert inspected or hypothesis-generating history into untouched confirmation.",
+          "failure_reasons": [
+            "match-clustered 95% interval crosses zero",
+            "not significant after experiment-count correction"
+          ],
+          "historical_edge_status": "not_confirmed",
+          "leave_one_league_out": {
+            "all_positive": true,
+            "group_column": "league_name_normalized",
+            "groups": 6,
+            "maximum_roi_pct": 10.850694444444443,
+            "minimum_roi_pct": 1.2529644268774696,
+            "rows": [
+              {
+                "bets": 352,
+                "excluded_group": "A-League Men",
+                "matches": 191,
+                "pnl_units": 25.1,
+                "roi_pct": 7.130681818181818
+              },
+              {
+                "bets": 307,
+                "excluded_group": "Bundesliga",
+                "matches": 166,
+                "pnl_units": 21.499999999999993,
+                "roi_pct": 7.003257328990226
+              },
+              {
+                "bets": 288,
+                "excluded_group": "La Liga",
+                "matches": 155,
+                "pnl_units": 31.249999999999993,
+                "roi_pct": 10.850694444444443
+              },
+              {
+                "bets": 279,
+                "excluded_group": "Ligue 1",
+                "matches": 155,
+                "pnl_units": 26.839999999999996,
+                "roi_pct": 9.620071684587812
+              },
+              {
+                "bets": 291,
+                "excluded_group": "Premier League",
+                "matches": 153,
+                "pnl_units": 25.639999999999997,
+                "roi_pct": 8.810996563573882
+              },
+              {
+                "bets": 253,
+                "excluded_group": "Serie A",
+                "matches": 145,
+                "pnl_units": 3.169999999999998,
+                "roi_pct": 1.2529644268774696
+              }
+            ]
+          },
+          "leave_one_test_window_out": {
+            "all_positive": true,
+            "group_column": "test_start",
+            "groups": 6,
+            "maximum_roi_pct": 14.054744525547443,
+            "minimum_roi_pct": 5.333333333333333,
+            "rows": [
+              {
+                "bets": 274,
+                "excluded_group": "2026-02-19",
+                "matches": 146,
+                "pnl_units": 38.51,
+                "roi_pct": 14.054744525547443
+              },
+              {
+                "bets": 333,
+                "excluded_group": "2026-03-05",
+                "matches": 176,
+                "pnl_units": 19.009999999999998,
+                "roi_pct": 5.708708708708708
+              },
+              {
+                "bets": 288,
+                "excluded_group": "2026-03-19",
+                "matches": 163,
+                "pnl_units": 15.36,
+                "roi_pct": 5.333333333333333
+              },
+              {
+                "bets": 290,
+                "excluded_group": "2026-04-02",
+                "matches": 162,
+                "pnl_units": 21.17,
+                "roi_pct": 7.300000000000001
+              },
+              {
+                "bets": 297,
+                "excluded_group": "2026-04-30",
+                "matches": 162,
+                "pnl_units": 17.479999999999997,
+                "roi_pct": 5.885521885521885
+              },
+              {
+                "bets": 288,
+                "excluded_group": "2026-05-14",
+                "matches": 156,
+                "pnl_units": 21.97,
+                "roi_pct": 7.628472222222221
+              }
+            ]
+          },
+          "mechanical_gate_status": "fails",
+          "performance": {
+            "bets": 354,
+            "matches": 193,
+            "pnl_units": 26.700000000000003,
+            "roi_pct": 7.5423728813559325
+          },
+          "price_stress": {
+            "minus_0.02_decimal": {
+              "bets": 354,
+              "matches": 193,
+              "pnl_units": 22.71999999999999,
+              "roi_pct": 6.418079096045195
+            },
+            "minus_0.05_decimal": {
+              "bets": 354,
+              "matches": 193,
+              "pnl_units": 16.75,
+              "roi_pct": 4.731638418079096
+            },
+            "minus_0.10_decimal": {
+              "bets": 354,
+              "matches": 193,
+              "pnl_units": 6.799999999999974,
+              "roi_pct": 1.9209039548022528
+            },
+            "recorded_odds": {
+              "bets": 354,
+              "matches": 193,
+              "pnl_units": 26.700000000000003,
+              "roi_pct": 7.5423728813559325
+            }
+          },
+          "segments": {
+            "league": [
+              {
+                "bets": 101,
+                "league_name_normalized": "Serie A",
+                "matches": 48,
+                "pnl_units": 23.53,
+                "roi_pct": 23.2970297029703
+              },
+              {
+                "bets": 75,
+                "league_name_normalized": "Ligue 1",
+                "matches": 38,
+                "pnl_units": -0.1399999999999999,
+                "roi_pct": -0.18666666666666654
+              },
+              {
+                "bets": 66,
+                "league_name_normalized": "La Liga",
+                "matches": 38,
+                "pnl_units": -4.550000000000001,
+                "roi_pct": -6.893939393939395
+              },
+              {
+                "bets": 63,
+                "league_name_normalized": "Premier League",
+                "matches": 40,
+                "pnl_units": 1.06,
+                "roi_pct": 1.6825396825396828
+              },
+              {
+                "bets": 47,
+                "league_name_normalized": "Bundesliga",
+                "matches": 27,
+                "pnl_units": 5.2,
+                "roi_pct": 11.063829787234043
+              },
+              {
+                "bets": 2,
+                "league_name_normalized": "A-League Men",
+                "matches": 2,
+                "pnl_units": 1.6,
+                "roi_pct": 80.0
+              }
+            ],
+            "period": [
+              {
+                "bets": 143,
+                "matches": 115,
+                "period": "1ST",
+                "pnl_units": 8.33,
+                "roi_pct": 5.825174825174825
+              },
+              {
+                "bets": 120,
+                "matches": 97,
+                "period": "ALL",
+                "pnl_units": 24.84,
+                "roi_pct": 20.7
+              },
+              {
+                "bets": 91,
+                "matches": 70,
+                "period": "2ND",
+                "pnl_units": -6.47,
+                "roi_pct": -7.10989010989011
+              }
+            ],
+            "scope": [
+              {
+                "bets": 120,
+                "matches": 94,
+                "pnl_units": 19.03,
+                "roi_pct": 15.858333333333336,
+                "scope": "away"
+              },
+              {
+                "bets": 120,
+                "matches": 96,
+                "pnl_units": 12.48,
+                "roi_pct": 10.4,
+                "scope": "total"
+              },
+              {
+                "bets": 114,
+                "matches": 90,
+                "pnl_units": -4.8100000000000005,
+                "roi_pct": -4.219298245614036,
+                "scope": "home"
+              }
+            ],
+            "stat": [
+              {
+                "bets": 323,
+                "matches": 183,
+                "pnl_units": 20.15,
+                "roi_pct": 6.238390092879256,
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 21,
+                "matches": 19,
+                "pnl_units": 2.67,
+                "roi_pct": 12.714285714285714,
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 10,
+                "matches": 10,
+                "pnl_units": 3.88,
+                "roi_pct": 38.800000000000004,
+                "stat_key": "totalShots"
+              }
+            ],
+            "stat_period_scope": [
+              {
+                "bets": 58,
+                "matches": 58,
+                "period": "1ST",
+                "pnl_units": 11.15,
+                "roi_pct": 19.224137931034484,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 52,
+                "matches": 52,
+                "period": "1ST",
+                "pnl_units": -5.57,
+                "roi_pct": -10.711538461538463,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 50,
+                "matches": 50,
+                "period": "2ND",
+                "pnl_units": -1.2199999999999998,
+                "roi_pct": -2.4399999999999995,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 36,
+                "matches": 36,
+                "period": "ALL",
+                "pnl_units": 12.43,
+                "roi_pct": 34.52777777777778,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 33,
+                "matches": 33,
+                "period": "1ST",
+                "pnl_units": 2.75,
+                "roi_pct": 8.333333333333332,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 32,
+                "matches": 32,
+                "period": "ALL",
+                "pnl_units": 11.93,
+                "roi_pct": 37.28125,
+                "scope": "total",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 24,
+                "matches": 24,
+                "period": "2ND",
+                "pnl_units": -4.9,
+                "roi_pct": -20.416666666666668,
+                "scope": "away",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 21,
+                "matches": 21,
+                "period": "ALL",
+                "pnl_units": -6.07,
+                "roi_pct": -28.904761904761905,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 17,
+                "matches": 17,
+                "period": "2ND",
+                "pnl_units": -0.34999999999999987,
+                "roi_pct": -2.058823529411764,
+                "scope": "home",
+                "stat_key": "cornerKicks"
+              },
+              {
+                "bets": 15,
+                "matches": 15,
+                "period": "ALL",
+                "pnl_units": 4.239999999999999,
+                "roi_pct": 28.266666666666662,
+                "scope": "home",
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 9,
+                "matches": 9,
+                "period": "ALL",
+                "pnl_units": 2.9400000000000004,
+                "roi_pct": 32.66666666666667,
+                "scope": "home",
+                "stat_key": "totalShots"
+              },
+              {
+                "bets": 4,
+                "matches": 4,
+                "period": "ALL",
+                "pnl_units": -1.92,
+                "roi_pct": -48.0,
+                "scope": "total",
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 2,
+                "matches": 2,
+                "period": "ALL",
+                "pnl_units": 0.3500000000000001,
+                "roi_pct": 17.500000000000004,
+                "scope": "away",
+                "stat_key": "shotsOnGoal"
+              },
+              {
+                "bets": 1,
+                "matches": 1,
+                "period": "ALL",
+                "pnl_units": 0.94,
+                "roi_pct": 94.0,
+                "scope": "total",
+                "stat_key": "totalShots"
+              }
+            ]
+          }
+        }
+      ],
+      "methodology": {
+        "bootstrap_iterations": 100000,
+        "cluster_unit": "exposure_match_id",
+        "confirmation_gate": "clustered lower bound > 0, experiment-count adjusted one-sided p < 0.05, and every leave-one-league/window ROI > 0",
+        "experiments_inspected": 123,
+        "odds_stress": "absolute decimal points removed from winning prices"
+      }
+    },
+    "scope_interaction_audit": {
+      "comparison_family_size": 124,
+      "decision_rule": "retain only as score-only forward challenger unless the multiple-comparison-adjusted historical gate passes",
+      "falsification": {
+        "candidates": [
+          {
+            "calibration": {
+              "expected_calibration_error": 0.040870966864227046,
+              "market_brier": 0.2533907566086365,
+              "mean_market_probability": 0.48214892636579953,
+              "mean_model_probability": 0.5731499212735787,
+              "model_brier": 0.23975352292194835,
+              "observed_win_rate": 0.6068376068376068,
+              "settled_non_push_rows": 234
+            },
+            "candidate": "scope_interactions_all_exposures",
+            "cluster_inference": {
+              "clusters": 132,
+              "high_95_pct": 32.141177593174675,
+              "low_95_pct": 3.621130132945248,
+              "multiple_comparison_adjusted_p_value": 0.6770332296677033,
+              "one_sided_null_p_value": 0.005459945400545995,
+              "probability_positive": 0.99292
+            },
+            "concentration": {
+              "league_bet_hhi": 0.23873182847541827,
+              "roi_without_top_net_pnl_league_pct": 8.285714285714283,
+              "top_net_pnl_league": "Serie A",
+              "top_net_pnl_share_of_total": 0.7112375533428165,
+              "top_net_pnl_units": 30.0
+            },
+            "evidence_limit": "Passing the mechanical gate does not convert inspected or hypothesis-generating history into untouched confirmation.",
+            "failure_reasons": [
+              "not significant after experiment-count correction"
+            ],
+            "historical_edge_status": "not_confirmed",
+            "leave_one_league_out": {
+              "all_positive": true,
+              "group_column": "league_name_normalized",
+              "groups": 6,
+              "maximum_roi_pct": 22.032085561497325,
+              "minimum_roi_pct": 8.285714285714283,
+              "rows": [
+                {
+                  "bets": 232,
+                  "excluded_group": "A-League Men",
+                  "matches": 130,
+                  "pnl_units": 40.58,
+                  "roi_pct": 17.491379310344826
+                },
+                {
+                  "bets": 207,
+                  "excluded_group": "Bundesliga",
+                  "matches": 116,
+                  "pnl_units": 34.98,
+                  "roi_pct": 16.89855072463768
+                },
+                {
+                  "bets": 194,
+                  "excluded_group": "La Liga",
+                  "matches": 102,
+                  "pnl_units": 42.31,
+                  "roi_pct": 21.809278350515466
+                },
+                {
+                  "bets": 187,
+                  "excluded_group": "Ligue 1",
+                  "matches": 109,
+                  "pnl_units": 41.199999999999996,
+                  "roi_pct": 22.032085561497325
+                },
+                {
+                  "bets": 203,
+                  "excluded_group": "Premier League",
+                  "matches": 111,
+                  "pnl_units": 39.65,
+                  "roi_pct": 19.532019704433498
+                },
+                {
+                  "bets": 147,
+                  "excluded_group": "Serie A",
+                  "matches": 92,
+                  "pnl_units": 12.179999999999996,
+                  "roi_pct": 8.285714285714283
+                }
+              ]
+            },
+            "leave_one_test_window_out": {
+              "all_positive": true,
+              "group_column": "test_start",
+              "groups": 6,
+              "maximum_roi_pct": 23.439153439153436,
+              "minimum_roi_pct": 14.694063926940636,
+              "rows": [
+                {
+                  "bets": 189,
+                  "excluded_group": "2026-02-19",
+                  "matches": 105,
+                  "pnl_units": 44.3,
+                  "roi_pct": 23.439153439153436
+                },
+                {
+                  "bets": 219,
+                  "excluded_group": "2026-03-05",
+                  "matches": 122,
+                  "pnl_units": 32.17999999999999,
+                  "roi_pct": 14.694063926940636
+                },
+                {
+                  "bets": 185,
+                  "excluded_group": "2026-03-19",
+                  "matches": 111,
+                  "pnl_units": 34.71000000000001,
+                  "roi_pct": 18.762162162162166
+                },
+                {
+                  "bets": 188,
+                  "excluded_group": "2026-04-02",
+                  "matches": 107,
+                  "pnl_units": 34.45,
+                  "roi_pct": 18.324468085106385
+                },
+                {
+                  "bets": 191,
+                  "excluded_group": "2026-04-30",
+                  "matches": 109,
+                  "pnl_units": 31.569999999999997,
+                  "roi_pct": 16.528795811518325
+                },
+                {
+                  "bets": 198,
+                  "excluded_group": "2026-05-14",
+                  "matches": 106,
+                  "pnl_units": 33.69,
+                  "roi_pct": 17.015151515151512
+                }
+              ]
+            },
+            "mechanical_gate_status": "fails",
+            "performance": {
+              "bets": 234,
+              "matches": 132,
+              "pnl_units": 42.18,
+              "roi_pct": 18.025641025641026
+            },
+            "price_stress": {
+              "minus_0.02_decimal": {
+                "bets": 234,
+                "matches": 132,
+                "pnl_units": 39.339999999999996,
+                "roi_pct": 16.81196581196581
+              },
+              "minus_0.05_decimal": {
+                "bets": 234,
+                "matches": 132,
+                "pnl_units": 35.080000000000005,
+                "roi_pct": 14.991452991452995
+              },
+              "minus_0.10_decimal": {
+                "bets": 234,
+                "matches": 132,
+                "pnl_units": 27.97999999999999,
+                "roi_pct": 11.957264957264952
+              },
+              "recorded_odds": {
+                "bets": 234,
+                "matches": 132,
+                "pnl_units": 42.18,
+                "roi_pct": 18.025641025641026
+              }
+            },
+            "segments": {
+              "league": [
+                {
+                  "bets": 87,
+                  "league_name_normalized": "Serie A",
+                  "matches": 40,
+                  "pnl_units": 30.0,
+                  "roi_pct": 34.48275862068966
+                },
+                {
+                  "bets": 47,
+                  "league_name_normalized": "Ligue 1",
+                  "matches": 23,
+                  "pnl_units": 0.98,
+                  "roi_pct": 2.0851063829787235
+                },
+                {
+                  "bets": 40,
+                  "league_name_normalized": "La Liga",
+                  "matches": 30,
+                  "pnl_units": -0.13000000000000078,
+                  "roi_pct": -0.32500000000000195
+                },
+                {
+                  "bets": 31,
+                  "league_name_normalized": "Premier League",
+                  "matches": 21,
+                  "pnl_units": 2.5300000000000002,
+                  "roi_pct": 8.161290322580646
+                },
+                {
+                  "bets": 27,
+                  "league_name_normalized": "Bundesliga",
+                  "matches": 16,
+                  "pnl_units": 7.2,
+                  "roi_pct": 26.666666666666668
+                },
+                {
+                  "bets": 2,
+                  "league_name_normalized": "A-League Men",
+                  "matches": 2,
+                  "pnl_units": 1.6,
+                  "roi_pct": 80.0
+                }
+              ],
+              "period": [
+                {
+                  "bets": 122,
+                  "matches": 93,
+                  "period": "ALL",
+                  "pnl_units": 23.49,
+                  "roi_pct": 19.254098360655735
+                },
+                {
+                  "bets": 66,
+                  "matches": 54,
+                  "period": "1ST",
+                  "pnl_units": 7.93,
+                  "roi_pct": 12.015151515151516
+                },
+                {
+                  "bets": 46,
+                  "matches": 40,
+                  "period": "2ND",
+                  "pnl_units": 10.76,
+                  "roi_pct": 23.391304347826086
+                }
+              ],
+              "scope": [
+                {
+                  "bets": 84,
+                  "matches": 68,
+                  "pnl_units": 23.36,
+                  "roi_pct": 27.809523809523807,
+                  "scope": "away"
+                },
+                {
+                  "bets": 78,
+                  "matches": 57,
+                  "pnl_units": 19.36,
+                  "roi_pct": 24.820512820512818,
+                  "scope": "total"
+                },
+                {
+                  "bets": 72,
+                  "matches": 57,
+                  "pnl_units": -0.54,
+                  "roi_pct": -0.7500000000000001,
+                  "scope": "home"
+                }
+              ],
+              "stat": [
+                {
+                  "bets": 203,
+                  "matches": 115,
+                  "pnl_units": 36.08,
+                  "roi_pct": 17.773399014778324,
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 19,
+                  "matches": 17,
+                  "pnl_units": 2.3199999999999994,
+                  "roi_pct": 12.21052631578947,
+                  "stat_key": "shotsOnGoal"
+                },
+                {
+                  "bets": 12,
+                  "matches": 12,
+                  "pnl_units": 3.7800000000000002,
+                  "roi_pct": 31.5,
+                  "stat_key": "totalShots"
+                }
+              ],
+              "stat_period_scope": [
+                {
+                  "bets": 38,
+                  "matches": 38,
+                  "period": "ALL",
+                  "pnl_units": 14.82,
+                  "roi_pct": 39.0,
+                  "scope": "away",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 37,
+                  "matches": 37,
+                  "period": "1ST",
+                  "pnl_units": 9.33,
+                  "roi_pct": 25.216216216216214,
+                  "scope": "away",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 34,
+                  "matches": 34,
+                  "period": "2ND",
+                  "pnl_units": 9.6,
+                  "roi_pct": 28.235294117647058,
+                  "scope": "total",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 31,
+                  "matches": 31,
+                  "period": "ALL",
+                  "pnl_units": 9.299999999999999,
+                  "roi_pct": 30.0,
+                  "scope": "total",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 22,
+                  "matches": 22,
+                  "period": "1ST",
+                  "pnl_units": -3.84,
+                  "roi_pct": -17.454545454545453,
+                  "scope": "home",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 22,
+                  "matches": 22,
+                  "period": "ALL",
+                  "pnl_units": -6.73,
+                  "roi_pct": -30.59090909090909,
+                  "scope": "home",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 15,
+                  "matches": 15,
+                  "period": "ALL",
+                  "pnl_units": 4.239999999999999,
+                  "roi_pct": 28.266666666666662,
+                  "scope": "home",
+                  "stat_key": "shotsOnGoal"
+                },
+                {
+                  "bets": 10,
+                  "matches": 10,
+                  "period": "ALL",
+                  "pnl_units": 3.8400000000000003,
+                  "roi_pct": 38.4,
+                  "scope": "home",
+                  "stat_key": "totalShots"
+                },
+                {
+                  "bets": 9,
+                  "matches": 9,
+                  "period": "2ND",
+                  "pnl_units": -0.79,
+                  "roi_pct": -8.777777777777779,
+                  "scope": "away",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 7,
+                  "matches": 7,
+                  "period": "1ST",
+                  "pnl_units": 2.4399999999999995,
+                  "roi_pct": 34.85714285714285,
+                  "scope": "total",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 4,
+                  "matches": 4,
+                  "period": "ALL",
+                  "pnl_units": -1.92,
+                  "roi_pct": -48.0,
+                  "scope": "total",
+                  "stat_key": "shotsOnGoal"
+                },
+                {
+                  "bets": 3,
+                  "matches": 3,
+                  "period": "2ND",
+                  "pnl_units": 1.9500000000000002,
+                  "roi_pct": 65.0,
+                  "scope": "home",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 2,
+                  "matches": 2,
+                  "period": "ALL",
+                  "pnl_units": -0.06000000000000005,
+                  "roi_pct": -3.0000000000000027,
+                  "scope": "total",
+                  "stat_key": "totalShots"
+                }
+              ]
+            }
+          },
+          {
+            "calibration": {
+              "expected_calibration_error": 0.020422301986616,
+              "market_brier": 0.251061284132422,
+              "mean_market_probability": 0.477962622946844,
+              "mean_model_probability": 0.5704867889224748,
+              "model_brier": 0.23756193565192862,
+              "observed_win_rate": 0.5909090909090909,
+              "settled_non_push_rows": 132
+            },
+            "candidate": "scope_interactions_one_per_match",
+            "cluster_inference": {
+              "clusters": 132,
+              "high_95_pct": 32.0077651515151,
+              "low_95_pct": -1.2500000000000009,
+              "multiple_comparison_adjusted_p_value": 1.0,
+              "one_sided_null_p_value": 0.032909670903290965,
+              "probability_positive": 0.96527
+            },
+            "concentration": {
+              "league_bet_hhi": 0.21407254361799818,
+              "roi_without_top_net_pnl_league_pct": 7.086956521739129,
+              "top_net_pnl_league": "Serie A",
+              "top_net_pnl_share_of_total": 0.6810176125244619,
+              "top_net_pnl_units": 13.92
+            },
+            "evidence_limit": "Passing the mechanical gate does not convert inspected or hypothesis-generating history into untouched confirmation.",
+            "failure_reasons": [
+              "match-clustered 95% interval crosses zero",
+              "not significant after experiment-count correction"
+            ],
+            "historical_edge_status": "not_confirmed",
+            "leave_one_league_out": {
+              "all_positive": true,
+              "group_column": "league_name_normalized",
+              "groups": 6,
+              "maximum_roi_pct": 25.960784313725483,
+              "minimum_roi_pct": 7.086956521739129,
+              "rows": [
+                {
+                  "bets": 130,
+                  "excluded_group": "A-League Men",
+                  "matches": 130,
+                  "pnl_units": 18.839999999999996,
+                  "roi_pct": 14.49230769230769
+                },
+                {
+                  "bets": 116,
+                  "excluded_group": "Bundesliga",
+                  "matches": 116,
+                  "pnl_units": 13.439999999999998,
+                  "roi_pct": 11.586206896551722
+                },
+                {
+                  "bets": 102,
+                  "excluded_group": "La Liga",
+                  "matches": 102,
+                  "pnl_units": 26.479999999999993,
+                  "roi_pct": 25.960784313725483
+                },
+                {
+                  "bets": 109,
+                  "excluded_group": "Ligue 1",
+                  "matches": 109,
+                  "pnl_units": 20.799999999999997,
+                  "roi_pct": 19.08256880733945
+                },
+                {
+                  "bets": 111,
+                  "excluded_group": "Premier League",
+                  "matches": 111,
+                  "pnl_units": 16.119999999999997,
+                  "roi_pct": 14.522522522522522
+                },
+                {
+                  "bets": 92,
+                  "excluded_group": "Serie A",
+                  "matches": 92,
+                  "pnl_units": 6.52,
+                  "roi_pct": 7.086956521739129
+                }
+              ]
+            },
+            "leave_one_test_window_out": {
+              "all_positive": true,
+              "group_column": "test_start",
+              "groups": 6,
+              "maximum_roi_pct": 19.953271028037378,
+              "minimum_roi_pct": 9.63934426229508,
+              "rows": [
+                {
+                  "bets": 105,
+                  "excluded_group": "2026-02-19",
+                  "matches": 105,
+                  "pnl_units": 20.06,
+                  "roi_pct": 19.1047619047619
+                },
+                {
+                  "bets": 122,
+                  "excluded_group": "2026-03-05",
+                  "matches": 122,
+                  "pnl_units": 11.759999999999998,
+                  "roi_pct": 9.63934426229508
+                },
+                {
+                  "bets": 111,
+                  "excluded_group": "2026-03-19",
+                  "matches": 111,
+                  "pnl_units": 19.539999999999992,
+                  "roi_pct": 17.603603603603595
+                },
+                {
+                  "bets": 107,
+                  "excluded_group": "2026-04-02",
+                  "matches": 107,
+                  "pnl_units": 21.349999999999994,
+                  "roi_pct": 19.953271028037378
+                },
+                {
+                  "bets": 109,
+                  "excluded_group": "2026-04-30",
+                  "matches": 109,
+                  "pnl_units": 15.359999999999996,
+                  "roi_pct": 14.09174311926605
+                },
+                {
+                  "bets": 106,
+                  "excluded_group": "2026-05-14",
+                  "matches": 106,
+                  "pnl_units": 14.129999999999999,
+                  "roi_pct": 13.330188679245284
+                }
+              ]
+            },
+            "mechanical_gate_status": "fails",
+            "performance": {
+              "bets": 132,
+              "matches": 132,
+              "pnl_units": 20.439999999999998,
+              "roi_pct": 15.484848484848483
+            },
+            "price_stress": {
+              "minus_0.02_decimal": {
+                "bets": 132,
+                "matches": 132,
+                "pnl_units": 18.879999999999995,
+                "roi_pct": 14.303030303030301
+              },
+              "minus_0.05_decimal": {
+                "bets": 132,
+                "matches": 132,
+                "pnl_units": 16.540000000000003,
+                "roi_pct": 12.530303030303033
+              },
+              "minus_0.10_decimal": {
+                "bets": 132,
+                "matches": 132,
+                "pnl_units": 12.63999999999999,
+                "roi_pct": 9.575757575757567
+              },
+              "recorded_odds": {
+                "bets": 132,
+                "matches": 132,
+                "pnl_units": 20.439999999999998,
+                "roi_pct": 15.484848484848483
+              }
+            },
+            "segments": {
+              "league": [
+                {
+                  "bets": 40,
+                  "league_name_normalized": "Serie A",
+                  "matches": 40,
+                  "pnl_units": 13.92,
+                  "roi_pct": 34.8
+                },
+                {
+                  "bets": 30,
+                  "league_name_normalized": "La Liga",
+                  "matches": 30,
+                  "pnl_units": -6.040000000000001,
+                  "roi_pct": -20.133333333333336
+                },
+                {
+                  "bets": 23,
+                  "league_name_normalized": "Ligue 1",
+                  "matches": 23,
+                  "pnl_units": -0.3599999999999999,
+                  "roi_pct": -1.5652173913043472
+                },
+                {
+                  "bets": 21,
+                  "league_name_normalized": "Premier League",
+                  "matches": 21,
+                  "pnl_units": 4.32,
+                  "roi_pct": 20.571428571428573
+                },
+                {
+                  "bets": 16,
+                  "league_name_normalized": "Bundesliga",
+                  "matches": 16,
+                  "pnl_units": 7.0,
+                  "roi_pct": 43.75
+                },
+                {
+                  "bets": 2,
+                  "league_name_normalized": "A-League Men",
+                  "matches": 2,
+                  "pnl_units": 1.6,
+                  "roi_pct": 80.0
+                }
+              ],
+              "period": [
+                {
+                  "bets": 72,
+                  "matches": 72,
+                  "period": "ALL",
+                  "pnl_units": 12.649999999999999,
+                  "roi_pct": 17.569444444444443
+                },
+                {
+                  "bets": 38,
+                  "matches": 38,
+                  "period": "1ST",
+                  "pnl_units": 3.25,
+                  "roi_pct": 8.552631578947368
+                },
+                {
+                  "bets": 22,
+                  "matches": 22,
+                  "period": "2ND",
+                  "pnl_units": 4.54,
+                  "roi_pct": 20.636363636363637
+                }
+              ],
+              "scope": [
+                {
+                  "bets": 51,
+                  "matches": 51,
+                  "pnl_units": 15.32,
+                  "roi_pct": 30.039215686274513,
+                  "scope": "away"
+                },
+                {
+                  "bets": 41,
+                  "matches": 41,
+                  "pnl_units": 9.899999999999999,
+                  "roi_pct": 24.14634146341463,
+                  "scope": "total"
+                },
+                {
+                  "bets": 40,
+                  "matches": 40,
+                  "pnl_units": -4.78,
+                  "roi_pct": -11.950000000000001,
+                  "scope": "home"
+                }
+              ],
+              "stat": [
+                {
+                  "bets": 109,
+                  "matches": 109,
+                  "pnl_units": 20.82,
+                  "roi_pct": 19.10091743119266,
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 15,
+                  "matches": 15,
+                  "pnl_units": -0.44000000000000017,
+                  "roi_pct": -2.9333333333333345,
+                  "stat_key": "shotsOnGoal"
+                },
+                {
+                  "bets": 8,
+                  "matches": 8,
+                  "pnl_units": 0.06000000000000005,
+                  "roi_pct": 0.7500000000000007,
+                  "stat_key": "totalShots"
+                }
+              ],
+              "stat_period_scope": [
+                {
+                  "bets": 28,
+                  "matches": 28,
+                  "period": "1ST",
+                  "pnl_units": 4.05,
+                  "roi_pct": 14.464285714285714,
+                  "scope": "away",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 19,
+                  "matches": 19,
+                  "period": "ALL",
+                  "pnl_units": 11.41,
+                  "roi_pct": 60.05263157894737,
+                  "scope": "away",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 18,
+                  "matches": 18,
+                  "period": "ALL",
+                  "pnl_units": 8.07,
+                  "roi_pct": 44.833333333333336,
+                  "scope": "total",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 17,
+                  "matches": 17,
+                  "period": "2ND",
+                  "pnl_units": 4.1,
+                  "roi_pct": 24.117647058823525,
+                  "scope": "total",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 12,
+                  "matches": 12,
+                  "period": "ALL",
+                  "pnl_units": 2.5599999999999996,
+                  "roi_pct": 21.33333333333333,
+                  "scope": "home",
+                  "stat_key": "shotsOnGoal"
+                },
+                {
+                  "bets": 12,
+                  "matches": 12,
+                  "period": "ALL",
+                  "pnl_units": -6.45,
+                  "roi_pct": -53.75,
+                  "scope": "home",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 8,
+                  "matches": 8,
+                  "period": "1ST",
+                  "pnl_units": -2.5300000000000002,
+                  "roi_pct": -31.625000000000004,
+                  "scope": "home",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 7,
+                  "matches": 7,
+                  "period": "ALL",
+                  "pnl_units": 1.06,
+                  "roi_pct": 15.142857142857144,
+                  "scope": "home",
+                  "stat_key": "totalShots"
+                },
+                {
+                  "bets": 4,
+                  "matches": 4,
+                  "period": "2ND",
+                  "pnl_units": -0.14000000000000012,
+                  "roi_pct": -3.500000000000003,
+                  "scope": "away",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 3,
+                  "matches": 3,
+                  "period": "ALL",
+                  "pnl_units": -3.0,
+                  "roi_pct": -100.0,
+                  "scope": "total",
+                  "stat_key": "shotsOnGoal"
+                },
+                {
+                  "bets": 2,
+                  "matches": 2,
+                  "period": "1ST",
+                  "pnl_units": 1.73,
+                  "roi_pct": 86.5,
+                  "scope": "total",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 1,
+                  "matches": 1,
+                  "period": "2ND",
+                  "pnl_units": 0.5800000000000001,
+                  "roi_pct": 58.00000000000001,
+                  "scope": "home",
+                  "stat_key": "cornerKicks"
+                },
+                {
+                  "bets": 1,
+                  "matches": 1,
+                  "period": "ALL",
+                  "pnl_units": -1.0,
+                  "roi_pct": -100.0,
+                  "scope": "total",
+                  "stat_key": "totalShots"
+                }
+              ]
+            }
+          }
+        ],
+        "methodology": {
+          "bootstrap_iterations": 100000,
+          "cluster_unit": "exposure_match_id",
+          "confirmation_gate": "clustered lower bound > 0, experiment-count adjusted one-sided p < 0.05, and every leave-one-league/window ROI > 0",
+          "experiments_inspected": 124,
+          "odds_stress": "absolute decimal points removed from winning prices"
+        }
+      },
+      "selection_placebos": {
+        "all_exposures": {
+          "direction_within_selected_market": {
+            "group_column": "sample_key",
+            "iterations": 100000,
+            "null_high_95_pct": 8.517094017094015,
+            "null_low_95_pct": -14.021367521367523,
+            "null_mean_roi_pct": -2.7770202564102573,
+            "observed_roi_pct": 18.025641025641026,
+            "one_sided_p_value": 0.00010999890001099989,
+            "selected_bets": 234,
+            "selected_groups": 234
+          },
+          "selection_within_league_market_strata": {
+            "iterations": 100000,
+            "null_high_95_pct": 10.41880341880342,
+            "null_low_95_pct": -10.350427350427347,
+            "null_mean_roi_pct": 0.031048247863247554,
+            "observed_roi_pct": 18.025641025641026,
+            "one_sided_p_value": 0.0004199958000419996,
+            "selected_bets": 234,
+            "strata": 125,
+            "strata_columns": [
+              "test_start",
+              "league_name_normalized",
+              "stat_key",
+              "period",
+              "scope",
+              "direction"
+            ]
+          },
+          "selection_within_market_strata": {
+            "iterations": 100000,
+            "null_high_95_pct": 7.572756410256387,
+            "null_low_95_pct": -14.773504273504273,
+            "null_mean_roi_pct": -3.579393162393162,
+            "observed_roi_pct": 18.025641025641026,
+            "one_sided_p_value": 7.999920000799993e-05,
+            "selected_bets": 234,
+            "strata": 61,
+            "strata_columns": [
+              "test_start",
+              "stat_key",
+              "period",
+              "scope",
+              "direction"
+            ]
+          }
+        },
+        "one_per_match": {
+          "direction_within_selected_market": {
+            "group_column": "sample_key",
+            "iterations": 100000,
+            "null_high_95_pct": 9.060606060606059,
+            "null_low_95_pct": -20.128977272727276,
+            "null_mean_roi_pct": -5.516933560606061,
+            "observed_roi_pct": 15.484848484848483,
+            "one_sided_p_value": 0.0022599774002259976,
+            "selected_bets": 132,
+            "selected_groups": 132
+          },
+          "selection_within_league_market_strata": {
+            "iterations": 100000,
+            "null_high_95_pct": 15.174242424242426,
+            "null_low_95_pct": -13.787878787878793,
+            "null_mean_roi_pct": 0.6745148484848483,
+            "observed_roi_pct": 15.484848484848483,
+            "one_sided_p_value": 0.022939770602293977,
+            "selected_bets": 132,
+            "strata": 77,
+            "strata_columns": [
+              "test_start",
+              "league_name_normalized",
+              "stat_key",
+              "period",
+              "scope",
+              "direction"
+            ]
+          },
+          "selection_within_market_strata": {
+            "iterations": 100000,
+            "null_high_95_pct": 11.780303030303031,
+            "null_low_95_pct": -18.469886363636366,
+            "null_mean_roi_pct": -3.3390112121212114,
+            "observed_roi_pct": 15.484848484848483,
+            "one_sided_p_value": 0.007529924700752992,
+            "selected_bets": 132,
+            "strata": 42,
+            "strata_columns": [
+              "test_start",
+              "stat_key",
+              "period",
+              "scope",
+              "direction"
+            ]
+          }
+        }
+      }
+    },
+    "status": "historical_exploratory_only"
+  },
+  "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+  "promotion_requirements": [
+    "new untouched in-domain score-level forward outcomes",
+    "complete prematch closing-line capture",
+    "zero timing, mapping, duplicate, feature-leakage, and domain failures",
+    "positive match-clustered lower confidence bound",
+    "multiple-comparison-adjusted forward evidence"
+  ],
+  "runtime_versions": {
+    "joblib": "1.5.0",
+    "numpy": "2.2.2",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.7.1"
+  },
+  "smoke_test": {
+    "markets_scored": 10,
+    "serialization_round_trip": "passed",
+    "side_scores": 14
+  },
+  "status": "shadow_only",
+  "training": {
+    "candidate_metrics": [
+      {
+        "logistic_c": 0.01,
+        "validation_brier": 0.25038927422016805
+      },
+      {
+        "logistic_c": 0.03,
+        "validation_brier": 0.25190046151825357
+      },
+      {
+        "logistic_c": 0.1,
+        "validation_brier": 0.2540512291014564
+      },
+      {
+        "logistic_c": 0.25,
+        "validation_brier": 0.25607807850803005
+      },
+      {
+        "logistic_c": 0.75,
+        "validation_brier": 0.2590533019269722
+      },
+      {
+        "logistic_c": 2.0,
+        "validation_brier": 0.2611730608709429
+      }
+    ],
+    "end": "2026-05-24",
+    "rows": 4724,
+    "selected_validation_brier": 0.25038927422016805,
+    "source_fingerprint_sha256": "2929981228c4cd40dc10c4d92a198e0f8cf5d3e5522454b87b6a79f3219c45d2",
+    "start": "2026-02-24",
+    "validation_end": "2026-05-24",
+    "validation_start": "2026-05-04"
+  },
+  "training_domain": {
+    "league_name_normalized": [
+      "A-League Men",
+      "Bundesliga",
+      "La Liga",
+      "Ligue 1",
+      "Premier League",
+      "Serie A"
+    ],
+    "period": [
+      "1ST",
+      "2ND",
+      "ALL"
+    ],
+    "scope": [
+      "away",
+      "home",
+      "total"
+    ],
+    "stat_key": [
+      "cornerKicks",
+      "shotsOnGoal",
+      "totalShots"
+    ]
+  }
+}

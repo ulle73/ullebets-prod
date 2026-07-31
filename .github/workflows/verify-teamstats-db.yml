@@ -8,6 +8,11 @@ on:
         required: true
         default: "2026-04-22"
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -22,6 +27,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 20
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         python scripts/forward_v2/verify_match_enrichment.py \
           --from-date "${{ inputs.from_date }}" \

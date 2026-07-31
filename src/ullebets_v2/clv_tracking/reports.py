@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.parity.reports import build_audit_report_row, build_health_report_row, build_parity_report_row
+from ullebets_v2.storage.collections import CLV_TRACKING, FORWARD_BETS
 
 
 def utc_now() -> datetime:
@@ -17,7 +18,7 @@ def _workflow_entry() -> dict[str, Any]:
         "old_inputs": ["result-loop tracked odds", "market observations"],
         "old_outputs": ["closing-line-tracking"],
         "v2_job": "refresh_clv_tracking.py",
-        "v2_outputs": ["forward_bets_v2", "clv_tracking_v2", "audit_reports"],
+        "v2_outputs": [FORWARD_BETS, CLV_TRACKING, "audit_reports"],
         "smoke_test": "dry-run with synthetic tracked bets and canonical closing lines",
         "parity_proof": "compare saved odds, direction-specific opening/latest/closing odds, beat-close flags, and CLV percentages against the legacy closing-line-tracking semantics",
     }

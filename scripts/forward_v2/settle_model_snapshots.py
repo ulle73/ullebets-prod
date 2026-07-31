@@ -19,7 +19,10 @@ from ullebets_v2.model_snapshots.ephemeral import (
 from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle, V2JsModelOracle
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
 from ullebets_v2.odds.service import load_legacy_backtest_targets
-from ullebets_v2.safety import ensure_v2_database
+from ullebets_v2.safety import (
+    ensure_no_simulated_time_write,
+    ensure_v2_database,
+)
 from ullebets_v2.settlement.service import run_model_snapshot_settlement
 from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 from ullebets_v2.support.loaders import load_support_documents
@@ -57,6 +60,11 @@ def main() -> int:
     args = parse_args()
     config = V2Config.from_env(args.repo_root)
     ensure_v2_database(config)
+    ensure_no_simulated_time_write(
+        time_override=args.now,
+        dry_run=args.dry_run,
+        job_name="settle_model_snapshots",
+    )
     config.ensure_directories()
     database = None if args.dry_run else get_database(config)
     if args.mode == "legacy-backtest":

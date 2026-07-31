@@ -94,6 +94,64 @@ def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds
     assert summary["health_status_counts"] == {"ok": 1}
 
 
+def test_run_clv_tracking_refresh_dry_run_keeps_distinct_prediction_rows_for_same_tracking_key() -> None:
+    summary = run_clv_tracking_refresh(
+        tracked_bet_docs=[
+            {
+                "tracking_key": "shared-selection",
+                "selection_key": "shared-selection",
+                "prediction_key": "pred-1",
+                "match_key": "match-1",
+                "offer_key": "offer-1",
+                "stat_key": "shotsOnGoal",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 9.5,
+                "saved_odds": 2.2,
+                "saved_at": "2026-07-28T18:36:55Z",
+                "match_start_time": "2026-07-30T00:30:00Z",
+            },
+            {
+                "tracking_key": "shared-selection",
+                "selection_key": "shared-selection",
+                "prediction_key": "pred-2",
+                "match_key": "match-1",
+                "offer_key": "offer-1",
+                "stat_key": "shotsOnGoal",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 9.5,
+                "saved_odds": 2.3,
+                "saved_at": "2026-07-28T18:41:26Z",
+                "match_start_time": "2026-07-30T00:30:00Z",
+            },
+        ],
+        closing_line_docs=[
+            {
+                "closing_key": "offer-1",
+                "offer_key": "offer-1",
+                "match_key": "match-1",
+                "stat_key": "shotsOnGoal",
+                "period": "ALL",
+                "scope": "total",
+                "line": 9.5,
+                "closing_snapshot_time": "2026-07-30T00:25:00Z",
+                "closing_snapshot_label": "T_MINUS_10M",
+                "closing_over_odds": 2.3,
+                "prematch_observation_count": 2,
+            }
+        ],
+        dry_run=True,
+        refreshed_at=datetime(2026, 7, 30, 0, 26, tzinfo=UTC),
+    )
+
+    assert summary["clv_tracking_rows"] == 2
+    assert [row["clv_key"] for row in summary["clv_docs"]] == ["pred-1", "pred-2"]
+    assert all(row["tracking_key"] == "shared-selection" for row in summary["clv_docs"])
+
+
 def test_run_clv_tracking_refresh_dry_run_marks_missing_closing_and_invalid_timing() -> None:
     summary = run_clv_tracking_refresh(
         tracked_bet_docs=[
@@ -131,10 +189,59 @@ def test_run_clv_tracking_refresh_dry_run_marks_missing_closing_and_invalid_timi
         refreshed_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
     )
 
-    assert summary["status_counts"] == {"invalid_snapshot_timing": 1, "missing_closing_line": 1}
+    assert summary["status_counts"] == {"invalid_snapshot_timing": 2}
     assert summary["parity_status_counts"] == {"mismatch": 1}
     assert summary["audit_status_counts"] == {"warn": 1}
     assert summary["health_status_counts"] == {"warn": 1}
+
+
+def test_run_clv_tracking_rejects_snapshot_created_after_prediction() -> None:
+    summary = run_clv_tracking_refresh(
+        tracked_bet_docs=[
+            {
+                "prediction_key": "pred-invalid-timing",
+                "tracking_key": "sel-invalid-timing",
+                "selection_key": "sel-invalid-timing",
+                "match_key": "match-1",
+                "offer_key": "offer-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "away",
+                "direction": "under",
+                "line_value": 5.5,
+                "saved_odds": 1.81,
+                "odds_snapshot_time": "2026-07-30T00:25:00Z",
+                "prediction_created_at": "2026-07-29T23:53:20Z",
+                "match_start_time": "2026-07-30T00:30:00Z",
+                "invalid_for_model": False,
+                "valid_for_forward_evaluation": True,
+            }
+        ],
+        closing_line_docs=[
+            {
+                "closing_key": "offer-1",
+                "offer_key": "offer-1",
+                "match_key": "match-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "away",
+                "line": 5.5,
+                "closing_snapshot_time": "2026-07-30T00:25:00Z",
+                "closing_snapshot_label": "T_MINUS_10M",
+                "closing_under_odds": 1.7,
+            }
+        ],
+        dry_run=True,
+        refreshed_at=datetime(2026, 7, 30, 3, 0, tzinfo=UTC),
+    )
+
+    assert summary["status_counts"] == {"invalid_snapshot_timing": 1}
+    clv = summary["clv_docs"][0]
+    assert clv["timing_status"] == "snapshot_after_prediction_creation"
+    assert clv["saved_at"] == "2026-07-30T00:25:00Z"
+    assert clv["prediction_created_at"] == "2026-07-29T23:53:20Z"
+    assert clv["clv_pct"] is None
+    assert clv["beat_closing_line"] is None
 
 
 def test_run_clv_tracking_refresh_dry_run_handles_empty_input() -> None:

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.parity.reports import build_audit_report_row, build_health_report_row, build_parity_report_row
+from ullebets_v2.storage.collections import ANALYSIS_CANDIDATES, ANALYSIS_RUNS, ANALYSIS_SNAPSHOTS
 
 
 def utc_now() -> datetime:
@@ -34,7 +35,7 @@ def build_analysis_parity_rows(
                     "old_inputs": ["fixtures", "odds", "EV", "ranking feedback"],
                     "old_outputs": ["auto-analysis-runs", "auto-analysis-bets", "analysis-snapshots"],
                     "v2_job": "run_auto_analysis.py",
-                    "v2_outputs": ["analysis_runs_v2", "analysis_candidates_v2", "analysis_snapshots_v2"],
+                    "v2_outputs": [ANALYSIS_RUNS, ANALYSIS_CANDIDATES, ANALYSIS_SNAPSHOTS],
                     "smoke_test": "dry-run on an empty target window",
                     "parity_proof": "treat no eligible auto-analysis targets as a clean no-op while keeping downstream schemas stable",
                 },
@@ -85,7 +86,7 @@ def build_analysis_parity_rows(
                 "old_inputs": ["fixtures", "odds", "EV", "ranking feedback"],
                 "old_outputs": ["auto-analysis-runs", "auto-analysis-bets", "analysis-snapshots"],
                 "v2_job": "run_auto_analysis.py",
-                "v2_outputs": ["analysis_runs_v2", "analysis_candidates_v2", "analysis_snapshots_v2"],
+                "v2_outputs": [ANALYSIS_RUNS, ANALYSIS_CANDIDATES, ANALYSIS_SNAPSHOTS],
                 "smoke_test": "dry-run replay or live window through V2 internalized legacy ranking policy",
                 "parity_proof": "V2 internalizes the legacy ranking and sanitization rules on top of canonical model snapshot rows, then persists the same run/candidate/snapshot output families separately from legacy collections",
             },

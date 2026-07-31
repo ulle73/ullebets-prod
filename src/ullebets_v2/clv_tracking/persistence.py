@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.collections import CLV_TRACKING
+
 
 def persist_clv_tracking_records(
     database: Any,
@@ -13,9 +15,10 @@ def persist_clv_tracking_records(
 ) -> dict[str, int]:
     clv_upserts = 0
     for row in clv_docs:
-        result = database["clv_tracking_v2"].update_one(
-            {"tracking_key": row["tracking_key"]},
-            {"$set": row},
+        clv_key = row.get("clv_key") or row["tracking_key"]
+        result = database[CLV_TRACKING].update_one(
+            {"clv_key": clv_key},
+            {"$set": {**row, "clv_key": clv_key}},
             upsert=True,
         )
         clv_upserts += 1 if result.upserted_id is not None else 0

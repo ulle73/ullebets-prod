@@ -1,0 +1,50 @@
+name: V2 EV Shadow Forward
+
+on:
+  schedule:
+    - cron: "5,15,25,35,45,55 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ev-shadow-forward:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 20
+      checkout_legacy_repo: false
+      dry_run: ${{ inputs.dry_run || false }}
+      run_command: |
+        python scripts/forward_v2/score_ev_shadow_model.py \
+          --repo-root . \
+          --dry-run
+        python scripts/forward_v2/score_ev_shadow_model.py \
+          --repo-root . \
+          --artifact models/ev/ev_nested_logistic_recency45_asof_capped_v4_shadow/ev_nested_logistic_recency45_asof_capped_v4_shadow.joblib \
+          --manifest models/ev/ev_nested_logistic_recency45_asof_capped_v4_shadow/model_manifest.json \
+          --score-only \
+          --dry-run
+        python scripts/forward_v2/score_ev_shadow_model.py \
+          --repo-root . \
+          --artifact models/ev/ev_ensemble_v3_75_v4_25_shadow/ev_ensemble_v3_75_v4_25_shadow.joblib \
+          --manifest models/ev/ev_ensemble_v3_75_v4_25_shadow/model_manifest.json \
+          --score-only \
+          --dry-run
+        python scripts/forward_v2/score_ev_shadow_model.py \
+          --repo-root . \
+          --artifact models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib \
+          --manifest models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json \
+          --score-only \
+          --dry-run

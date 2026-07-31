@@ -10,7 +10,9 @@ from ullebets_v2.clv_tracking.reports import (
     build_clv_tracking_health_rows,
     build_clv_tracking_parity_rows,
 )
+from ullebets_v2.forward_timing import evaluate_forward_timing
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
+from ullebets_v2.storage.collections import CLOSING_LINES, FORWARD_BETS
 
 
 def utc_now() -> datetime:
@@ -85,7 +87,8 @@ def _normalize_tracking_doc(row: dict[str, Any]) -> dict[str, Any]:
         or _to_float(bet.get("odds"))
     )
     saved_at = (
-        row.get("saved_at")
+        row.get("odds_snapshot_time")
+        or row.get("saved_at")
         or row.get("snapshot_time")
         or row.get("savedOddsObservedAt")
         or row.get("trackedAt")
@@ -96,7 +99,7 @@ def _normalize_tracking_doc(row: dict[str, Any]) -> dict[str, Any]:
     tracking_source = row.get("tracking_source") or row.get("trackingSource")
     if tracking_source is None:
         if row.get("prediction_key") is not None or row.get("saved_at") is not None:
-            tracking_source = "forward_bets_v2"
+            tracking_source = FORWARD_BETS
         elif row.get("trackingKey") is not None:
             tracking_source = "result-loop"
         else:
@@ -104,6 +107,7 @@ def _normalize_tracking_doc(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "tracking_key": tracking_key,
         "selection_key": row.get("selection_key") or tracking_key,
+        "clv_key": row.get("prediction_key") or tracking_key or row.get("selection_key"),
         "prediction_key": row.get("prediction_key"),
         "parent_prediction_key": row.get("parent_prediction_key"),
         "analysis_key": row.get("analysis_key"),
@@ -126,8 +130,13 @@ def _normalize_tracking_doc(row: dict[str, Any]) -> dict[str, Any]:
         "line_value": row.get("line_value") if row.get("line_value") is not None else bet.get("line"),
         "saved_odds": saved_odds,
         "saved_at": saved_at,
+        "odds_snapshot_time": row.get("odds_snapshot_time"),
+        "prediction_created_at": row.get("prediction_created_at"),
         "match_start_time": row.get("match_start_time") or row.get("eventTimestampMs"),
         "invalid_for_model": bool(row.get("invalid_for_model")),
+        "valid_for_forward_evaluation": row.get(
+            "valid_for_forward_evaluation"
+        ),
         "tracking_source": tracking_source,
         "strategy_score": row.get("strategy_score") or row.get("strategyScore"),
         "primary_ev": row.get("primary_ev") or row.get("primaryEv"),
@@ -415,11 +424,8 @@ def build_clv_tracking_docs(
         tracked = _normalize_tracking_doc(raw_row)
         saved_odds = _to_float(tracked.get("saved_odds"))
         line_value = _to_float(tracked.get("line_value"))
-        saved_at = _to_datetime(tracked.get("saved_at"))
-        match_start_time = _to_datetime(tracked.get("match_start_time"))
-        invalid_snapshot_timing = bool(tracked.get("invalid_for_model"))
-        if saved_at is not None and match_start_time is not None and saved_at >= match_start_time:
-            invalid_snapshot_timing = True
+        timing = evaluate_forward_timing(tracked)
+        invalid_snapshot_timing = not timing["valid_for_performance"]
         closing = None
         offer_key = str(tracked.get("offer_key") or "")
         if offer_key:
@@ -480,6 +486,7 @@ def build_clv_tracking_docs(
 
         docs.append(
             {
+                "clv_key": tracked.get("clv_key"),
                 "tracking_key": tracked["tracking_key"],
                 "selection_key": tracked["selection_key"],
                 "prediction_key": tracked.get("prediction_key"),
@@ -508,8 +515,17 @@ def build_clv_tracking_docs(
                 "selected_odds": saved_odds,
                 "saved_at": tracked.get("saved_at"),
                 "snapshot_time": tracked.get("saved_at"),
+                "odds_snapshot_time": tracked.get("odds_snapshot_time"),
+                "prediction_created_at": tracked.get(
+                    "prediction_created_at"
+                ),
                 "match_start_time": tracked.get("match_start_time"),
                 "invalid_for_model": invalid_snapshot_timing,
+                "valid_for_forward_evaluation": timing[
+                    "valid_for_performance"
+                ],
+                "timing_contract": timing["timing_contract"],
+                "timing_status": timing["timing_status"],
                 "opening_snapshot_label": closing.get("opening_snapshot_label") if closing else None,
                 "opening_snapshot_time": closing.get("opening_snapshot_time") if closing else None,
                 "opening_odds": opening_odds,
@@ -535,7 +551,7 @@ def build_clv_tracking_docs(
 
 
 def load_forward_bet_docs(database: Any) -> list[dict[str, Any]]:
-    return list(database["forward_bets_v2"].find({}, projection={"_id": 0}))
+    return list(database[FORWARD_BETS].find({}, projection={"_id": 0}))
 
 
 def load_model_snapshot_docs(database: Any) -> list[dict[str, Any]]:
@@ -543,7 +559,7 @@ def load_model_snapshot_docs(database: Any) -> list[dict[str, Any]]:
 
 
 def load_closing_line_docs(database: Any) -> list[dict[str, Any]]:
-    return list(database["closing_lines_v2"].find({}, projection={"_id": 0}))
+    return list(database[CLOSING_LINES].find({}, projection={"_id": 0}))
 
 
 def run_clv_tracking_refresh(

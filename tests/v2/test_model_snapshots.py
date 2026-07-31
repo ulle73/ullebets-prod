@@ -4,14 +4,18 @@ from copy import deepcopy
 from datetime import UTC, datetime
 import json
 from pathlib import Path
+import subprocess
 
 from ullebets_v2.enrichment.replay import build_match_enrichment_documents
 from ullebets_v2.model_snapshots.ephemeral import (
     build_ephemeral_match_enrichment_documents,
     build_ephemeral_model_read_database,
+    build_v2_historical_model_read_database,
+    resolve_historical_model_read_database,
 )
-from ullebets_v2.model_snapshots.oracle import V2JsModelOracle
+from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle, V2JsModelOracle
 from ullebets_v2.model_snapshots.service import run_model_snapshot_build
+from ullebets_v2.storage.collections import TEAMPROFILES
 from ullebets_v2.support.schemas import build_support_documents
 from ullebets_v2.teamprofiles.service import build_teamprofile_docs
 
@@ -204,7 +208,7 @@ def test_v2_js_model_oracle_builds_lines_from_v2_profiles_and_raw_history() -> N
     )
     read_database = FakeReadDatabase(
         {
-            "teamprofiles_v2": FakeReadCollection(teamprofiles),
+            TEAMPROFILES: FakeReadCollection(teamprofiles),
             "match_results_canonical": FakeReadCollection(docs["match_results"]),
             "raw_match_statistics": FakeReadCollection(docs["raw_match_statistics"]),
             "fixtures_canonical": FakeReadCollection([fixture_doc]),
@@ -241,6 +245,40 @@ def test_v2_js_model_oracle_builds_lines_from_v2_profiles_and_raw_history() -> N
     assert all(row["betKey"].startswith("future-arsenal-bournemouth|arsenal|bournemouth|totalShots|total|ALL|") for row in built["lines"])
     assert all(row["homeTeam"] == "Arsenal" for row in built["lines"])
     assert all(row["awayTeam"] == "Bournemouth" for row in built["lines"])
+    assert any(row["value"] is not None for row in built["lines"])
+    assert any(row["primaryFormulaKey"] for row in built["lines"])
+    assert any(isinstance(row["evDetails"], dict) and row["evDetails"] for row in built["lines"])
+
+
+def test_original_js_model_oracle_serializes_datetime_match_info(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        captured["input"] = kwargs["input"]
+        return subprocess.CompletedProcess(
+            args=args[0],
+            returncode=0,
+            stdout='{"lines":[],"errors":[]}\n',
+            stderr="",
+        )
+
+    monkeypatch.setattr("ullebets_v2.model_snapshots.oracle.subprocess.run", fake_run)
+    oracle = OriginalJsModelOracle(tmp_path)
+
+    built = oracle.build_match_lines(
+        match_info={
+            "matchId": "future-arsenal-bournemouth",
+            "homeTeam": "Arsenal",
+            "awayTeam": "Bournemouth",
+            "sourceDate": "2026-06-22",
+            "startTime": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+        },
+        offers=[],
+    )
+
+    payload = json.loads(captured["input"])
+    assert payload["matchInfo"]["startTime"] == "2026-06-22T18:00:00+00:00"
+    assert built == {"lines": [], "errors": []}
 
 
 def test_ephemeral_model_read_database_bootstraps_v2_oracle_from_teamstats_dir(tmp_path: Path) -> None:
@@ -333,6 +371,105 @@ def test_ephemeral_match_enrichment_falls_back_to_legacy_teamstats_database_for_
     )
 
     assert any(row["match_key"] == "sofascore:14689171" for row in docs["match_results"])
+
+
+def test_build_v2_historical_model_read_database_from_canonical_history() -> None:
+    support_docs = build_v2_model_support_docs()
+    source_rows = [
+        {
+            "source_file": "arsenal_home_match_stats.json",
+            "source_path": "C:/tmp/arsenal_home_match_stats.json",
+            "source_role": "home",
+            "matches": [build_v2_model_history_match()],
+        }
+    ]
+    docs = build_match_enrichment_documents(
+        source_rows=source_rows,
+        support_docs=support_docs,
+    )
+    read_database = FakeReadDatabase(
+        {
+            "match_results_canonical": FakeReadCollection(docs["match_results"]),
+            "fixtures_canonical": FakeReadCollection(docs["fixtures_canonical"]),
+            "raw_match_statistics": FakeReadCollection(docs["raw_match_statistics"]),
+            "raw_incidents": FakeReadCollection(docs["raw_incidents"]),
+            "raw_shotmaps": FakeReadCollection(docs["raw_shotmaps"]),
+            "match_stats_canonical": FakeReadCollection(docs["match_stats_canonical"]),
+        }
+    )
+    target = {
+        "match_key": "sofascore:14689171",
+        "source_match_id": "14689171",
+        "source_date": "2026-06-22",
+        "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+        "league_key": "premier-league",
+        "league_name": "Premier League",
+        "home_team_key": "premier-league:100",
+        "away_team_key": "premier-league:101",
+        "home_team_name": "Arsenal",
+        "away_team_name": "Bournemouth",
+    }
+
+    model_read_database = build_v2_historical_model_read_database(
+        read_database=read_database,
+        support_docs=support_docs,
+        targets=[target],
+        generated_at=datetime(2026, 6, 21, 12, 0, tzinfo=UTC),
+    )
+
+    assert model_read_database is not None
+    profile_docs = model_read_database[TEAMPROFILES].find({"team_key": "premier-league:100"})
+    assert any(row["profile_date"] == "2026-06-22" for row in profile_docs)
+
+
+def test_resolve_historical_model_read_database_prefers_v2_canonical_before_legacy_files(tmp_path: Path) -> None:
+    support_docs = build_v2_model_support_docs()
+    teamstats_dir = write_v2_model_teamstats_source(tmp_path)
+    source_rows = [
+        {
+            "source_file": "arsenal_home_match_stats.json",
+            "source_path": "C:/tmp/arsenal_home_match_stats.json",
+            "source_role": "home",
+            "matches": [build_v2_model_history_match()],
+        }
+    ]
+    docs = build_match_enrichment_documents(
+        source_rows=source_rows,
+        support_docs=support_docs,
+    )
+    read_database = FakeReadDatabase(
+        {
+            "match_results_canonical": FakeReadCollection(docs["match_results"]),
+            "fixtures_canonical": FakeReadCollection(docs["fixtures_canonical"]),
+            "raw_match_statistics": FakeReadCollection(docs["raw_match_statistics"]),
+            "raw_incidents": FakeReadCollection(docs["raw_incidents"]),
+            "raw_shotmaps": FakeReadCollection(docs["raw_shotmaps"]),
+            "match_stats_canonical": FakeReadCollection(docs["match_stats_canonical"]),
+        }
+    )
+    target = {
+        "match_key": "sofascore:14689171",
+        "source_match_id": "14689171",
+        "source_date": "2026-06-22",
+        "start_time": datetime(2026, 6, 22, 18, 0, tzinfo=UTC),
+        "league_key": "premier-league",
+        "league_name": "Premier League",
+        "home_team_key": "premier-league:100",
+        "away_team_key": "premier-league:101",
+        "home_team_name": "Arsenal",
+        "away_team_name": "Bournemouth",
+    }
+
+    model_read_database, source = resolve_historical_model_read_database(
+        read_database=read_database,
+        teamstats_dir=teamstats_dir,
+        support_docs=support_docs,
+        targets=[target],
+        generated_at=datetime(2026, 6, 21, 12, 0, tzinfo=UTC),
+    )
+
+    assert source == "v2_canonical_ephemeral"
+    assert model_read_database is not None
 
 
 def test_run_model_snapshot_build_dry_run_handles_empty_target_window() -> None:

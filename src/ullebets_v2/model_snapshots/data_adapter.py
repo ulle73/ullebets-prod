@@ -7,6 +7,7 @@ from typing import Any
 
 from ullebets_v2.model_compat.teamprofiles import project_teamprofile_to_legacy_shape
 from ullebets_v2.odds.naming import normalize_team_name
+from ullebets_v2.storage.collections import TEAMPROFILES
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -154,7 +155,7 @@ class V2ModelDataAdapter:
             return self._profiles_cache[team_key]
         rows = [
             row
-            for row in self._collection_find("teamprofiles_v2", {"team_key": team_key})
+            for row in self._collection_find(TEAMPROFILES, {"team_key": team_key})
             if str(row.get("team_key") or "") == team_key
         ]
         self._profiles_cache[team_key] = rows

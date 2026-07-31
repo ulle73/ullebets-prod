@@ -45,14 +45,6 @@ def _iter_git_worktree_roots(repo_root: Path) -> list[Path]:
 
 def resolve_env_file(repo_root: Path) -> Path:
     direct = (repo_root / ".env.local").resolve()
-    if direct.exists():
-        return direct
-
-    for worktree_root in _iter_git_worktree_roots(repo_root):
-        candidate = (worktree_root / ".env.local").resolve()
-        if candidate.exists():
-            return candidate
-
     return direct
 
 

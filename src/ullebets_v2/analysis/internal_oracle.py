@@ -277,6 +277,8 @@ def _sanitize_string(value: Any) -> str | None:
 
 
 def _sanitize_date_string(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        return value.isoformat()
     return _sanitize_string(value)
 
 
@@ -1146,7 +1148,7 @@ def _sanitize_auto_analysis_bet(input_row: Any) -> dict[str, Any]:
         "homeTeamName": _sanitize_string(match.get("homeTeamName")) or _sanitize_string(candidate.get("homeTeamName")) or bet.get("homeTeam"),
         "awayTeamName": _sanitize_string(match.get("awayTeamName")) or _sanitize_string(candidate.get("awayTeamName")) or bet.get("awayTeam"),
         "leagueName": _sanitize_string(match.get("leagueName")) or _sanitize_string(candidate.get("leagueName")),
-        "matchDate": _sanitize_string(match.get("matchDate")) or _sanitize_string(match.get("start")),
+        "matchDate": _sanitize_date_string(match.get("matchDate")) or _sanitize_date_string(match.get("start")),
         "timestamp": _to_finite_number(match.get("timestamp")),
         "checkpointKey": _sanitize_string(run.get("checkpointKey")) or _sanitize_string(input_row.get("checkpointKey")),
         "checkpointLabel": _sanitize_string(run.get("checkpointLabel")) or _sanitize_string(input_row.get("checkpointLabel")),

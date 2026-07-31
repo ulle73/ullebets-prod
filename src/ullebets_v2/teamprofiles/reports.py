@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.parity.reports import build_audit_report_row, build_health_report_row, build_parity_report_row
+from ullebets_v2.storage.collections import TEAMPROFILES
 
 
 def utc_now() -> datetime:
@@ -30,7 +31,7 @@ def build_teamprofile_parity_rows(
                     "old_inputs": ["RapidAPI stats/incidents/shotmap/odds", "local teamstats dirs"],
                     "old_outputs": ["teamstats", "job_state", "teamprofiles", "patched match-for-date"],
                     "v2_job": "build_teamprofiles.py",
-                    "v2_outputs": ["teamprofiles_v2", "parity_reports"],
+                    "v2_outputs": [TEAMPROFILES, "parity_reports"],
                     "smoke_test": "dry-run replay for bounded finished-match subset",
                     "parity_proof": "treat empty canonical history as a clean no-op while preserving the teamprofile schema boundary",
                 },
@@ -52,7 +53,7 @@ def build_teamprofile_parity_rows(
                 "old_inputs": ["RapidAPI stats/incidents/shotmap/odds", "local teamstats dirs"],
                 "old_outputs": ["teamstats", "job_state", "teamprofiles", "patched match-for-date"],
                 "v2_job": "build_teamprofiles.py",
-                "v2_outputs": ["teamprofiles_v2", "parity_reports"],
+                "v2_outputs": [TEAMPROFILES, "parity_reports"],
                 "smoke_test": "dry-run canonical stat blocks into team profiles",
                 "parity_proof": "V2 rebuilds team-level home/away profiles from canonical match stat rows so the profile layer stays reproducible from raw enrichment artifacts",
             },

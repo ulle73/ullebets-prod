@@ -14,7 +14,7 @@ def test_resolve_env_file_prefers_local_env_file(tmp_path: Path) -> None:
     assert resolve_env_file(repo_root) == env_file.resolve()
 
 
-def test_resolve_env_file_falls_back_to_other_git_worktree(monkeypatch, tmp_path: Path) -> None:
+def test_resolve_env_file_does_not_fall_back_to_other_git_worktree(monkeypatch, tmp_path: Path) -> None:
     repo_root = tmp_path / "worktree-feature"
     repo_root.mkdir(parents=True, exist_ok=True)
     shared_root = tmp_path / "repo-main"
@@ -27,7 +27,7 @@ def test_resolve_env_file_falls_back_to_other_git_worktree(monkeypatch, tmp_path
         lambda root: [shared_root.resolve(), repo_root.resolve()],
     )
 
-    assert resolve_env_file(repo_root) == shared_env.resolve()
+    assert resolve_env_file(repo_root) == (repo_root / ".env.local").resolve()
 
 
 def test_v2_config_prefers_local_support_files(tmp_path: Path) -> None:

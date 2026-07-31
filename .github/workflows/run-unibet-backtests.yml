@@ -9,6 +9,11 @@ on:
         description: "Optional YYYY-MM-DD override."
         required: false
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -24,6 +29,7 @@ jobs:
     with:
       timeout_minutes: 60
       checkout_legacy_repo: false
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         ARGS=(--mode fixture-db --snapshot-mode backtest --source-workflow run-unibet-backtests.yml --max-days-ahead 7 --dry-run)
         if [ -n "${{ inputs.date }}" ]; then

@@ -32,10 +32,16 @@ def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
 
-def _serialize_target_window(now: datetime, checkpoint_filter: str | None) -> dict[str, Any]:
+def _serialize_target_window(
+    now: datetime,
+    checkpoint_filter: str | None,
+    excluded_checkpoint_keys: set[str] | None,
+) -> dict[str, Any]:
     payload = {"captured_at": now.isoformat()}
     if checkpoint_filter:
         payload["checkpoint_filter"] = checkpoint_filter
+    if excluded_checkpoint_keys:
+        payload["excluded_checkpoint_keys"] = sorted(excluded_checkpoint_keys)
     return payload
 
 
@@ -119,7 +125,9 @@ def select_replay_checkpoint_targets(
     legacy_backtest_database: Any,
     existing_snapshot_docs: list[dict[str, Any]] | None = None,
     checkpoint_filter: str | None = None,
+    excluded_checkpoint_keys: set[str] | None = None,
 ) -> dict[str, Any]:
+    excluded_keys = excluded_checkpoint_keys or set()
     existing_by_match = build_existing_snapshot_map(existing_snapshot_docs)
     due_targets: list[dict[str, Any]] = []
     match_rows: list[dict[str, Any]] = []
@@ -128,7 +136,9 @@ def select_replay_checkpoint_targets(
     market_offer_docs: list[dict[str, Any]] = []
 
     expected_checkpoints = [
-        checkpoint for checkpoint in V2_ODDS_CHECKPOINTS if checkpoint_filter in {None, checkpoint.key}
+        checkpoint
+        for checkpoint in V2_ODDS_CHECKPOINTS
+        if checkpoint_filter in {None, checkpoint.key} and checkpoint.key not in excluded_keys
     ]
 
     for target in targets:
@@ -171,6 +181,8 @@ def select_replay_checkpoint_targets(
                 checkpoint_filter=checkpoint_filter,
             )
             if checkpoint is None:
+                continue
+            if checkpoint.key in excluded_keys:
                 continue
             if checkpoint.key in {
                 row.get("snapshot_label")
@@ -295,8 +307,10 @@ def select_due_checkpoint_targets(
     now: datetime | None = None,
     existing_snapshot_docs: list[dict[str, Any]] | None = None,
     checkpoint_filter: str | None = None,
+    excluded_checkpoint_keys: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     current_time = now or utc_now()
+    excluded_keys = excluded_checkpoint_keys or set()
     existing_by_match = build_existing_snapshot_map(existing_snapshot_docs)
     due_targets: list[dict[str, Any]] = []
     for target in targets:
@@ -308,6 +322,8 @@ def select_due_checkpoint_targets(
             checkpoint_filter=checkpoint_filter,
         )
         if checkpoint is None:
+            continue
+        if checkpoint.key in excluded_keys:
             continue
         timing = build_snapshot_timing_fields(
             match_start=target.get("start_time"),
@@ -403,6 +419,7 @@ def run_checkpoint_capture(
     dry_run: bool = False,
     existing_snapshot_docs: list[dict[str, Any]] | None = None,
     checkpoint_filter: str | None = None,
+    excluded_checkpoint_keys: set[str] | None = None,
     transport: Any | None = None,
     oracle: Any | None = None,
     legacy_backtest_database: Any | None = None,
@@ -418,6 +435,7 @@ def run_checkpoint_capture(
             legacy_backtest_database=legacy_backtest_database,
             existing_snapshot_docs=snapshots,
             checkpoint_filter=checkpoint_filter,
+            excluded_checkpoint_keys=excluded_checkpoint_keys,
         )
         due_targets = replay["due_targets"]
         match_rows = replay["match_rows"]
@@ -434,6 +452,7 @@ def run_checkpoint_capture(
             now=captured_at,
             existing_snapshot_docs=snapshots,
             checkpoint_filter=checkpoint_filter,
+            excluded_checkpoint_keys=excluded_checkpoint_keys,
         )
 
         odds_summary = run_unibet_odds_ingest(
@@ -525,8 +544,15 @@ def run_checkpoint_capture(
     run_doc = build_job_run_started_doc(
         job_name="capture_odds_checkpoints",
         source_workflow=source_workflow,
-        target_window=_serialize_target_window(captured_at, checkpoint_filter),
-        job_args={"dry_run": False},
+        target_window=_serialize_target_window(
+            captured_at,
+            checkpoint_filter,
+            excluded_checkpoint_keys,
+        ),
+        job_args={
+            "dry_run": False,
+            "excluded_checkpoint_keys": sorted(excluded_checkpoint_keys or set()),
+        },
     )
     database["job_runs"].insert_one(run_doc)
     job_metrics = {key: value for key, value in summary.items() if key not in {"due_targets", "match_rows"}}

@@ -1,0 +1,439 @@
+{
+  "artifact": "ev_nested_logistic_recency45_asof_capped_v4_shadow.joblib",
+  "asof_feature_audit": {
+    "availability_buffer_hours": 3.0,
+    "history_observations_at_or_after_snapshot_used": 0,
+    "history_observations_excluded_by_snapshot": 24,
+    "rows": 14033,
+    "rows_without_baseline_history": 0
+  },
+  "configuration": {
+    "algorithm": "nested_temporal_regularized_logistic_regression",
+    "c_grid": [
+      0.01,
+      0.03,
+      0.1,
+      0.25,
+      0.75,
+      2.0
+    ],
+    "default_logistic_c": 0.25,
+    "feature_set": "compact_snapshot_asof_leakage_safe",
+    "history_availability_buffer_hours": 3.0,
+    "maximum_ev": 0.25,
+    "minimum_ev": 0.075,
+    "probability_calibration": "none",
+    "recency_half_life_days": 45.0,
+    "regularization_selection_source": "inner_temporal_validation",
+    "selected_logistic_c": 0.01,
+    "train_window_days": 90,
+    "validation_window_days": 21
+  },
+  "created_at": "2026-07-30T01:24:52.670602+00:00",
+  "dataset_audit": {
+    "duplicate_rows_removed": 0,
+    "eligible_rows": 14033,
+    "input_rows": 72385,
+    "output_rows": 14033
+  },
+  "features": [
+    "league_name_normalized",
+    "period",
+    "scope",
+    "stat_key",
+    "line_value",
+    "over_odds",
+    "under_odds",
+    "market_fair_probability_over",
+    "market_anchor_lambda",
+    "market_overround",
+    "baseline_lambda",
+    "snapshot_lead_hours",
+    "history_role_attack_3",
+    "history_role_defense_3",
+    "history_role_expected_3",
+    "history_role_attack_5",
+    "history_role_defense_5",
+    "history_role_expected_5",
+    "history_role_attack_10",
+    "history_role_defense_10",
+    "history_role_expected_10",
+    "history_role_attack_20",
+    "history_role_defense_20",
+    "history_role_expected_20",
+    "history_all_attack_3",
+    "history_all_defense_3",
+    "history_all_expected_3",
+    "history_all_attack_5",
+    "history_all_defense_5",
+    "history_all_expected_5",
+    "history_all_attack_10",
+    "history_all_defense_10",
+    "history_all_expected_10",
+    "history_all_attack_20",
+    "history_all_defense_20",
+    "history_all_expected_20",
+    "history_role_trend_3_10",
+    "history_all_trend_3_10"
+  ],
+  "forbidden_features": [],
+  "forward_mode": "score_only",
+  "historical_evidence": {
+    "path": "data\\v2\\ev_model\\experiment_037_nested_regularization_full\\candidate_audit\\candidate_audit.json",
+    "report": {
+      "cluster_bootstrap": {
+        "high_95_pct": 28.827529761904774,
+        "low_95_pct": -2.80512423961233,
+        "median_pct": 13.446093778113642,
+        "probability_positive": 0.94712
+      },
+      "clv": {
+        "beat_close_pct": 0.0,
+        "coverage_pct": 0.5780346820809248,
+        "mean_clv_pct": 0.0,
+        "rows_with_clv": 1
+      },
+      "configuration": {
+        "feature_set": "compact_snapshot_asof",
+        "history_availability_buffer_hours": 3.0,
+        "maximum_ev": 0.25,
+        "minimum_ev": 0.075,
+        "model_name": "nested_logistic_regularization",
+        "recency_half_life_days": 45,
+        "train_window_days": 90
+      },
+      "duplicates": {
+        "duplicate_market_exposures": 0,
+        "duplicate_side_exposures": 0
+      },
+      "features": {
+        "availability_buffer_hours": 3.0,
+        "forbidden_columns": [],
+        "history_observations_at_or_after_snapshot_used": 0,
+        "history_observations_excluded_by_snapshot": 24,
+        "rows": 14033,
+        "rows_without_baseline_history": 0,
+        "training_rows_at_or_after_match": 0
+      },
+      "performance": {
+        "bets": 173,
+        "losses": 73,
+        "pnl_units": 23.21,
+        "positive_windows": 5,
+        "pushes": 0,
+        "roi_pct": 13.416184971098266,
+        "unique_matches": 99,
+        "window_roi_pct": {
+          "2026-02-19..2026-03-04": -6.5434782608695645,
+          "2026-03-05..2026-03-18": 56.90909090909091,
+          "2026-03-19..2026-04-01": 17.428571428571427,
+          "2026-04-02..2026-04-15": 29.739130434782606,
+          "2026-04-30..2026-05-13": 12.444444444444443,
+          "2026-05-14..2026-05-24": 11.545454545454547
+        },
+        "windows": 6,
+        "wins": 100
+      },
+      "rows": 173,
+      "settlement": {
+        "losses": 73,
+        "mismatches": 0,
+        "pushes": 0,
+        "wins": 100
+      },
+      "timing": {
+        "at_or_after_match_start": 0,
+        "before_match_start": 173,
+        "match_start_time_sources": {
+          "teamstats.kickoff_ts": 173
+        },
+        "missing_match_start_time": 0,
+        "missing_snapshot_time": 0,
+        "snapshot_time_sources": {
+          "unibet-backtest snapshots.snapshot_fetched_at": 173
+        }
+      },
+      "unique_matches": 99
+    },
+    "status": "historical_exploratory_only"
+  },
+  "model_id": "ev_nested_logistic_recency45_asof_capped_v4_shadow",
+  "promotion_requirements": [
+    "new untouched score-level forward outcomes",
+    "complete prematch closing-line capture",
+    "zero timing, mapping, duplicate, and feature-leakage failures",
+    "positive match-clustered lower confidence bound"
+  ],
+  "robustness_evidence": {
+    "path": "data\\v2\\ev_model\\experiment_037_nested_regularization_full\\robustness\\robustness_audit.json",
+    "report": {
+      "asof_audit": {
+        "availability_buffer_hours": 3.0,
+        "history_observations_at_or_after_snapshot_used": 0,
+        "history_observations_excluded_by_snapshot": 24,
+        "rows": 14033,
+        "rows_without_baseline_history": 0
+      },
+      "configuration": {
+        "default_logistic_c": 0.25,
+        "evaluation_end_date": "2026-05-24",
+        "maximum_ev": 0.25,
+        "minimum_ev": 0.075,
+        "recency_half_life_days": 45.0,
+        "train_window_days": 90
+      },
+      "decision_rule": "A challenger is not promoted from inspected history unless results remain positive across the predefined validation and regularization grids and the clustered lower bound is positive.",
+      "v3_reference": {
+        "bets": 344,
+        "cluster_bootstrap": {
+          "clusters": 165,
+          "high_95_pct": 22.401258270745714,
+          "low_95_pct": -2.5142061910823337,
+          "probability_positive": 0.94404
+        },
+        "matches": 165,
+        "pnl_units": 35.15,
+        "roi_pct": 10.218023255813954
+      },
+      "variants": [
+        {
+          "bets": 144,
+          "c_grid": [
+            0.01,
+            0.03,
+            0.1,
+            0.25,
+            0.75,
+            2.0
+          ],
+          "cluster_bootstrap": {
+            "clusters": 88,
+            "high_95_pct": 31.5,
+            "low_95_pct": -5.085975274725277,
+            "probability_positive": 0.92454
+          },
+          "fallback_windows": 1,
+          "matches": 88,
+          "overlap_with_v3_bets": 121,
+          "pnl_units": 19.51,
+          "positive_windows": 5,
+          "roi_pct": 13.54861111111111,
+          "selected_c_counts": {
+            "0.01": 4,
+            "0.1": 1,
+            "0.25": 1
+          },
+          "unique_challenger_bets": 23,
+          "validation_window_days": 14,
+          "variant": "validation_14_full_grid",
+          "windows": 6
+        },
+        {
+          "bets": 173,
+          "c_grid": [
+            0.01,
+            0.03,
+            0.1,
+            0.25,
+            0.75,
+            2.0
+          ],
+          "cluster_bootstrap": {
+            "clusters": 99,
+            "high_95_pct": 28.827529761904774,
+            "low_95_pct": -2.80512423961233,
+            "probability_positive": 0.94712
+          },
+          "fallback_windows": 1,
+          "matches": 99,
+          "overlap_with_v3_bets": 139,
+          "pnl_units": 23.21,
+          "positive_windows": 5,
+          "roi_pct": 13.416184971098266,
+          "selected_c_counts": {
+            "0.01": 3,
+            "0.03": 1,
+            "0.25": 1,
+            "2.0": 1
+          },
+          "unique_challenger_bets": 34,
+          "validation_window_days": 21,
+          "variant": "validation_21_full_grid",
+          "windows": 6
+        },
+        {
+          "bets": 138,
+          "c_grid": [
+            0.01,
+            0.03,
+            0.1,
+            0.25,
+            0.75,
+            2.0
+          ],
+          "cluster_bootstrap": {
+            "clusters": 85,
+            "high_95_pct": 30.721096938775506,
+            "low_95_pct": -5.423687499999999,
+            "probability_positive": 0.91882
+          },
+          "fallback_windows": 0,
+          "matches": 85,
+          "overlap_with_v3_bets": 105,
+          "pnl_units": 17.990000000000002,
+          "positive_windows": 5,
+          "roi_pct": 13.036231884057973,
+          "selected_c_counts": {
+            "0.01": 4,
+            "0.03": 1,
+            "2.0": 1
+          },
+          "unique_challenger_bets": 33,
+          "validation_window_days": 28,
+          "variant": "validation_28_full_grid",
+          "windows": 6
+        },
+        {
+          "bets": 97,
+          "c_grid": [
+            0.01,
+            0.03,
+            0.1,
+            0.25,
+            0.75,
+            2.0
+          ],
+          "cluster_bootstrap": {
+            "clusters": 67,
+            "high_95_pct": 29.849487488694603,
+            "low_95_pct": -11.268115907120146,
+            "probability_positive": 0.80854
+          },
+          "fallback_windows": 0,
+          "matches": 67,
+          "overlap_with_v3_bets": 75,
+          "pnl_units": 8.950000000000001,
+          "positive_windows": 5,
+          "roi_pct": 9.226804123711341,
+          "selected_c_counts": {
+            "0.01": 6
+          },
+          "unique_challenger_bets": 22,
+          "validation_window_days": 42,
+          "variant": "validation_42_full_grid",
+          "windows": 6
+        },
+        {
+          "bets": 170,
+          "c_grid": [
+            0.01,
+            0.03,
+            0.1,
+            0.25,
+            0.75
+          ],
+          "cluster_bootstrap": {
+            "clusters": 98,
+            "high_95_pct": 30.52299518845228,
+            "low_95_pct": -2.6815705942102595,
+            "probability_positive": 0.95244
+          },
+          "fallback_windows": 1,
+          "matches": 98,
+          "overlap_with_v3_bets": 139,
+          "pnl_units": 24.259999999999998,
+          "positive_windows": 5,
+          "roi_pct": 14.270588235294115,
+          "selected_c_counts": {
+            "0.01": 3,
+            "0.03": 1,
+            "0.25": 1,
+            "0.75": 1
+          },
+          "unique_challenger_bets": 31,
+          "validation_window_days": 21,
+          "variant": "validation_21_no_c2",
+          "windows": 6
+        },
+        {
+          "bets": 162,
+          "c_grid": [
+            0.01,
+            0.03,
+            0.1,
+            0.25
+          ],
+          "cluster_bootstrap": {
+            "clusters": 97,
+            "high_95_pct": 31.39189408706953,
+            "low_95_pct": -1.1445626204238954,
+            "probability_positive": 0.96574
+          },
+          "fallback_windows": 1,
+          "matches": 97,
+          "overlap_with_v3_bets": 140,
+          "pnl_units": 24.99,
+          "positive_windows": 5,
+          "roi_pct": 15.425925925925926,
+          "selected_c_counts": {
+            "0.01": 3,
+            "0.03": 1,
+            "0.25": 2
+          },
+          "unique_challenger_bets": 22,
+          "validation_window_days": 21,
+          "variant": "validation_21_strong_only",
+          "windows": 6
+        }
+      ]
+    },
+    "status": "historical_exploratory_only"
+  },
+  "runtime_versions": {
+    "joblib": "1.5.0",
+    "numpy": "2.2.2",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.7.1"
+  },
+  "smoke_test": {
+    "markets_scored": 10,
+    "serialization_round_trip": "passed",
+    "side_scores": 14
+  },
+  "status": "shadow_only",
+  "training": {
+    "candidate_metrics": [
+      {
+        "logistic_c": 0.01,
+        "validation_brier": 0.2511006291709488
+      },
+      {
+        "logistic_c": 0.03,
+        "validation_brier": 0.2522648528784179
+      },
+      {
+        "logistic_c": 0.1,
+        "validation_brier": 0.25386165391873783
+      },
+      {
+        "logistic_c": 0.25,
+        "validation_brier": 0.2548791173459609
+      },
+      {
+        "logistic_c": 0.75,
+        "validation_brier": 0.2558974593036235
+      },
+      {
+        "logistic_c": 2.0,
+        "validation_brier": 0.2563129123822715
+      }
+    ],
+    "end": "2026-05-24",
+    "rows": 4724,
+    "selected_validation_brier": 0.2511006291709488,
+    "source_fingerprint_sha256": "2929981228c4cd40dc10c4d92a198e0f8cf5d3e5522454b87b6a79f3219c45d2",
+    "start": "2026-02-24",
+    "validation_end": "2026-05-24",
+    "validation_start": "2026-05-04"
+  }
+}

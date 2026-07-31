@@ -27,7 +27,30 @@ def test_workflow_directory_covers_parity_matrix() -> None:
     assert all(row["status"] == "ok" for row in report["file_reports"])
 
 
-def test_workflow_directory_flags_missing_source_workflow_and_dry_run() -> None:
+def test_closing_workflow_runs_frequently_enough_for_t_minus_10m() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "run-unibet-closing.yml"
+    ).read_text(encoding="utf-8")
+
+    assert 'cron: "*/5 * * * *"' in workflow
+    assert "--refresh-derived" in workflow
+
+
+def test_regular_checkpoint_workflow_leaves_t_minus_10m_to_closing_job() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "run-unibet-odds-checkpoints.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "--exclude-checkpoint T_MINUS_10M" in workflow
+
+
+def test_workflow_directory_flags_missing_source_workflow_and_runner_dry_run_wiring() -> None:
     workflow_dir = repo_root() / ".github" / "workflows"
     workflow_path = workflow_dir / "run-unibet-forward.yml"
     original_bytes = workflow_path.read_bytes()
@@ -39,7 +62,7 @@ def test_workflow_directory_flags_missing_source_workflow_and_dry_run() -> None:
             original,
             count=1,
             flags=re.MULTILINE,
-        ).replace("--dry-run", "", 1)
+        ).replace("      dry_run: ${{ inputs.dry_run || false }}\n", "", 1)
         workflow_path.write_text(mutated, encoding="utf-8")
         report = inspect_workflow_directory(workflow_dir)
     finally:
@@ -49,7 +72,45 @@ def test_workflow_directory_flags_missing_source_workflow_and_dry_run() -> None:
     assert "run-unibet-forward.yml" in report["invalid_content_files"]
     assert flagged["run-unibet-forward.yml"]["status"] == "warn"
     assert "missing_explicit_source_workflow" in flagged["run-unibet-forward.yml"]["findings"]
-    assert "missing_dry_run_guard" in flagged["run-unibet-forward.yml"]["findings"]
+    assert "missing_runner_dry_run_wiring" in flagged["run-unibet-forward.yml"]["findings"]
+
+
+def test_workflow_directory_flags_missing_workflow_dispatch_dry_run_input() -> None:
+    workflow_dir = repo_root() / ".github" / "workflows"
+    workflow_path = workflow_dir / "run-unibet-forward.yml"
+    original_bytes = workflow_path.read_bytes()
+    original = original_bytes.decode("utf-8")
+    try:
+        mutated = original.replace(
+            '      dry_run:\n        description: "Run without writes (smoke test)."\n        required: false\n        default: false\n        type: boolean\n',
+            "",
+            1,
+        )
+        workflow_path.write_text(mutated, encoding="utf-8")
+        report = inspect_workflow_directory(workflow_dir)
+    finally:
+        workflow_path.write_bytes(original_bytes)
+
+    flagged = {row["file"]: row for row in report["file_reports"]}
+    assert "run-unibet-forward.yml" in report["invalid_content_files"]
+    assert flagged["run-unibet-forward.yml"]["status"] == "warn"
+    assert "missing_workflow_dispatch_dry_run_input" in flagged["run-unibet-forward.yml"]["findings"]
+
+
+def test_workflow_directory_accepts_shared_dry_run_gate_without_literal_flag() -> None:
+    workflow_dir = repo_root() / ".github" / "workflows"
+    workflow_path = workflow_dir / "run-unibet-forward.yml"
+    original_bytes = workflow_path.read_bytes()
+    original = original_bytes.decode("utf-8")
+    try:
+        mutated = original.replace("--dry-run", "", 1) + "\n      dry_run: false\n"
+        workflow_path.write_text(mutated, encoding="utf-8")
+        report = inspect_workflow_directory(workflow_dir)
+    finally:
+        workflow_path.write_bytes(original_bytes)
+
+    flagged = {row["file"]: row for row in report["file_reports"]}
+    assert flagged["run-unibet-forward.yml"]["status"] == "ok"
 
 
 def test_workflow_directory_flags_missing_required_backfill_source_mode() -> None:

@@ -18,6 +18,10 @@ on:
         required: false
         type: boolean
         default: false
+      dry_run:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,6 +44,9 @@ jobs:
       SOFASCORE_PUBLIC_API_BASE_URL: ${{ vars.SOFASCORE_PUBLIC_API_BASE_URL }}
       OPTA_RANKINGS_URL: ${{ vars.OPTA_RANKINGS_URL }}
       DEFAULT_LEAGUE_RANKING_URL: ${{ vars.DEFAULT_LEAGUE_RANKING_URL }}
+      ULLEBETS_V2_FORCE_DRY_RUN: ${{ vars.ULLEBETS_V2_FORCE_DRY_RUN }}
+      ULLEBETS_V2_DRY_RUN: ${{ inputs.dry_run }}
+      ULLEBETS_V2_RUN_COMMAND: ${{ inputs.run_command }}
     steps:
       - name: Check out V2 repository
         uses: actions/checkout@v4
@@ -79,4 +86,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ${{ inputs.run_command }}
+          if [ "${ULLEBETS_V2_FORCE_DRY_RUN:-0}" = "1" ]; then
+            ULLEBETS_V2_DRY_RUN="true"
+          fi
+          COMMAND=$(python -c 'import os; from ullebets_v2.automation import render_workflow_command; text = os.environ["ULLEBETS_V2_RUN_COMMAND"]; dry_run = os.environ.get("ULLEBETS_V2_DRY_RUN", "").lower() == "true"; print(render_workflow_command(text, dry_run=dry_run), end="")')
+          if [ "${ULLEBETS_V2_DRY_RUN:-false}" = "true" ]; then
+            echo "Workflow runner mode: dry-run"
+          else
+            echo "Workflow runner mode: write"
+          fi
+          bash -lc "$COMMAND"

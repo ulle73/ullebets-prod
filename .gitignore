@@ -1,5 +1,6 @@
 /data/teamstats
 /data/derived/offline_v1
+/data/v2/
 .codegraph/
 .pytest_cache/
 __pycache__/

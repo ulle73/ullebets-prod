@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 import json
 import subprocess
@@ -18,6 +19,12 @@ def _parse_json_from_node_output(stdout: str) -> Any:
         except json.JSONDecodeError:
             continue
     raise RuntimeError(f"Could not parse JSON from node output: {stdout}")
+
+
+def _json_default(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
 
 
 class OriginalJsModelOracle:
@@ -39,6 +46,18 @@ async function readStdin() {
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   return input.trim();
+}
+function normalizeEvDetails(result) {
+  if (!result || typeof result !== 'object') return {};
+  const source = result?.evDetails && typeof result.evDetails === 'object' ? result.evDetails : result;
+  const details = {};
+  for (const [key, rawValue] of Object.entries(source)) {
+    if (!(key.startsWith('evPct') || key === 'legacyEvPct' || key.startsWith('ml_'))) continue;
+    const numeric = Number(rawValue);
+    if (!Number.isFinite(numeric)) continue;
+    details[key] = numeric;
+  }
+  return details;
 }
 const repoRoot = process.argv[1];
 const evEnginePath = process.argv[2];
@@ -74,8 +93,9 @@ for (const tuple of tuples) {
         away_importance: defaults.away_importance ?? 5,
       };
       const result = await calculateEvForBet(betParams);
+      const evDetails = normalizeEvDetails(result);
       const selection = pickPrimaryEvSelection({
-        evDetails: result?.evDetails || {},
+        evDetails,
         statKey: tuple.statKey,
         scope: tuple.scope,
         period: tuple.period,
@@ -101,7 +121,7 @@ for (const tuple of tuples) {
         scope: tuple.scope,
         odds: Number(oddValue),
         value: result?.value ?? selection?.evPct ?? null,
-        evDetails: result?.evDetails || {},
+        evDetails,
         primaryFormulaKey: selection?.formulaKey ?? null,
         primaryValueKey: selection?.valueKey ?? null,
         sampleSize: result?.matches ?? null,
@@ -137,6 +157,7 @@ console.log(JSON.stringify({ lines, errors }));
                     "defaults": defaults or {},
                 },
                 ensure_ascii=False,
+                default=_json_default,
             ),
             text=True,
             capture_output=True,
@@ -184,6 +205,18 @@ async function readStdin() {
   for await (const chunk of process.stdin) input += chunk;
   return input.trim();
 }
+function normalizeEvDetails(result) {
+  if (!result || typeof result !== 'object') return {};
+  const source = result?.evDetails && typeof result.evDetails === 'object' ? result.evDetails : result;
+  const details = {};
+  for (const [key, rawValue] of Object.entries(source)) {
+    if (!(key.startsWith('evPct') || key === 'legacyEvPct' || key.startsWith('ml_'))) continue;
+    const numeric = Number(rawValue);
+    if (!Number.isFinite(numeric)) continue;
+    details[key] = numeric;
+  }
+  return details;
+}
 const runtimeRoot = process.argv[1];
 const enginePath = path.join(runtimeRoot, 'backtest', 'engine.js');
 const primaryEvPath = path.join(runtimeRoot, 'backtest', 'primaryEvSelection.js');
@@ -219,8 +252,9 @@ for (const tuple of tuples) {
         matchDate: match.sourceDate ?? null,
       };
       const result = await calculateEVFromData(betParams, fetchedData);
+      const evDetails = normalizeEvDetails(result);
       const selection = pickPrimaryEvSelection({
-        evDetails: result?.evDetails || {},
+        evDetails,
         statKey: tuple.statKey,
         scope: tuple.scope,
         period: tuple.period,
@@ -246,7 +280,7 @@ for (const tuple of tuples) {
         scope: tuple.scope,
         odds: Number(oddValue),
         value: result?.value ?? selection?.evPct ?? null,
-        evDetails: result?.evDetails || {},
+        evDetails,
         primaryFormulaKey: selection?.formulaKey ?? null,
         primaryValueKey: selection?.valueKey ?? null,
         sampleSize: result?.matches ?? null,
@@ -279,7 +313,7 @@ console.log(JSON.stringify({ lines, errors }));
                     "fetchedData": self.data_adapter.build_fetched_data(match_info),
                 },
                 ensure_ascii=False,
-                default=str,
+                default=_json_default,
             ),
             text=True,
             capture_output=True,

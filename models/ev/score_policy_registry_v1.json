@@ -1,0 +1,126 @@
+{
+  "registry_id": "score_policy_registry_v1",
+  "registered_at": "2026-07-30T01:43:31Z",
+  "registered_before_forward_settlement": true,
+  "immutable_after_first_forward_settlement": true,
+  "multiple_comparison_family_size": 9,
+  "selection_freeze": "first score batch with any eligible side per match after policy filters",
+  "policies": [
+    {
+      "policy_id": "v3_all_targets_primary",
+      "model_id": "ev_logistic_recency45_asof_capped_v3",
+      "status": "primary_shadow",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "cornerKicks",
+          "shotsOnGoal",
+          "totalShots"
+        ]
+      }
+    },
+    {
+      "policy_id": "v3_corners_diagnostic",
+      "model_id": "ev_logistic_recency45_asof_capped_v3",
+      "status": "diagnostic",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "cornerKicks"
+        ]
+      }
+    },
+    {
+      "policy_id": "v3_shots_on_goal_diagnostic",
+      "model_id": "ev_logistic_recency45_asof_capped_v3",
+      "status": "diagnostic",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "shotsOnGoal"
+        ]
+      }
+    },
+    {
+      "policy_id": "v3_total_shots_diagnostic",
+      "model_id": "ev_logistic_recency45_asof_capped_v3",
+      "status": "diagnostic",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "totalShots"
+        ]
+      }
+    },
+    {
+      "policy_id": "v4_all_targets_challenger",
+      "model_id": "ev_nested_logistic_recency45_asof_capped_v4_shadow",
+      "status": "score_only_challenger",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "cornerKicks",
+          "shotsOnGoal",
+          "totalShots"
+        ]
+      }
+    },
+    {
+      "policy_id": "v4_corners_challenger",
+      "model_id": "ev_nested_logistic_recency45_asof_capped_v4_shadow",
+      "status": "score_only_challenger",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "cornerKicks"
+        ]
+      }
+    },
+    {
+      "policy_id": "v4_corners_away_total_challenger",
+      "model_id": "ev_nested_logistic_recency45_asof_capped_v4_shadow",
+      "status": "score_only_exploratory",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "cornerKicks"
+        ],
+        "scopes": [
+          "away",
+          "total"
+        ]
+      }
+    },
+    {
+      "policy_id": "v4_shots_on_goal_diagnostic",
+      "model_id": "ev_nested_logistic_recency45_asof_capped_v4_shadow",
+      "status": "diagnostic",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "shotsOnGoal"
+        ]
+      }
+    },
+    {
+      "policy_id": "v4_total_shots_diagnostic",
+      "model_id": "ev_nested_logistic_recency45_asof_capped_v4_shadow",
+      "status": "diagnostic",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "totalShots"
+        ]
+      }
+    }
+  ]
+}

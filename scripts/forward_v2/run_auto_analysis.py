@@ -15,17 +15,21 @@ from ullebets_v2.analysis import InternalAnalysisOracle
 from ullebets_v2.analysis.oracle import OriginalJsAutoAnalysisOracle
 from ullebets_v2.analysis.service import run_auto_analysis_pipeline
 from ullebets_v2.config import V2Config
-from ullebets_v2.model_snapshots.ephemeral import build_ephemeral_model_read_database
+from ullebets_v2.date_windows import resolve_requested_dates, resolve_target_limit
+from ullebets_v2.model_snapshots.ephemeral import resolve_historical_model_read_database
 from ullebets_v2.model_snapshots.oracle import OriginalJsModelOracle, V2JsModelOracle
 from ullebets_v2.odds.oracle import OriginalJsOracle
 from ullebets_v2.odds.service import (
     build_smoke_targets_for_league,
     inspect_fixture_target_window_from_database,
+    load_historical_replay_targets,
     load_fixture_targets_from_database,
-    load_legacy_backtest_targets,
     load_replay_fixture_targets,
 )
-from ullebets_v2.safety import ensure_v2_database
+from ullebets_v2.safety import (
+    ensure_no_simulated_time_write,
+    ensure_v2_database,
+)
 from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 from ullebets_v2.support.loaders import load_support_documents
 
@@ -36,8 +40,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--source-workflow", default="run-auto-analysis-checkpoints.yml")
     parser.add_argument("--league")
-    parser.add_argument("--limit", type=int, default=5)
+    parser.add_argument("--limit", type=int)
     parser.add_argument("--max-days-ahead", type=int, default=7)
+    parser.add_argument("--start-date")
+    parser.add_argument("--end-date")
     parser.add_argument("--date", dest="dates", action="append", default=[])
     parser.add_argument("--run-date")
     parser.add_argument("--strategy", default="balanced")
@@ -70,75 +76,98 @@ def main() -> int:
     args = parse_args()
     config = V2Config.from_env(args.repo_root)
     ensure_v2_database(config)
+    ensure_no_simulated_time_write(
+        time_override=args.now,
+        dry_run=args.dry_run,
+        job_name="run_auto_analysis",
+    )
     config.ensure_directories()
     support_docs = load_support_documents(
         leagues_path=args.leagues_path or config.default_leagues_path(),
         league_urls_path=args.league_urls_path or config.default_league_urls_path(),
     )
+    requested_dates = resolve_requested_dates(
+        explicit_dates=args.dates,
+        start_date=args.start_date,
+        end_date=args.end_date,
+        allow_empty=True,
+    )
 
     read_database = None
     target_window = None
     if args.mode == "replay-fixtures":
-        if not args.dates:
-            raise RuntimeError("--date is required in replay-fixtures mode.")
+        if not requested_dates:
+            raise RuntimeError("--date or --start-date/--end-date is required in replay-fixtures mode.")
         targets = load_replay_fixture_targets(
-            dates=args.dates,
+            dates=requested_dates,
             support_docs=support_docs,
             old_repo_root=config.old_repo_root,
             legacy_match_database=get_legacy_app_database(config),
         )
-        run_date = args.run_date or args.dates[0]
+        run_date = args.run_date or requested_dates[0]
     elif args.mode == "legacy-backtest":
-        if not args.dates:
-            raise RuntimeError("--date is required in legacy-backtest mode.")
-        targets = load_legacy_backtest_targets(
-            dates=args.dates,
+        if not requested_dates:
+            raise RuntimeError("--date or --start-date/--end-date is required in legacy-backtest mode.")
+        read_database = get_database(config)
+        targets, target_source = load_historical_replay_targets(
+            database=read_database,
+            dates=requested_dates,
             support_docs=support_docs,
             legacy_backtest_database=get_legacy_app_database(config),
             legacy_match_database=get_legacy_app_database(config),
-            limit=args.limit if args.limit > 0 else None,
+            limit=resolve_target_limit(args.limit),
         )
-        run_date = args.run_date or args.dates[0]
+        target_window = {
+            "target_source": target_source,
+            "requested_dates": list(requested_dates),
+            "selected_target_match_count": len(targets),
+        }
+        run_date = args.run_date or requested_dates[0]
     elif args.mode == "fixture-db":
         read_database = get_database(config)
         target_window = inspect_fixture_target_window_from_database(
             database=read_database,
-            dates=args.dates or None,
+            dates=requested_dates or None,
             max_days_ahead=args.max_days_ahead,
             league_name=args.league,
+            forward_only=True,
         )
         targets = load_fixture_targets_from_database(
             database=read_database,
-            dates=args.dates or None,
+            dates=requested_dates or None,
             max_days_ahead=args.max_days_ahead,
             league_name=args.league,
-            limit=args.limit if args.limit > 0 else None,
+            forward_only=True,
+            limit=resolve_target_limit(args.limit),
         )
-        run_date = args.run_date or (args.dates[0] if args.dates else None)
+        run_date = args.run_date or (requested_dates[0] if requested_dates else None)
     else:
         if not args.league:
             raise RuntimeError("--league is required in smoke-live mode.")
         targets = build_smoke_targets_for_league(
             league_name=args.league,
             support_docs=support_docs,
-            limit=args.limit,
+            limit=resolve_target_limit(args.limit, default_when_unspecified=1),
             max_days_ahead=args.max_days_ahead,
         )
         run_date = args.run_date
 
     fetched_at = datetime.fromisoformat(args.now.replace("Z", "+00:00")) if args.now else None
-    snapshot_read_database = read_database or (get_database(config) if args.snapshot_source == "db" else None)
-    database = None if args.dry_run else (read_database or get_database(config))
+    snapshot_read_database = read_database if read_database is not None else (
+        get_database(config) if args.snapshot_source == "db" else None
+    )
+    database = None if args.dry_run else (read_database if read_database is not None else get_database(config))
     legacy_backtest_database = get_legacy_app_database(config) if args.mode in {"replay-fixtures", "legacy-backtest"} else None
     odds_oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_odds_oracle else None
     teamstats_dir = args.teamstats_dir or (config.old_repo_root / "data" / "teamstats")
     model_read_database = snapshot_read_database
+    model_read_source = "v2_database"
     if (
         not args.use_original_model_oracle
         and args.mode == "legacy-backtest"
-        and teamstats_dir.exists()
     ):
-        model_read_database = build_ephemeral_model_read_database(
+        model_read_database, model_read_source = resolve_historical_model_read_database(
+            read_database=model_read_database,
             teamstats_dir=teamstats_dir,
             support_docs=support_docs,
             targets=targets,
@@ -186,6 +215,7 @@ def main() -> int:
         summary["target_window"] = target_window
         if not targets:
             summary["empty_reason"] = target_window.get("empty_reason")
+    summary["model_read_source"] = model_read_source
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
     return 0
 

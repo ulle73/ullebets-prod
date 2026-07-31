@@ -65,6 +65,44 @@ def load_model_snapshot_docs_from_database(
     return docs
 
 
+def load_analysis_run_doc_from_database(
+    database: Any,
+    *,
+    run_id: str,
+) -> dict[str, Any] | None:
+    if not run_id:
+        return None
+    try:
+        collection = database["analysis_runs"]
+    except Exception:
+        return None
+    if hasattr(collection, "find_one"):
+        return collection.find_one({"run_id": run_id}, projection={"_id": 0})
+    rows = collection.find({"run_id": run_id}, projection={"_id": 0})
+    return rows[0] if rows else None
+
+
+def load_analysis_candidate_docs_from_database(
+    database: Any,
+    *,
+    run_id: str,
+    match_keys: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    if not run_id:
+        return []
+    try:
+        collection = database["analysis_candidates"]
+    except Exception:
+        return []
+    query: dict[str, Any] = {"run_id": run_id}
+    filtered_match_keys = [str(match_key) for match_key in (match_keys or []) if str(match_key)]
+    if filtered_match_keys:
+        query["match_key"] = {"$in": filtered_match_keys}
+    docs = list(collection.find(query, projection={"_id": 0}))
+    docs.sort(key=lambda row: (str(row.get("match_key") or ""), str(row.get("selection_key") or "")))
+    return docs
+
+
 def _build_snapshot_match_rows_from_database(
     *,
     targets: list[dict[str, Any]],
@@ -89,13 +127,16 @@ def _build_snapshot_match_rows_from_database(
 def _build_analysis_candidate_docs(
     *,
     oracle_candidates: list[dict[str, Any]],
+    shortlist_selection_keys: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     docs: list[dict[str, Any]] = []
+    shortlist_keys = shortlist_selection_keys or set()
     for row in oracle_candidates:
         selection_key = row.get("selectionKey")
         run_id = row.get("runId")
         if not selection_key or not run_id:
             continue
+        is_best_bet_for_match = bool(row.get("isBestBetForMatch")) or str(selection_key) in shortlist_keys
         docs.append(
             {
                 **row,
@@ -109,7 +150,8 @@ def _build_analysis_candidate_docs(
                 "strategy_id": row.get("strategyId"),
                 "strategy_label": row.get("strategyLabel"),
                 "passes_strategy_filters": bool(row.get("passesStrategyFilters")),
-                "is_best_bet_for_match": bool(row.get("isBestBetForMatch")),
+                "is_best_bet_for_match": is_best_bet_for_match,
+                "isBestBetForMatch": is_best_bet_for_match,
                 "proof_ready": bool((row.get("proof") or {}).get("historicalReady")),
                 "updated_at": row.get("updatedAt"),
             }
@@ -186,7 +228,7 @@ def run_auto_analysis_pipeline(
     loaded_snapshots_from_db = snapshot_source == "db"
     model_summary: dict[str, Any] | None = None
     if loaded_snapshots_from_db:
-        read_database = snapshot_read_database or database
+        read_database = snapshot_read_database if snapshot_read_database is not None else database
         if read_database is None:
             raise RuntimeError("snapshot_read_database or database is required when snapshot_source='db'.")
         documents = {
@@ -297,18 +339,19 @@ def run_auto_analysis_pipeline(
             "createdAt": captured_at,
         }
 
+    shortlist_selection_keys = {
+        str(row.get("selectionKey") or row.get("selection_key") or "")
+        for row in oracle_shortlist
+        if str(row.get("selectionKey") or row.get("selection_key") or "")
+    }
     analysis_candidate_docs = _build_analysis_candidate_docs(
         oracle_candidates=oracle_candidates,
+        shortlist_selection_keys=shortlist_selection_keys,
     )
-    shortlist_selection_keys = {
-        str(row.get("selection_key"))
-        for row in analysis_candidate_docs
-        if row.get("is_best_bet_for_match")
-    }
     shortlist_docs = [
         row
         for row in analysis_candidate_docs
-        if str(row.get("selection_key")) in shortlist_selection_keys
+        if bool(row.get("is_best_bet_for_match"))
     ]
     analysis_run_doc = _build_analysis_run_doc(
         oracle_run=oracle_run,

@@ -10,46 +10,17 @@ from ullebets_v2.matchups_settlement.reports import (
     build_matchup_settlement_health_rows,
     build_matchup_settlement_parity_rows,
 )
+from ullebets_v2.settlement.common import (
+    build_result_lookup,
+    build_stats_lookup,
+    build_stat_scope_lookup,
+    resolve_actual_context,
+)
+from ullebets_v2.storage.collections import MATCHUPS_LEAGUE_AVG, MATCHUPS_SCORE
 
 
 def utc_now() -> datetime:
     return datetime.now(tz=UTC)
-
-
-def normalize_scope(scope: str | None) -> str:
-    value = str(scope or "").lower()
-    if value in {"total", "all"}:
-        return "all"
-    if value in {"home", "away"}:
-        return value
-    return value or "all"
-
-
-def _result_is_finished(result_row: dict[str, Any] | None) -> bool:
-    if result_row is None:
-        return False
-    return result_row.get("home_score") is not None and result_row.get("away_score") is not None
-
-
-def build_stats_lookup(match_stats_canonical: list[dict[str, Any]]) -> dict[tuple[str, str, str, str], dict[str, Any]]:
-    lookup: dict[tuple[str, str, str, str], dict[str, Any]] = {}
-    for row in match_stats_canonical:
-        key = (
-            str(row.get("match_key") or ""),
-            str(row.get("stat_key") or ""),
-            str(row.get("period") or ""),
-            normalize_scope(row.get("scope")),
-        )
-        lookup[key] = row
-    return lookup
-
-
-def build_result_lookup(match_results_canonical: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    return {
-        str(row.get("match_key")): row
-        for row in match_results_canonical
-        if row.get("match_key") is not None
-    }
 
 
 def _resolve_outcome_fields(
@@ -57,14 +28,16 @@ def _resolve_outcome_fields(
     row: dict[str, Any],
     result_lookup: dict[str, dict[str, Any]],
     stats_lookup: dict[tuple[str, str, str, str], dict[str, Any]],
+    stat_scope_lookup: dict[tuple[str, str, str], set[str]],
     resolved_at: datetime,
 ) -> dict[str, Any]:
-    match_key = str(row.get("match_key") or "")
-    stat_key = str(row.get("stat_key") or "")
-    period = str(row.get("period") or "")
-    scope = normalize_scope(row.get("scope"))
-    result_row = result_lookup.get(match_key)
-    if not _result_is_finished(result_row):
+    actual_context = resolve_actual_context(
+        row=row,
+        result_lookup=result_lookup,
+        stats_lookup=stats_lookup,
+        stat_scope_lookup=stat_scope_lookup,
+    )
+    if actual_context["actual_resolution_status"] == "pending_result":
         return {
             **row,
             "outcome_status": "pending_result",
@@ -75,29 +48,13 @@ def _resolve_outcome_fields(
             "resolved_at": resolved_at,
             "outcome": None,
         }
-
-    home_row = stats_lookup.get((match_key, stat_key, period, "home"))
-    away_row = stats_lookup.get((match_key, stat_key, period, "away"))
-    total_row = stats_lookup.get((match_key, stat_key, period, "all"))
-
-    home_value = home_row.get("actual_value") if home_row else None
-    away_value = away_row.get("actual_value") if away_row else None
-    if scope == "home":
-        actual_value = home_value
-    elif scope == "away":
-        actual_value = away_value
-    else:
-        actual_value = total_row.get("actual_value") if total_row else (
-            (home_value + away_value) if isinstance(home_value, (int, float)) and isinstance(away_value, (int, float)) else None
-        )
-
-    if actual_value is None:
+    if actual_context["actual_resolution_status"] == "missing_actual":
         return {
             **row,
             "outcome_status": "missing_actual",
             "actual_value": None,
-            "home_value": home_value,
-            "away_value": away_value,
+            "home_value": actual_context["home_value"],
+            "away_value": actual_context["away_value"],
             "actual_source": None,
             "resolved_at": resolved_at,
             "outcome": None,
@@ -106,15 +63,15 @@ def _resolve_outcome_fields(
     return {
         **row,
         "outcome_status": "resolved",
-        "actual_value": actual_value,
-        "home_value": home_value,
-        "away_value": away_value,
-        "actual_source": f"{match_key}:{stat_key}:{period}",
+        "actual_value": actual_context["actual_value"],
+        "home_value": actual_context["home_value"],
+        "away_value": actual_context["away_value"],
+        "actual_source": actual_context["actual_source"],
         "resolved_at": resolved_at,
         "outcome": {
-            "actualValue": actual_value,
-            "homeValue": home_value,
-            "awayValue": away_value,
+            "actualValue": actual_context["actual_value"],
+            "homeValue": actual_context["home_value"],
+            "awayValue": actual_context["away_value"],
         },
     }
 
@@ -124,6 +81,7 @@ def enrich_matchup_rows(
     rows: list[dict[str, Any]],
     result_lookup: dict[str, dict[str, Any]],
     stats_lookup: dict[tuple[str, str, str, str], dict[str, Any]],
+    stat_scope_lookup: dict[tuple[str, str, str], set[str]],
     resolved_at: datetime,
 ) -> list[dict[str, Any]]:
     return [
@@ -131,6 +89,7 @@ def enrich_matchup_rows(
             row=row,
             result_lookup=result_lookup,
             stats_lookup=stats_lookup,
+            stat_scope_lookup=stat_scope_lookup,
             resolved_at=resolved_at,
         )
         for row in rows
@@ -144,8 +103,8 @@ def _load_matchup_rows(
     date_to: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     query = {"snapshot_date": {"$gte": date_from, "$lte": date_to}}
-    score_rows = list(database["matchups_score_v2"].find(query, projection={"_id": 0}))
-    league_avg_rows = list(database["matchups_league_avg_v2"].find(query, projection={"_id": 0}))
+    score_rows = list(database[MATCHUPS_SCORE].find(query, projection={"_id": 0}))
+    league_avg_rows = list(database[MATCHUPS_LEAGUE_AVG].find(query, projection={"_id": 0}))
     return score_rows, league_avg_rows
 
 
@@ -212,16 +171,19 @@ def run_matchup_settlement(
 
     result_lookup = build_result_lookup(result_rows or [])
     stats_lookup = build_stats_lookup(stats_rows or [])
+    stat_scope_lookup = build_stat_scope_lookup(stats_rows or [])
     settled_score_docs = enrich_matchup_rows(
         rows=score_docs or [],
         result_lookup=result_lookup,
         stats_lookup=stats_lookup,
+        stat_scope_lookup=stat_scope_lookup,
         resolved_at=timestamp,
     )
     settled_league_avg_docs = enrich_matchup_rows(
         rows=league_docs or [],
         result_lookup=result_lookup,
         stats_lookup=stats_lookup,
+        stat_scope_lookup=stat_scope_lookup,
         resolved_at=timestamp,
     )
     report_date = upper

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.parity.reports import build_audit_report_row, build_health_report_row, build_parity_report_row
+from ullebets_v2.storage.collections import SETTLED_BETS
 
 
 def utc_now() -> datetime:
@@ -82,21 +83,33 @@ def build_settlement_parity_rows(
     model_snapshot_docs: list[dict[str, Any]],
     settled_docs: list[dict[str, Any]],
     report_date: str | None = None,
+    count_key: str = "snapshot_count",
+    audit_type_label: str = "model snapshot",
+    plural_label: str = "model snapshots",
+    old_inputs: list[str] | None = None,
+    old_outputs: list[str] | None = None,
+    v2_job: str = "settle_model_snapshots.py",
+    smoke_test: str = "dry-run against synthetic and replay-derived settled rows",
+    no_target_smoke_test: str = "dry-run with zero model snapshots",
+    parity_proof: str = "apply the same over/under/push settlement rules documented in the legacy correct-unibet-backtest and result-loop flows",
+    no_target_parity_proof: str = "verify empty settlement windows are handled as a clean no-op",
 ) -> list[dict[str, Any]]:
+    inputs = old_inputs or ["unibet-backtest lines", "teamstats results"]
+    outputs = old_outputs or ["corrected lines.actual / lines.win"]
     if not model_snapshot_docs:
         return [
             build_parity_report_row(
                 workflow_entry={
                     "old_workflow": source_workflow,
-                    "old_inputs": ["unibet-backtest lines", "teamstats results"],
-                    "old_outputs": ["corrected lines.actual / lines.win"],
-                    "v2_job": "settle_model_snapshots.py",
-                    "v2_outputs": ["settled_bets_v2", "audit_reports"],
-                    "smoke_test": "dry-run with zero model snapshots",
-                    "parity_proof": "verify empty settlement windows are handled as a clean no-op",
+                    "old_inputs": inputs,
+                    "old_outputs": outputs,
+                    "v2_job": v2_job,
+                    "v2_outputs": [SETTLED_BETS, "audit_reports"],
+                    "smoke_test": no_target_smoke_test,
+                    "parity_proof": no_target_parity_proof,
                 },
-                counts_old={"snapshot_count": 0, "settled_count": 0},
-                counts_v2={"snapshot_count": 0, "settled_count": 0},
+                counts_old={count_key: 0, "settled_count": 0},
+                counts_v2={count_key: 0, "settled_count": 0},
                 parity_status="no_targets",
                 blocking_issues=[],
                 audit_risks=[],
@@ -134,6 +147,8 @@ def build_settlement_parity_rows(
         audit_risks.append("historical_source_gap_unverified_actuals")
     if status_counts.get("pending_result", 0):
         audit_risks.append("result_coverage_gap")
+    if status_counts.get("invalid_timing", 0):
+        audit_risks.append("invalid_forward_timing_excluded")
     if parity_status != "matched":
         audit_risks.append("settlement_coverage_risk")
 
@@ -141,19 +156,19 @@ def build_settlement_parity_rows(
         build_parity_report_row(
             workflow_entry={
                 "old_workflow": source_workflow,
-                "old_inputs": ["unibet-backtest lines", "teamstats results"],
-                "old_outputs": ["corrected lines.actual / lines.win"],
-                "v2_job": "settle_model_snapshots.py",
-                "v2_outputs": ["settled_bets_v2", "audit_reports"],
-                "smoke_test": "dry-run against synthetic and replay-derived settled rows",
-                "parity_proof": "apply the same over/under/push settlement rules documented in the legacy correct-unibet-backtest and result-loop flows",
+                "old_inputs": inputs,
+                "old_outputs": outputs,
+                "v2_job": v2_job,
+                "v2_outputs": [SETTLED_BETS, "audit_reports"],
+                "smoke_test": smoke_test,
+                "parity_proof": parity_proof,
             },
             counts_old={
-                "snapshot_count": len(model_snapshot_docs),
+                count_key: len(model_snapshot_docs),
                 "result_bucket_counts": _count_by(settled_docs, "settlement_result"),
             },
             counts_v2={
-                "snapshot_count": len(model_snapshot_docs),
+                count_key: len(model_snapshot_docs),
                 "settled_count": len(settled_docs),
                 "status_counts": status_counts,
                 "historical_source_gap_missing_actual_count": historical_gap_count,
@@ -174,15 +189,18 @@ def build_settlement_audit_rows(
     source_workflow: str,
     settled_docs: list[dict[str, Any]],
     report_date: str | None = None,
+    count_key: str = "snapshot_count",
+    audit_type: str = "model_snapshot_settlement",
+    no_target_finding: str = "no_model_snapshots_to_settle",
 ) -> list[dict[str, Any]]:
     if not settled_docs:
         return [
             build_audit_report_row(
-                audit_type="model_snapshot_settlement",
+                audit_type=audit_type,
                 scope_key=source_workflow,
                 status="ok",
-                metrics={"snapshot_count": 0, "settled_count": 0},
-                findings=["no_model_snapshots_to_settle"],
+                metrics={count_key: 0, "settled_count": 0},
+                findings=[no_target_finding],
                 report_date=report_date or utc_now().date().isoformat(),
             )
         ]
@@ -201,6 +219,8 @@ def build_settlement_audit_rows(
         findings.append("missing_actual_values_present")
     if status_counts.get("rule_error", 0):
         findings.append("rule_errors_present")
+    if status_counts.get("invalid_timing", 0):
+        findings.append("invalid_forward_timing_excluded")
     if legacy_mismatches["legacy_actual_mismatch_count"]:
         findings.append("legacy_actual_mismatches_present")
     if legacy_mismatches["legacy_result_mismatch_count"]:
@@ -210,23 +230,27 @@ def build_settlement_audit_rows(
     status = "ok" if not (
         blocking_missing_actual_count
         or status_counts.get("rule_error", 0)
+        or status_counts.get("invalid_timing", 0)
         or legacy_mismatches["legacy_actual_mismatch_count"]
         or legacy_mismatches["legacy_result_mismatch_count"]
         or legacy_mismatches["legacy_win_mismatch_count"]
     ) else "warn"
     return [
         build_audit_report_row(
-            audit_type="model_snapshot_settlement",
+            audit_type=audit_type,
             scope_key=source_workflow,
             status=status,
             metrics={
-                "snapshot_count": len(settled_docs),
+                count_key: len(settled_docs),
                 "settled_count": status_counts.get("settled", 0),
                 "pending_result_count": status_counts.get("pending_result", 0),
                 "missing_actual_count": status_counts.get("missing_actual", 0),
                 "historical_source_gap_missing_actual_count": historical_gap_count,
                 "blocking_missing_actual_count": blocking_missing_actual_count,
                 "rule_error_count": status_counts.get("rule_error", 0),
+                "invalid_timing_count": status_counts.get(
+                    "invalid_timing", 0
+                ),
                 **legacy_mismatches,
                 "invalid_for_model_count": sum(1 for row in settled_docs if row.get("invalid_for_model")),
                 "result_bucket_counts": result_counts,
@@ -241,31 +265,37 @@ def build_settlement_health_rows(
     *,
     settled_docs: list[dict[str, Any]],
     report_date: str | None = None,
+    count_key: str = "snapshot_count",
+    job_name: str = "settle_model_snapshots",
+    no_target_summary: str = "No model snapshot rows required settlement.",
+    ok_summary: str = "Model snapshot settlement ran with canonical over/under/push rules.",
+    warn_summary: str = "Model snapshot settlement encountered rule errors.",
 ) -> list[dict[str, Any]]:
     if not settled_docs:
         return [
             build_health_report_row(
-                job_name="settle_model_snapshots",
+                job_name=job_name,
                 status="ok",
-                summary="No model snapshot rows required settlement.",
-                metrics={"snapshot_count": 0, "settled_count": 0},
+                summary=no_target_summary,
+                metrics={count_key: 0, "settled_count": 0},
                 report_date=report_date or utc_now().date().isoformat(),
             )
         ]
 
     status_counts = _count_by(settled_docs, "settlement_status")
-    status = "ok" if status_counts.get("rule_error", 0) == 0 else "warn"
+    status = (
+        "ok"
+        if status_counts.get("rule_error", 0) == 0
+        and status_counts.get("invalid_timing", 0) == 0
+        else "warn"
+    )
     return [
         build_health_report_row(
-            job_name="settle_model_snapshots",
+            job_name=job_name,
             status=status,
-            summary=(
-                "Model snapshot settlement ran with canonical over/under/push rules."
-                if status == "ok"
-                else "Model snapshot settlement encountered rule errors."
-            ),
+            summary=ok_summary if status == "ok" else warn_summary,
             metrics={
-                "snapshot_count": len(settled_docs),
+                count_key: len(settled_docs),
                 "settled_count": status_counts.get("settled", 0),
                 "pending_result_count": status_counts.get("pending_result", 0),
                 "missing_actual_count": status_counts.get("missing_actual", 0),

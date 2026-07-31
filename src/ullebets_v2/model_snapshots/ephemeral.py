@@ -12,6 +12,15 @@ from ullebets_v2.enrichment.replay import (
     build_teamstats_source_rows_from_database,
 )
 from ullebets_v2.odds.naming import normalize_team_name
+from ullebets_v2.storage.collections import (
+    FIXTURES_CANONICAL,
+    MATCH_RESULTS_CANONICAL,
+    MATCH_STATS_CANONICAL,
+    RAW_INCIDENTS,
+    RAW_MATCH_STATISTICS,
+    RAW_SHOTMAPS,
+    TEAMPROFILES,
+)
 from ullebets_v2.teamprofiles.service import build_teamprofile_docs
 
 
@@ -95,6 +104,112 @@ def _documents_cover_targets(
         if row.get("match_key") is not None
     }
     return target_match_keys.issubset(available_match_keys)
+
+
+def _read_collection_rows(
+    database: Any,
+    collection_name: str,
+    query: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    try:
+        rows = list(database[collection_name].find(query or {}, projection={"_id": 0}))
+    except KeyError:
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _target_team_keys(targets: list[dict[str, Any]]) -> set[str]:
+    keys: set[str] = set()
+    for row in targets:
+        for key in ("home_team_key", "away_team_key"):
+            value = row.get(key)
+            if isinstance(value, str) and value.strip():
+                keys.add(value.strip())
+    return keys
+
+
+def _target_match_keys(targets: list[dict[str, Any]]) -> set[str]:
+    keys: set[str] = set()
+    for row in targets:
+        value = row.get("match_key")
+        if isinstance(value, str) and value.strip():
+            keys.add(value.strip())
+    return keys
+
+
+def _target_profile_dates(targets: list[dict[str, Any]]) -> list[str]:
+    return sorted({date_str for row in targets if (date_str := _target_source_date(row))})
+
+
+def _dedupe_rows(rows: Iterable[dict[str, Any]], *, key_field: str) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        key = str(row.get(key_field) or "")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return deduped
+
+
+def _build_v2_historical_profile_docs(
+    *,
+    match_stats_canonical: list[dict[str, Any]],
+    match_results_canonical: list[dict[str, Any]],
+    raw_incidents: list[dict[str, Any]],
+    raw_shotmaps: list[dict[str, Any]],
+    support_docs: dict[str, Any],
+    targets: list[dict[str, Any]],
+    generated_at: datetime | None,
+) -> list[dict[str, Any]]:
+    target_dates = _target_profile_dates(targets)
+    if not target_dates:
+        return build_teamprofile_docs(
+            match_stats_canonical=match_stats_canonical,
+            match_results_canonical=match_results_canonical,
+            raw_incidents=raw_incidents,
+            raw_shotmaps=raw_shotmaps,
+            support_docs=support_docs,
+            generated_at=generated_at,
+        )
+
+    profile_docs: list[dict[str, Any]] = []
+    for profile_date in target_dates:
+        profile_docs.extend(
+            build_teamprofile_docs(
+                match_stats_canonical=match_stats_canonical,
+                match_results_canonical=match_results_canonical,
+                raw_incidents=raw_incidents,
+                raw_shotmaps=raw_shotmaps,
+                support_docs=support_docs,
+                profile_date=profile_date,
+                generated_at=generated_at,
+            )
+        )
+    return profile_docs
+
+
+def _profile_docs_cover_target_teams(
+    profile_docs: list[dict[str, Any]],
+    targets: list[dict[str, Any]],
+) -> bool:
+    if not targets:
+        return True
+    available = {
+        (str(row.get("team_key") or ""), str(row.get("profile_date") or ""))
+        for row in profile_docs
+        if row.get("team_key") is not None
+    }
+    for target in targets:
+        profile_date = _target_source_date(target)
+        if not profile_date:
+            continue
+        for team_key_field in ("home_team_key", "away_team_key"):
+            team_key = str(target.get(team_key_field) or "")
+            if team_key and (team_key, profile_date) not in available:
+                return False
+    return True
 
 
 def build_ephemeral_match_enrichment_documents(
@@ -203,7 +318,7 @@ def build_ephemeral_model_read_database(
 
     return InMemoryReadDatabase(
         {
-            "teamprofiles_v2": InMemoryReadCollection(profile_docs),
+            TEAMPROFILES: InMemoryReadCollection(profile_docs),
             "match_results_canonical": InMemoryReadCollection(docs["match_results"]),
             "raw_match_statistics": InMemoryReadCollection(docs["raw_match_statistics"]),
             "fixtures_canonical": InMemoryReadCollection(docs["fixtures_canonical"]),
@@ -211,3 +326,159 @@ def build_ephemeral_model_read_database(
             "raw_shotmaps": InMemoryReadCollection(docs["raw_shotmaps"]),
         }
     )
+
+
+def build_v2_historical_model_read_database(
+    *,
+    read_database: Any,
+    support_docs: dict[str, Any],
+    targets: list[dict[str, Any]],
+    generated_at: datetime | None = None,
+) -> InMemoryReadDatabase | None:
+    team_keys = _target_team_keys(targets)
+    target_match_keys = _target_match_keys(targets)
+    if not team_keys:
+        return None
+
+    result_rows = _dedupe_rows(
+        [
+            *(
+                row
+                for row in _read_collection_rows(
+                    read_database,
+                    MATCH_RESULTS_CANONICAL,
+                    {"home_team_key": {"$in": sorted(team_keys)}},
+                )
+                if str(row.get("home_team_key") or "") in team_keys
+                or str(row.get("away_team_key") or "") in team_keys
+            ),
+            *(
+                row
+                for row in _read_collection_rows(
+                    read_database,
+                    MATCH_RESULTS_CANONICAL,
+                    {"away_team_key": {"$in": sorted(team_keys)}},
+                )
+                if str(row.get("home_team_key") or "") in team_keys
+                or str(row.get("away_team_key") or "") in team_keys
+            ),
+        ],
+        key_field="match_key",
+    )
+    if not result_rows:
+        return None
+
+    historical_match_keys = {
+        str(row.get("match_key") or "")
+        for row in result_rows
+        if row.get("match_key") is not None
+    }
+    all_match_keys = sorted(target_match_keys | historical_match_keys)
+    if not all_match_keys:
+        return None
+
+    fixtures_canonical = [
+        row
+        for row in _read_collection_rows(
+            read_database,
+            FIXTURES_CANONICAL,
+            {"match_key": {"$in": all_match_keys}},
+        )
+        if str(row.get("match_key") or "") in all_match_keys
+    ]
+    raw_match_statistics = [
+        row
+        for row in _read_collection_rows(
+            read_database,
+            RAW_MATCH_STATISTICS,
+            {"match_key": {"$in": all_match_keys}},
+        )
+        if str(row.get("match_key") or "") in all_match_keys
+    ]
+    match_stats_canonical = [
+        row
+        for row in _read_collection_rows(
+            read_database,
+            MATCH_STATS_CANONICAL,
+            {"match_key": {"$in": all_match_keys}},
+        )
+        if str(row.get("match_key") or "") in all_match_keys
+    ]
+    raw_incidents = [
+        row
+        for row in _read_collection_rows(
+            read_database,
+            RAW_INCIDENTS,
+            {"match_key": {"$in": all_match_keys}},
+        )
+        if str(row.get("match_key") or "") in all_match_keys
+    ]
+    raw_shotmaps = [
+        row
+        for row in _read_collection_rows(
+            read_database,
+            RAW_SHOTMAPS,
+            {"match_key": {"$in": all_match_keys}},
+        )
+        if str(row.get("match_key") or "") in all_match_keys
+    ]
+    if not match_stats_canonical or not raw_match_statistics:
+        return None
+
+    profile_docs = _build_v2_historical_profile_docs(
+        match_stats_canonical=match_stats_canonical,
+        match_results_canonical=result_rows,
+        raw_incidents=raw_incidents,
+        raw_shotmaps=raw_shotmaps,
+        support_docs=support_docs,
+        targets=targets,
+        generated_at=generated_at,
+    )
+    if not profile_docs or not _profile_docs_cover_target_teams(profile_docs, targets):
+        return None
+
+    return InMemoryReadDatabase(
+        {
+            TEAMPROFILES: InMemoryReadCollection(profile_docs),
+            MATCH_RESULTS_CANONICAL: InMemoryReadCollection(result_rows),
+            FIXTURES_CANONICAL: InMemoryReadCollection(fixtures_canonical),
+            RAW_MATCH_STATISTICS: InMemoryReadCollection(raw_match_statistics),
+            RAW_INCIDENTS: InMemoryReadCollection(raw_incidents),
+            RAW_SHOTMAPS: InMemoryReadCollection(raw_shotmaps),
+            MATCH_STATS_CANONICAL: InMemoryReadCollection(match_stats_canonical),
+        }
+    )
+
+
+def resolve_historical_model_read_database(
+    *,
+    read_database: Any | None,
+    teamstats_dir: Path,
+    support_docs: dict[str, Any],
+    targets: list[dict[str, Any]],
+    generated_at: datetime | None = None,
+    legacy_teamstats_database: Any | None = None,
+) -> tuple[Any | None, str]:
+    if read_database is not None:
+        v2_model_read_database = build_v2_historical_model_read_database(
+            read_database=read_database,
+            support_docs=support_docs,
+            targets=targets,
+            generated_at=generated_at,
+        )
+        if v2_model_read_database is not None:
+            return v2_model_read_database, "v2_canonical_ephemeral"
+
+    if teamstats_dir.exists():
+        return (
+            build_ephemeral_model_read_database(
+                teamstats_dir=teamstats_dir,
+                support_docs=support_docs,
+                targets=targets,
+                generated_at=generated_at,
+                legacy_teamstats_database=legacy_teamstats_database,
+            ),
+            "legacy_teamstats_ephemeral",
+        )
+
+    return read_database, "v2_database"

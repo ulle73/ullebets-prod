@@ -65,17 +65,42 @@ def build_teamstats_source_rows_from_database(
     database: Any,
     *,
     collection_name: str = "teamstats",
+    dates: list[str] | None = None,
     source_files: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     projection = {"_id": 0, "full": 1, "matches": 1, "_importMeta": 1}
-    query: dict[str, Any] = {}
+    query_clauses: list[dict[str, Any]] = []
+    if dates:
+        allowed_dates = [str(value) for value in dates if str(value).strip()]
+        if allowed_dates:
+            query_clauses.append(
+                {
+                    "$or": [
+                        {"full.date": {"$in": allowed_dates}},
+                        {"matches.date": {"$in": allowed_dates}},
+                        {"date": {"$in": allowed_dates}},
+                    ]
+                }
+            )
     if source_files:
-        query["_importMeta.sourceFile"] = {"$in": sorted(source_files)}
+        query_clauses.append({"_importMeta.sourceFile": {"$in": sorted(source_files)}})
+    if not query_clauses:
+        query: dict[str, Any] = {}
+    elif len(query_clauses) == 1:
+        query = query_clauses[0]
+    else:
+        query = {"$and": query_clauses}
+
+    allowed_dates_set = {str(value) for value in dates or [] if str(value).strip()}
     for index, payload in enumerate(database[collection_name].find(query, projection=projection)):
         matches = _extract_matches(payload)
         if matches is None:
             continue
+        if allowed_dates_set:
+            matches = [match for match in matches if str(match.get("date") or "").strip() in allowed_dates_set]
+            if not matches:
+                continue
         import_meta = payload.get("_importMeta") if isinstance(payload.get("_importMeta"), dict) else {}
         source_file = str(import_meta.get("sourceFile") or f"teamstats_doc_{index}.json")
         source_role = str(import_meta.get("teamRole") or "").lower()
@@ -120,11 +145,21 @@ def _build_match_key(match: dict[str, Any]) -> tuple[str, str | None]:
 
 
 def _resolve_match_context(match: dict[str, Any], support_lookup) -> dict[str, Any]:
+    explicit_home_team_key = match.get("homeTeamKey") or match.get("home_team_key")
+    explicit_away_team_key = match.get("awayTeamKey") or match.get("away_team_key")
+    explicit_league_key = match.get("leagueKey") or match.get("league_key")
+    explicit_mapping_confidence = match.get("mappingConfidence") or match.get("mapping_confidence")
+
     home_team = support_lookup.teams_by_id.get(str(match.get("homeTeamId"))) if match.get("homeTeamId") is not None else None
     away_team = support_lookup.teams_by_id.get(str(match.get("awayTeamId"))) if match.get("awayTeamId") is not None else None
-    home_team_key = home_team["team_key"] if home_team else f"unknown:{match.get('homeTeamId')}"
-    away_team_key = away_team["team_key"] if away_team else f"unknown:{match.get('awayTeamId')}"
-    if home_team and away_team and home_team.get("league_key") == away_team.get("league_key"):
+
+    home_team_key = str(explicit_home_team_key or (home_team["team_key"] if home_team else f"unknown:{match.get('homeTeamId')}"))
+    away_team_key = str(explicit_away_team_key or (away_team["team_key"] if away_team else f"unknown:{match.get('awayTeamId')}"))
+
+    if explicit_league_key:
+        league_key = str(explicit_league_key)
+        mapping_confidence = str(explicit_mapping_confidence or "fixture_context")
+    elif home_team and away_team and home_team.get("league_key") == away_team.get("league_key"):
         league_key = home_team["league_key"]
         mapping_confidence = "exact_support_ids"
     elif home_team or away_team:

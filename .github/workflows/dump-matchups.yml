@@ -9,6 +9,11 @@ on:
         description: "Match date (YYYY-MM-DD), defaults to D+7."
         required: false
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -23,6 +28,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 45
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         DATE="${{ inputs.target_date }}"
         if [ -z "$DATE" ]; then

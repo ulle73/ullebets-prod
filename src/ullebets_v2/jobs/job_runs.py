@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -14,6 +14,18 @@ JobStatus = str
 
 def utc_now() -> datetime:
     return datetime.now(tz=UTC)
+
+
+def _coerce_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+    return None
 
 
 def build_job_run_started_doc(
@@ -52,6 +64,88 @@ def build_job_run_finished_update(
             "metrics": metrics or {},
             "error": error,
         }
+    }
+
+
+def inspect_job_run_health(
+    *,
+    job_runs: list[dict[str, Any]],
+    stale_hours: int = 6,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    effective_now = now or utc_now()
+    stale_cutoff = effective_now - timedelta(hours=stale_hours)
+    running_rows = [
+        row
+        for row in job_runs
+        if row.get("status") == "running"
+        and row.get("finished_at") in {None, ""}
+    ]
+    stale_rows = [
+        row
+        for row in running_rows
+        if (_coerce_datetime(row.get("started_at")) or datetime.min.replace(tzinfo=UTC)) <= stale_cutoff
+    ]
+    stale_names: dict[str, int] = {}
+    for row in stale_rows:
+        job_name = str(row.get("job_name") or "unknown")
+        stale_names[job_name] = stale_names.get(job_name, 0) + 1
+    return {
+        "status": "ok" if not stale_rows else "warn",
+        "findings": [] if not stale_rows else ["stale_running_job_runs"],
+        "metrics": {
+            "running_job_count": len(running_rows),
+            "stale_running_job_count": len(stale_rows),
+            "stale_running_job_names": stale_names,
+            "stale_hours_threshold": stale_hours,
+            "checked_at": effective_now,
+        },
+        "running_rows": running_rows,
+        "stale_rows": stale_rows,
+    }
+
+
+def reconcile_stale_job_runs(
+    collection: Collection | Any,
+    *,
+    stale_hours: int = 6,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    effective_now = now or utc_now()
+    running_rows = list(collection.find({"status": "running"}, projection={"_id": 0}))
+    health = inspect_job_run_health(
+        job_runs=running_rows,
+        stale_hours=stale_hours,
+        now=effective_now,
+    )
+    reconciled_run_ids: list[str] = []
+    for row in health["stale_rows"]:
+        run_id = str(row.get("run_id") or "")
+        if not run_id:
+            continue
+        metrics = dict(row.get("metrics") or {})
+        metrics["reconciled_from_status"] = "running"
+        metrics["reconciled_reason"] = "stale_running_job_run"
+        collection.update_one(
+            {"run_id": run_id},
+            build_job_run_finished_update(
+                status="failed",
+                metrics=metrics,
+                error={
+                    "type": "InterruptedJobRun",
+                    "message": f"Marked failed after exceeding {stale_hours} stale hours without completion.",
+                },
+                now=effective_now,
+            ),
+        )
+        reconciled_run_ids.append(run_id)
+    return {
+        "checked_at": effective_now,
+        "stale_hours_threshold": stale_hours,
+        "running_job_count": len(running_rows),
+        "stale_running_job_count": len(health["stale_rows"]),
+        "reconciled_count": len(reconciled_run_ids),
+        "reconciled_run_ids": reconciled_run_ids,
     }
 
 

@@ -22,7 +22,7 @@ from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Refresh V2 CLV tracking rows from forward_bets_v2 and closing_lines_v2.")
+    parser = argparse.ArgumentParser(description="Refresh V2 CLV tracking rows from forward_bets and closing_lines.")
     parser.add_argument("--mode", choices=["paths-or-db", "legacy-result-loop"], default="paths-or-db")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--tracked-bets-path", type=Path)
@@ -46,7 +46,9 @@ def main() -> int:
     config = V2Config.from_env(args.repo_root)
     ensure_v2_database(config)
     config.ensure_directories()
-    database = None if args.dry_run else get_database(config)
+    # The service returns before persistence in dry-run mode, so database access
+    # remains read-only while exercising the real closing/forward data.
+    database = get_database(config)
     tracked_bet_docs = _load_json_rows(args.tracked_bets_path) if args.tracked_bets_path else None
     model_snapshot_docs = _load_json_rows(args.model_snapshots_path) if args.model_snapshots_path else None
     closing_line_docs = _load_json_rows(args.closing_lines_path) if args.closing_lines_path else None

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.collections import CLOSING_LINES, MARKET_SNAPSHOTS
+
 
 def persist_closing_records(
     database: Any,
@@ -14,7 +16,7 @@ def persist_closing_records(
 ) -> dict[str, int]:
     market_snapshot_upserts = 0
     for row in market_snapshot_docs:
-        result = database["market_snapshots"].update_one(
+        result = database[MARKET_SNAPSHOTS].update_one(
             {"snapshot_key": row["snapshot_key"]},
             {"$set": row},
             upsert=True,
@@ -23,7 +25,7 @@ def persist_closing_records(
 
     closing_line_upserts = 0
     for row in closing_line_docs:
-        result = database["closing_lines_v2"].update_one(
+        result = database[CLOSING_LINES].update_one(
             {"closing_key": row["closing_key"]},
             {"$set": row},
             upsert=True,

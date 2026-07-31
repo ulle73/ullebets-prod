@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,9 @@ from ullebets_v2.odds.reports import (
 from ullebets_v2.support.schemas import stable_json_hash, slugify
 
 
+FORWARD_FIXTURE_ALLOWED_STATUSES = frozenset({"notstarted", "scheduled"})
+
+
 def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
@@ -38,6 +42,17 @@ def _parse_match_time(value: Any) -> datetime | None:
         except ValueError:
             return None
     return None
+
+
+def _normalize_fixture_status(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip().lower()
+    return ""
+
+
+def _fixture_status_is_forward_playable(value: Any) -> bool:
+    normalized = _normalize_fixture_status(value)
+    return not normalized or normalized in FORWARD_FIXTURE_ALLOWED_STATUSES
 
 
 def _tuple_hash(tuples: list[dict[str, Any]]) -> str:
@@ -154,6 +169,8 @@ def _resolve_legacy_target_start_time(
     *,
     legacy_doc: dict[str, Any],
     legacy_match_database: Any | None,
+    match_rows_by_date: dict[str, list[dict[str, Any]]] | None = None,
+    teamstats_rows_by_date: dict[str, list[dict[str, Any]]] | None = None,
 ) -> datetime | None:
     direct = _legacy_target_start_time(legacy_doc)
     if direct is not None or legacy_match_database is None:
@@ -169,56 +186,114 @@ def _resolve_legacy_target_start_time(
     best_score = -1
     best_timestamp: int | None = None
 
-    for doc in legacy_match_database["match-for-date"].find({}, projection={"_id": 0, "full": 1}):
-        full = doc.get("full") or []
-        if not full:
-            continue
-        entry = full[0]
-        if str(entry.get("date") or "") != match_date:
-            continue
-        for row in entry.get("matches") or []:
-            score = _legacy_match_candidate_score(
-                source_match_id=source_match_id,
-                home_team_name=home_team_name,
-                away_team_name=away_team_name,
-                candidate_match_id=row.get("id") or row.get("matchId"),
-                candidate_home_team_name=(row.get("homeTeam") or {}).get("name"),
-                candidate_away_team_name=(row.get("awayTeam") or {}).get("name"),
-            )
-            timestamp = row.get("startTimestamp") or row.get("timestamp")
-            if score > best_score and timestamp:
-                best_score = score
-                best_timestamp = int(timestamp)
-        if best_score >= 100 and best_timestamp is not None:
-            return datetime.fromtimestamp(best_timestamp, tz=UTC)
+    if match_rows_by_date is None:
+        match_rows = []
+        for doc in legacy_match_database["match-for-date"].find({}, projection={"_id": 0, "full": 1}):
+            full = doc.get("full") or []
+            if not full:
+                continue
+            entry = full[0]
+            if str(entry.get("date") or "") != match_date:
+                continue
+            match_rows.extend(entry.get("matches") or [])
+    else:
+        match_rows = list(match_rows_by_date.get(match_date) or [])
+
+    for row in match_rows:
+        score = _legacy_match_candidate_score(
+            source_match_id=source_match_id,
+            home_team_name=home_team_name,
+            away_team_name=away_team_name,
+            candidate_match_id=row.get("id") or row.get("matchId"),
+            candidate_home_team_name=(row.get("homeTeam") or {}).get("name"),
+            candidate_away_team_name=(row.get("awayTeam") or {}).get("name"),
+        )
+        timestamp = row.get("startTimestamp") or row.get("timestamp")
+        if score > best_score and timestamp:
+            best_score = score
+            best_timestamp = int(timestamp)
+    if best_score >= 100 and best_timestamp is not None:
+        return datetime.fromtimestamp(best_timestamp, tz=UTC)
 
     if best_timestamp is not None and best_score >= 40:
         return datetime.fromtimestamp(best_timestamp, tz=UTC)
 
+    if teamstats_rows_by_date is None:
+        teamstats_rows = []
+        projection = {"_id": 0, "full": 1, "matches": 1}
+        for doc in legacy_match_database["teamstats"].find({}, projection=projection):
+            rows = doc.get("full") if isinstance(doc.get("full"), list) else doc.get("matches")
+            if not isinstance(rows, list):
+                continue
+            for row in rows:
+                if str(row.get("date") or "") == match_date:
+                    teamstats_rows.append(row)
+    else:
+        teamstats_rows = list(teamstats_rows_by_date.get(match_date) or [])
+
+    for row in teamstats_rows:
+        score = _legacy_match_candidate_score(
+            source_match_id=source_match_id,
+            home_team_name=home_team_name,
+            away_team_name=away_team_name,
+            candidate_match_id=row.get("matchId") or row.get("id"),
+            candidate_home_team_name=row.get("homeTeamName"),
+            candidate_away_team_name=row.get("awayTeamName"),
+        )
+        timestamp = row.get("timestamp") or row.get("startTimestamp")
+        if score > best_score and timestamp:
+            best_score = score
+            best_timestamp = int(timestamp)
+
+    if best_timestamp is None or best_score < 40:
+        return None
+    return datetime.fromtimestamp(best_timestamp, tz=UTC)
+
+
+def _load_legacy_match_rows_by_date(
+    *,
+    legacy_match_database: Any | None,
+    dates: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    if legacy_match_database is None or not dates:
+        return {}
+
+    requested_dates = set(dates)
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for doc in legacy_match_database["match-for-date"].find({}, projection={"_id": 0, "full": 1, "matches": 1}):
+        full = doc.get("full")
+        if isinstance(full, list) and full:
+            entries = [entry for entry in full if isinstance(entry, dict)]
+        else:
+            entries = [doc]
+        for entry in entries:
+            match_date = str(entry.get("date") or "").strip()
+            if match_date not in requested_dates:
+                continue
+            grouped[match_date].extend(entry.get("matches") or [])
+    return dict(grouped)
+
+
+def _load_legacy_teamstats_rows_by_date(
+    *,
+    legacy_match_database: Any | None,
+    dates: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    if legacy_match_database is None or not dates:
+        return {}
+
+    requested_dates = set(dates)
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     projection = {"_id": 0, "full": 1, "matches": 1}
     for doc in legacy_match_database["teamstats"].find({}, projection=projection):
         rows = doc.get("full") if isinstance(doc.get("full"), list) else doc.get("matches")
         if not isinstance(rows, list):
             continue
         for row in rows:
-            if str(row.get("date") or "") != match_date:
-                continue
-            score = _legacy_match_candidate_score(
-                source_match_id=source_match_id,
-                home_team_name=home_team_name,
-                away_team_name=away_team_name,
-                candidate_match_id=row.get("matchId") or row.get("id"),
-                candidate_home_team_name=row.get("homeTeamName"),
-                candidate_away_team_name=row.get("awayTeamName"),
-            )
-            timestamp = row.get("timestamp") or row.get("startTimestamp")
-            if score > best_score and timestamp:
-                best_score = score
-                best_timestamp = int(timestamp)
-
-    if best_timestamp is None or best_score < 40:
-        return None
-    return datetime.fromtimestamp(best_timestamp, tz=UTC)
+            match_date = str(row.get("date") or "").strip()
+            if match_date in requested_dates:
+                grouped[match_date].append(row)
+    return dict(grouped)
 
 
 def load_legacy_backtest_targets(
@@ -232,6 +307,11 @@ def load_legacy_backtest_targets(
     if legacy_backtest_database is None or not dates:
         return []
 
+    match_rows_by_date = _load_legacy_match_rows_by_date(
+        legacy_match_database=legacy_match_database,
+        dates=dates,
+    )
+    teamstats_rows_by_date: dict[str, list[dict[str, Any]]] | None = None
     rows = list(
         legacy_backtest_database["unibet-backtest"].find(
             {"matchDate": {"$in": list(dates)}},
@@ -283,10 +363,7 @@ def load_legacy_backtest_targets(
             "source_match_id": source_match_id,
             "source_type": "legacy_unibet_backtest",
             "source_date": match_date,
-            "start_time": _resolve_legacy_target_start_time(
-                legacy_doc=legacy_doc,
-                legacy_match_database=legacy_match_database,
-            ),
+            "start_time": None,
             "league_key": league_key,
             "league_id": league_doc.get("league_id") if league_doc else None,
             "league_name": league_doc.get("league_name") if league_doc else league_name,
@@ -302,6 +379,25 @@ def load_legacy_backtest_targets(
             "legacy_event_id": str(event_id) if event_id is not None else None,
             "_selection_time": selection_time,
         }
+        start_time = _resolve_legacy_target_start_time(
+            legacy_doc=legacy_doc,
+            legacy_match_database=legacy_match_database,
+            match_rows_by_date=match_rows_by_date,
+            teamstats_rows_by_date={},
+        )
+        if start_time is None and legacy_match_database is not None:
+            if teamstats_rows_by_date is None:
+                teamstats_rows_by_date = _load_legacy_teamstats_rows_by_date(
+                    legacy_match_database=legacy_match_database,
+                    dates=dates,
+                )
+            start_time = _resolve_legacy_target_start_time(
+                legacy_doc=legacy_doc,
+                legacy_match_database=legacy_match_database,
+                match_rows_by_date=match_rows_by_date,
+                teamstats_rows_by_date=teamstats_rows_by_date,
+            )
+        candidate["start_time"] = start_time
         previous = selected_by_match_key.get(match_key)
         if previous is None or candidate["_selection_time"] > previous["_selection_time"]:
             selected_by_match_key[match_key] = candidate
@@ -329,6 +425,7 @@ def load_fixture_targets_from_database(
     reference_time: datetime | None = None,
     league_key: str | None = None,
     league_name: str | None = None,
+    forward_only: bool = False,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
     now = reference_time or utc_now()
@@ -346,6 +443,8 @@ def load_fixture_targets_from_database(
         query["league_name"] = league_name
 
     rows = list(database["fixtures_canonical"].find(query, projection={"_id": 0}))
+    if forward_only:
+        rows = [row for row in rows if _fixture_status_is_forward_playable(row.get("status_type"))]
     rows.sort(
         key=lambda row: (
             _parse_match_time(row.get("start_time")) or datetime.max.replace(tzinfo=UTC),
@@ -355,6 +454,36 @@ def load_fixture_targets_from_database(
     if limit is not None and limit > 0:
         return rows[:limit]
     return rows
+
+
+def load_historical_replay_targets(
+    *,
+    database: Any | None,
+    dates: list[str],
+    support_docs: dict[str, Any],
+    legacy_backtest_database: Any | None,
+    legacy_match_database: Any | None = None,
+    limit: int | None = None,
+) -> tuple[list[dict[str, Any]], str]:
+    if database is not None:
+        fixture_targets = load_fixture_targets_from_database(
+            database=database,
+            dates=dates,
+            limit=limit,
+        )
+        if fixture_targets:
+            return fixture_targets, "fixtures_canonical"
+
+    return (
+        load_legacy_backtest_targets(
+            dates=dates,
+            support_docs=support_docs,
+            legacy_backtest_database=legacy_backtest_database,
+            legacy_match_database=legacy_match_database,
+            limit=limit,
+        ),
+        "legacy_unibet_backtest",
+    )
 
 
 def _target_match_date(match: dict[str, Any]) -> str | None:
@@ -375,6 +504,7 @@ def _find_legacy_backtest_doc(
     *,
     legacy_backtest_database: Any | None,
     match: dict[str, Any],
+    candidates_by_date: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any] | None:
     if legacy_backtest_database is None:
         return None
@@ -382,12 +512,15 @@ def _find_legacy_backtest_doc(
     if not match_date:
         return None
 
-    candidates = list(
-        legacy_backtest_database["unibet-backtest"].find(
-            {"matchDate": match_date},
-            projection={"_id": 0},
+    if candidates_by_date is None:
+        candidates = list(
+            legacy_backtest_database["unibet-backtest"].find(
+                {"matchDate": match_date},
+                projection={"_id": 0},
+            )
         )
-    )
+    else:
+        candidates = list(candidates_by_date.get(match_date) or [])
     if not candidates:
         return None
 
@@ -414,6 +547,36 @@ def _find_legacy_backtest_doc(
             best_doc = candidate
 
     return best_doc if best_score >= 40 else None
+
+
+def _load_legacy_backtest_candidates_by_date(
+    *,
+    legacy_backtest_database: Any | None,
+    targets: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    if legacy_backtest_database is None:
+        return {}
+
+    dates = sorted(
+        {
+            match_date
+            for target in targets
+            if (match_date := _target_match_date(target))
+        }
+    )
+    if not dates:
+        return {}
+
+    collection = legacy_backtest_database["unibet-backtest"]
+    return {
+        match_date: list(
+            collection.find(
+                {"matchDate": match_date},
+                projection={"_id": 0},
+            )
+        )
+        for match_date in dates
+    }
 
 
 def _normalize_legacy_direction(value: Any) -> str | None:
@@ -491,6 +654,7 @@ def _build_legacy_event_link_doc(
         "source_workflow": match.get("source_workflow"),
         "league_key": match.get("league_key"),
         "league_name": match.get("league_name"),
+        "source_date": _target_match_date(match),
         "home_team_name": match.get("home_team_name"),
         "away_team_name": match.get("away_team_name"),
         "canonical_home_team_name": legacy_doc.get("homeTeam") or match.get("home_team_name"),
@@ -527,6 +691,7 @@ def _build_legacy_raw_doc(
         "source_provider": "legacy_unibet_backtest",
         "source_url": legacy_doc.get("url"),
         "fetched_at": imported_at,
+        "source_date": _target_match_date(match),
         "match_key": match["match_key"],
         "event_id": str(event_id) if event_id is not None else None,
         "league_key": match.get("league_key"),
@@ -568,6 +733,8 @@ def _build_legacy_import_payload(
             tuples=tuples,
             raw_payload_hash=raw_doc["payload_hash"],
             fetched_at=imported_at,
+            source_provider="legacy_unibet_backtest",
+            payload_kind="legacy_unibet_backtest",
         ),
         "imported_at": imported_at,
     }
@@ -581,6 +748,7 @@ def inspect_fixture_target_window_from_database(
     reference_time: datetime | None = None,
     league_key: str | None = None,
     league_name: str | None = None,
+    forward_only: bool = False,
     empty_horizon_days: int = 35,
 ) -> dict[str, Any]:
     now = reference_time or utc_now()
@@ -597,6 +765,7 @@ def inspect_fixture_target_window_from_database(
             dates=dates,
             league_key=league_key,
             league_name=league_name,
+            forward_only=forward_only,
         )
         context.update(
             {
@@ -619,6 +788,7 @@ def inspect_fixture_target_window_from_database(
         reference_time=now,
         league_key=league_key,
         league_name=league_name,
+        forward_only=forward_only,
     )
     inspection_horizon_days = max(requested_window_days, max(0, empty_horizon_days))
     horizon_rows = load_fixture_targets_from_database(
@@ -627,6 +797,7 @@ def inspect_fixture_target_window_from_database(
         reference_time=now,
         league_key=league_key,
         league_name=league_name,
+        forward_only=forward_only,
     )
     requested_window_end = now + timedelta(days=requested_window_days)
     later_rows = [
@@ -666,7 +837,7 @@ def build_smoke_targets_for_league(
     league_name: str,
     support_docs: dict[str, Any],
     transport: Transport | None = None,
-    limit: int = 1,
+    limit: int | None = 1,
     fetched_at: datetime | None = None,
     reference_time: datetime | None = None,
     max_days_ahead: int = 7,
@@ -717,7 +888,7 @@ def build_smoke_targets_for_league(
                 "captured_at": fetched_at or now,
             }
         )
-        if len(targets) >= max(1, limit):
+        if limit is not None and limit > 0 and len(targets) >= limit:
             break
     return targets
 
@@ -736,6 +907,7 @@ def _build_event_link_doc(
         "source_workflow": match.get("source_workflow"),
         "league_key": match.get("league_key"),
         "league_name": match.get("league_name"),
+        "source_date": _target_match_date(match),
         "home_team_name": match.get("home_team_name"),
         "away_team_name": match.get("away_team_name"),
         "canonical_home_team_name": event.home_team_name,
@@ -774,6 +946,7 @@ def _build_event_odds_raw_doc(
         "source_provider": "kambi",
         "source_url": source_url,
         "fetched_at": fetched_at,
+        "source_date": _target_match_date(match),
         "match_key": match["match_key"],
         "event_id": event_id,
         "league_key": match.get("league_key"),
@@ -791,8 +964,11 @@ def _build_market_offer_docs(
     tuples: list[dict[str, Any]],
     raw_payload_hash: str,
     fetched_at: datetime,
+    source_provider: str = "kambi",
+    payload_kind: str | None = None,
 ) -> list[dict[str, Any]]:
     docs: list[dict[str, Any]] = []
+    source_date = _target_match_date(match)
     for tuple_row in tuples:
         offer_key = "|".join(
             [
@@ -811,6 +987,7 @@ def _build_market_offer_docs(
                 "event_id": event_id,
                 "league_key": match.get("league_key"),
                 "league_name": match.get("league_name"),
+                "source_date": source_date,
                 "home_team_name": match.get("home_team_name"),
                 "away_team_name": match.get("away_team_name"),
                 "stat_key": tuple_row.get("statKey"),
@@ -819,7 +996,8 @@ def _build_market_offer_docs(
                 "line": tuple_row.get("line"),
                 "over_odds": odds.get("over"),
                 "under_odds": odds.get("under"),
-                "source_provider": "kambi",
+                "source_provider": source_provider,
+                "payload_kind": payload_kind or source_provider,
                 "raw_payload_hash": raw_payload_hash,
                 "updated_at": fetched_at,
             }
@@ -842,6 +1020,10 @@ def run_unibet_odds_ingest(
 ) -> dict[str, Any]:
     now = fetched_at or utc_now()
     list_view_cache: dict[str, tuple[dict[str, Any], list[dict[str, Any]], str]] = {}
+    legacy_backtest_candidates_by_date = _load_legacy_backtest_candidates_by_date(
+        legacy_backtest_database=legacy_backtest_database,
+        targets=targets,
+    )
     raw_docs: list[dict[str, Any]] = []
     event_link_docs: list[dict[str, Any]] = []
     market_offer_docs: list[dict[str, Any]] = []
@@ -872,6 +1054,7 @@ def run_unibet_odds_ingest(
             legacy_doc = _find_legacy_backtest_doc(
                 legacy_backtest_database=legacy_backtest_database,
                 match=match,
+                candidates_by_date=legacy_backtest_candidates_by_date,
             )
             if legacy_doc is not None:
                 row["historical_source_found"] = True
@@ -944,6 +1127,7 @@ def run_unibet_odds_ingest(
                     source_url=source_url,
                     payload=payload,
                     fetched_at=now,
+                    source_date=_target_match_date(match),
                 )
                 raw_docs.append(raw_doc)
                 list_view_cache[league_key] = (raw_doc, extract_event_list(payload), source_url)
@@ -991,6 +1175,8 @@ def run_unibet_odds_ingest(
                         tuples=tuples,
                         raw_payload_hash=raw_event_doc["payload_hash"],
                         fetched_at=now,
+                        source_provider="kambi",
+                        payload_kind="event_odds",
                     )
                 )
 

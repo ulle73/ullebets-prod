@@ -57,13 +57,55 @@ class FakeDatabase(dict):
 class FakeReadCollection:
     def __init__(self, docs: list[dict]) -> None:
         self.docs = docs
+        self.last_query: dict | None = None
 
     def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
+        self.last_query = query
         return list(self.docs)
 
 
 class FakeReadDatabase(dict):
     def __getitem__(self, collection_name: str) -> FakeReadCollection:
+        return dict.__getitem__(self, collection_name)
+
+
+class FakeBulkResult:
+    def __init__(self, upserted_ids: dict[int, str]) -> None:
+        self.upserted_ids = upserted_ids
+
+
+class BulkOnlyCollection:
+    def __init__(self) -> None:
+        self.docs: list[dict] = []
+        self.bulk_calls = 0
+
+    def bulk_write(self, operations: list, ordered: bool = False) -> FakeBulkResult:  # noqa: ARG002
+        self.bulk_calls += 1
+        upserted_ids: dict[int, str] = {}
+        for index, operation in enumerate(operations):
+            query = dict(operation._filter)
+            replacement = dict(operation._doc)
+            for doc in self.docs:
+                if all(doc.get(key) == value for key, value in query.items()):
+                    doc.clear()
+                    doc.update(replacement)
+                    break
+            else:
+                self.docs.append(replacement)
+                upserted_ids[index] = f"upserted-{index}"
+        return FakeBulkResult(upserted_ids)
+
+    def update_one(self, query: dict, update: dict, upsert: bool = False):  # noqa: ARG002
+        raise AssertionError("bulk_write should be used instead of per-document update_one")
+
+    def count_documents(self) -> int:
+        return len(self.docs)
+
+
+class BulkOnlyDatabase(dict):
+    def __getitem__(self, collection_name: str) -> BulkOnlyCollection:
+        if collection_name not in self:
+            self[collection_name] = BulkOnlyCollection()
         return dict.__getitem__(self, collection_name)
 
 
@@ -261,6 +303,43 @@ def test_build_teamstats_source_rows_from_database_uses_import_meta() -> None:
     assert rows[0]["matches"][0]["date"] == "2026-05-17"
 
 
+def test_build_teamstats_source_rows_from_database_filters_matches_by_dates_and_queries_nested_date() -> None:
+    collection = FakeReadCollection(
+        [
+            {
+                **build_mongo_teamstats_doc(),
+                "full": [
+                    {
+                        **build_match_record(),
+                        "date": "2026-05-17",
+                        "savedAt": "2026-05-17T11:00:00Z",
+                    },
+                    {
+                        **build_match_record(),
+                        "matchId": 14671650,
+                        "date": "2026-05-18",
+                        "savedAt": "2026-05-18T11:00:00Z",
+                    },
+                ],
+            }
+        ]
+    )
+    rows = build_teamstats_source_rows_from_database(
+        FakeReadDatabase({"teamstats": collection}),
+        dates=["2026-05-18"],
+    )
+
+    assert len(rows) == 1
+    assert [match["date"] for match in rows[0]["matches"]] == ["2026-05-18"]
+    assert collection.last_query == {
+        "$or": [
+            {"full.date": {"$in": ["2026-05-18"]}},
+            {"matches.date": {"$in": ["2026-05-18"]}},
+            {"date": {"$in": ["2026-05-18"]}},
+        ]
+    }
+
+
 def test_run_match_enrichment_window_falls_back_to_mongo_when_files_have_no_date(tmp_path: Path) -> None:
     support_docs = build_support_docs()
     source_dir = write_teamstats_source(tmp_path)
@@ -389,6 +468,65 @@ def test_match_enrichment_reports_and_persistence_are_rerun_safe(tmp_path: Path)
     assert database["match_results_canonical"].count_documents() == 1
     assert database["parity_reports"].count_documents() == 1
     assert database["audit_reports"].count_documents() == 1
+
+
+def test_persist_enrichment_records_uses_bulk_upserts_when_available(tmp_path: Path) -> None:
+    support_docs = build_support_docs()
+    source_dir = write_teamstats_source(tmp_path)
+    source_rows = build_teamstats_source_rows(source_dir)
+    docs = build_match_enrichment_documents(
+        source_rows=source_rows,
+        support_docs=support_docs,
+    )
+    parity_rows = build_match_enrichment_parity_rows(
+        source_workflow="update-teamstats-and-teamprofiles.yml",
+        source_rows=source_rows,
+        canonical_match_results=docs["match_results"],
+    )
+    audit_rows = build_match_enrichment_audit_rows(
+        source_workflow="update-teamstats-and-teamprofiles.yml",
+        source_rows=source_rows,
+        raw_match_statistics=docs["raw_match_statistics"],
+        raw_incidents=docs["raw_incidents"],
+        raw_shotmaps=docs["raw_shotmaps"],
+        raw_results=docs["raw_results"],
+        canonical_match_results=docs["match_results"],
+        canonical_match_stats=docs["match_stats_canonical"],
+    )
+
+    database = BulkOnlyDatabase()
+    first_metrics = persist_enrichment_records(
+        database,
+        raw_match_statistics=docs["raw_match_statistics"],
+        raw_incidents=docs["raw_incidents"],
+        raw_shotmaps=docs["raw_shotmaps"],
+        raw_results=docs["raw_results"],
+        match_stats_canonical=docs["match_stats_canonical"],
+        match_results=docs["match_results"],
+        parity_rows=parity_rows,
+        audit_rows=audit_rows,
+    )
+    second_metrics = persist_enrichment_records(
+        database,
+        raw_match_statistics=docs["raw_match_statistics"],
+        raw_incidents=docs["raw_incidents"],
+        raw_shotmaps=docs["raw_shotmaps"],
+        raw_results=docs["raw_results"],
+        match_stats_canonical=docs["match_stats_canonical"],
+        match_results=docs["match_results"],
+        parity_rows=parity_rows,
+        audit_rows=audit_rows,
+    )
+
+    assert first_metrics["raw_match_statistics_upserts"] == 2
+    assert first_metrics["match_results_canonical_upserts"] == 1
+    assert second_metrics["raw_match_statistics_upserts"] == 0
+    assert second_metrics["match_results_canonical_upserts"] == 0
+    assert database["raw_match_statistics"].count_documents() == 2
+    assert database["match_results_canonical"].count_documents() == 1
+    assert database["match_stats_canonical"].count_documents() == len(docs["match_stats_canonical"])
+    assert database["raw_match_statistics"].bulk_calls >= 1
+    assert database["match_results_canonical"].bulk_calls >= 1
 
 
 def test_build_teamstats_source_rows_accepts_utf8_bom(tmp_path: Path) -> None:

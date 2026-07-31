@@ -198,16 +198,26 @@ def test_run_closing_capture_replays_historical_closing_snapshot_without_live_fe
     assert summary["due_matches"] == 1
     assert summary["matched_events"] == 1
     assert summary["market_snapshots"] == 1
-    assert summary["closing_lines"] == 1
+    assert summary["closing_lines"] == 2
     assert summary["checkpoint_gap_count"] == 0
     assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
-    closing_doc = summary["closing_line_docs"][0]
-    assert closing_doc["opening_over_odds"] == 1.81
-    assert closing_doc["latest_over_odds"] == 2.02
-    assert closing_doc["closing_snapshot_label"] == "T_MINUS_10M"
-    assert closing_doc["prematch_observation_count"] == 3
+    closing_by_stat = {
+        row["stat_key"]: row
+        for row in summary["closing_line_docs"]
+    }
+    corners = closing_by_stat["cornerKicks"]
+    assert corners["opening_over_odds"] == 1.81
+    assert corners["latest_over_odds"] == 2.02
+    assert corners["closing_snapshot_label"] == "T_MINUS_10M"
+    assert corners["prematch_observation_count"] == 4
+
+    shots = closing_by_stat["totalShots"]
+    assert shots["opening_over_odds"] == 1.72
+    assert shots["latest_over_odds"] == 1.72
+    assert shots["closing_snapshot_label"] == "T_MINUS_12H"
+    assert shots["prematch_observation_count"] == 1
 
 
 def test_run_closing_capture_replay_marks_missing_historical_closing_snapshot() -> None:
@@ -237,5 +247,19 @@ def test_run_closing_capture_replay_marks_missing_historical_closing_snapshot() 
     assert summary["closing_lines"] == 0
     assert summary["checkpoint_gap_count"] == 1
     assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_closing_capture_accepts_manual_source_workflow_label() -> None:
+    summary = run_closing_capture(
+        targets=[],
+        support_docs={},
+        source_workflow="manual-t10-acceptance",
+        dry_run=True,
+    )
+
+    assert summary["due_matches"] == 0
+    assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}

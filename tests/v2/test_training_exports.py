@@ -3,11 +3,25 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ullebets_v2.storage.collections import SETTLED_BETS
 from ullebets_v2.training_exports.features import build_feature_names
-from ullebets_v2.training_exports.service import run_training_export_build
+from ullebets_v2.training_exports.service import _load_training_sources, run_training_export_build
 
 from tests.v2.test_match_enrichment import build_support_docs
 from tests.v2.test_teamprofiles import build_canonical_rows_with_raw
+
+
+class FakeCollection:
+    def __init__(self, docs: list[dict]) -> None:
+        self.docs = docs
+
+    def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
+        return list(self.docs)
+
+
+class FakeDatabase(dict):
+    def __getitem__(self, collection_name: str):
+        return dict.__getitem__(self, collection_name)
 
 
 def build_training_sources(tmp_path: Path) -> tuple[dict, list[dict], list[dict], list[dict], list[dict], list[dict]]:
@@ -87,6 +101,38 @@ def test_run_training_export_build_handles_empty_input() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_load_training_sources_excludes_forward_and_non_backtest_settlements() -> None:
+    database = FakeDatabase()
+    database[SETTLED_BETS] = FakeCollection(
+        [
+            {
+                "selection_key": "sel-backtest",
+                "selection_source": "model_snapshot",
+                "snapshot_mode": "backtest",
+                "settlement_status": "settled",
+            },
+            {
+                "selection_key": "sel-forward-snapshot",
+                "selection_source": "model_snapshot",
+                "snapshot_mode": "forward",
+                "settlement_status": "settled",
+            },
+            {
+                "prediction_key": "pred-forward-bet",
+                "selection_source": "forward_bet",
+                "settlement_status": "settled",
+            },
+        ]
+    )
+    for name in ["market_offers", "match_results_canonical", "match_stats_canonical", "raw_incidents", "raw_shotmaps"]:
+        database[name] = FakeCollection([])
+
+    settled_docs, *_ = _load_training_sources(database)
+
+    assert len(settled_docs) == 1
+    assert settled_docs[0]["selection_key"] == "sel-backtest"
 
 
 def test_run_training_export_build_uses_partial_market_context_when_offer_is_missing(tmp_path: Path) -> None:

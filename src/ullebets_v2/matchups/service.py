@@ -11,6 +11,7 @@ from ullebets_v2.matchups.reports import (
     build_matchup_health_rows,
     build_matchup_parity_rows,
 )
+from ullebets_v2.storage.collections import MATCHUPS_LEAGUE_AVG, MATCHUPS_SCORE, TEAMPROFILES
 
 
 PERIODS = (
@@ -528,7 +529,7 @@ def build_matchups_league_avg_docs(
 
 def _load_teamprofiles(database: Any, snapshot_date: str, team_keys: set[str]) -> list[dict[str, Any]]:
     rows = list(
-        database["teamprofiles_v2"].find(
+        database[TEAMPROFILES].find(
             {
                 "team_key": {"$in": sorted(team_keys)},
             },
@@ -676,7 +677,7 @@ def run_matchups_score_build(
     return _run_matchup_build(
         source_workflow=source_workflow,
         job_name="build_matchups_score",
-        collection_name="matchups_score_v2",
+        collection_name=MATCHUPS_SCORE,
         audit_type="matchups_score",
         target_matches=target_matches,
         teamprofile_docs=teamprofile_docs,
@@ -701,7 +702,7 @@ def run_matchups_league_avg_build(
     return _run_matchup_build(
         source_workflow=source_workflow,
         job_name="build_matchups_league_avg",
-        collection_name="matchups_league_avg_v2",
+        collection_name=MATCHUPS_LEAGUE_AVG,
         audit_type="matchups_league_avg",
         target_matches=target_matches,
         teamprofile_docs=teamprofile_docs,

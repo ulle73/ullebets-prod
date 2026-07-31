@@ -6,6 +6,7 @@ from ullebets_v2.enrichment.live import (
     EnrichmentSourceConfig,
     HttpJsonResponse,
     build_live_match_enrichment_source_rows,
+    default_transport,
 )
 from ullebets_v2.enrichment.replay import build_match_enrichment_documents
 from ullebets_v2.enrichment.service import run_live_match_enrichment_window
@@ -40,10 +41,36 @@ def build_fixture_target() -> dict:
         "start_time": datetime(2025, 11, 21, 8, 35, tzinfo=UTC),
         "league_key": "a-league-men",
         "league_name": "A-League Men",
+        "home_team_key": "a-league-men:adelaide-united",
+        "away_team_key": "a-league-men:melbourne-city",
         "home_team_name": "Adelaide United",
         "away_team_name": "Melbourne City",
         "source_path": r"C:\dev\frontend\ullebets-vecel\matches-for-date\fixtures-2025-11-21.json",
     }
+
+
+def test_default_transport_normalizes_socket_timeout(
+    monkeypatch,
+) -> None:
+    def timed_out(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise TimeoutError("read operation timed out")
+
+    monkeypatch.setattr(
+        "ullebets_v2.enrichment.live.urlopen",
+        timed_out,
+    )
+
+    response = default_transport(
+        "https://example.test/event/1",
+        {},
+        1,
+    )
+
+    assert response == HttpJsonResponse(
+        status=0,
+        headers={},
+        data=None,
+    )
 
 
 def test_build_live_match_enrichment_source_rows_preserves_raw_metadata() -> None:
@@ -118,6 +145,75 @@ def test_build_live_match_enrichment_source_rows_preserves_raw_metadata() -> Non
     assert docs["raw_results"][0]["source_name"] == "sofascore-public-event"
     assert docs["match_results"][0]["home_score"] == 2
     assert docs["match_results"][0]["away_score"] == 1
+
+
+def test_build_live_match_enrichment_source_rows_preserves_fixture_team_keys_without_source_ids() -> None:
+    target = build_fixture_target()
+
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
+        if url.endswith("/event/14671649"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={
+                    "event": {
+                        "homeTeam": {"name": "Adelaide United"},
+                        "awayTeam": {"name": "Melbourne City"},
+                        "homeScore": {"current": 2},
+                        "awayScore": {"current": 1},
+                    }
+                },
+            )
+        if url.endswith("/event/14671649/statistics"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={
+                    "statistics": [
+                        {
+                            "period": "ALL",
+                            "groups": [
+                                {
+                                    "groupName": "Match overview",
+                                    "statisticsItems": [
+                                        {"key": "cornerKicks", "homeValue": 6, "awayValue": 5},
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+        if url.endswith("/event/14671649/incidents"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={"incidents": [{"incidentType": "goal", "homeScore": 1, "awayScore": 0, "time": 5}]},
+            )
+        if url.endswith("/event/14671649/shotmap"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={"shotmap": [{"isHome": True, "time": 10}]},
+            )
+        return HttpJsonResponse(status=404, headers={}, data=None)
+
+    live_rows = build_live_match_enrichment_source_rows(
+        targets=[target],
+        source_config=EnrichmentSourceConfig.from_env({}),
+        transport=transport,
+        fetched_at=datetime(2026, 6, 23, 10, 5, tzinfo=UTC),
+    )
+
+    docs = build_match_enrichment_documents(
+        source_rows=live_rows["source_rows"],
+        support_docs=build_support_docs(),
+    )
+
+    assert docs["match_results"][0]["home_team_key"] == target["home_team_key"]
+    assert docs["match_results"][0]["away_team_key"] == target["away_team_key"]
+    assert docs["fixtures_canonical"][0]["home_team_key"] == target["home_team_key"]
+    assert docs["fixtures_canonical"][0]["away_team_key"] == target["away_team_key"]
 
 
 def test_run_live_match_enrichment_window_flags_missing_statistics() -> None:

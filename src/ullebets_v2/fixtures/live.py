@@ -219,7 +219,7 @@ def default_transport(url: str, headers: dict[str, str], timeout_seconds: int) -
             )
     except HTTPError as exc:
         return HttpJsonResponse(status=exc.code, headers=dict(exc.headers.items()), data=None)
-    except URLError:
+    except (TimeoutError, URLError):
         return HttpJsonResponse(status=0, headers={}, data=None)
 
 
@@ -244,6 +244,12 @@ def fetch_live_fixture_batches(
     category_plan = build_category_plan(support_docs)
     batches: list[dict[str, Any]] = []
 
+    def perform_request(source_url: str, headers: dict[str, str]) -> HttpJsonResponse:
+        try:
+            return used_transport(source_url, headers, 15)
+        except TimeoutError:
+            return HttpJsonResponse(status=0, headers={}, data=None)
+
     for entry in category_plan:
         category_id = int(entry["category_id"])
         league_ids = {int(league_id) for league_id in entry["league_ids"]}
@@ -259,7 +265,7 @@ def fetch_live_fixture_batches(
                     if endpoint["host"]:
                         headers["x-rapidapi-host"] = endpoint["host"]
                     source_url = append_query_params(endpoint["url"], endpoint["query"])
-                    response = used_transport(source_url, headers, 15)
+                    response = perform_request(source_url, headers)
                     if response.status != 200:
                         continue
                     events = [
@@ -292,7 +298,7 @@ def fetch_live_fixture_batches(
                     break
             else:
                 source_url = append_query_params(endpoint["url"], endpoint["query"])
-                response = used_transport(source_url, {}, 15)
+                response = perform_request(source_url, {})
                 if response.status != 200:
                     continue
                 events = [

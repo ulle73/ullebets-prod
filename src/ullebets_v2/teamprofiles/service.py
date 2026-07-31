@@ -411,6 +411,7 @@ def run_teamprofile_build(
             parity_rows=parity_rows,
             audit_rows=audit_rows,
             health_rows=health_rows,
+            replace_profile_date=profile_date or "current",
         )
         database["job_runs"].update_one(
             {"run_id": run_doc["run_id"]},

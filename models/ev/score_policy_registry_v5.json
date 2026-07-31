@@ -1,0 +1,27 @@
+{
+  "base_registry": "score_policy_registry_v4.json",
+  "registry_id": "score_policy_registry_v5",
+  "registered_at": "2026-07-30T03:49:02Z",
+  "registered_before_forward_settlement": true,
+  "immutable_after_first_forward_settlement": true,
+  "multiple_comparison_family_size": 20,
+  "historical_model_search_family_size": 162,
+  "additional_policies": [
+    {
+      "policy_id": "v6_scope_interaction_corners_away_total_primary_challenger",
+      "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+      "status": "score_only_primary_challenger",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "cornerKicks"
+        ],
+        "scopes": [
+          "away",
+          "total"
+        ]
+      }
+    }
+  ]
+}

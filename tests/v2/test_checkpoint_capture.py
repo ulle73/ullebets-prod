@@ -21,6 +21,8 @@ def test_pick_due_checkpoint_uses_v2_policy_windows() -> None:
     assert pick_due_checkpoint(match_start=now + timedelta(hours=72), now=now).key == "T_MINUS_3D"
     assert pick_due_checkpoint(match_start=now + timedelta(hours=48), now=now).key == "T_MINUS_2D"
     assert pick_due_checkpoint(match_start=now + timedelta(hours=24), now=now).key == "T_MINUS_1D"
+    assert pick_due_checkpoint(match_start=now + timedelta(hours=12), now=now).key == "T_MINUS_12H"
+    assert pick_due_checkpoint(match_start=now + timedelta(hours=2), now=now).key == "T_MINUS_2H"
     assert pick_due_checkpoint(match_start=now + timedelta(minutes=10), now=now).key == "T_MINUS_10M"
     assert pick_due_checkpoint(match_start=now - timedelta(minutes=1), now=now) is None
 
@@ -44,6 +46,40 @@ def test_select_due_checkpoint_targets_skips_already_captured_snapshot_label() -
     )
 
     assert due == []
+
+
+def test_select_due_checkpoint_targets_can_reserve_t_minus_10m_for_closing_job() -> None:
+    now = datetime(2026, 6, 22, 10, 0, tzinfo=UTC)
+    due = select_due_checkpoint_targets(
+        targets=[
+            {
+                "match_key": "match-1",
+                "start_time": now + timedelta(minutes=10),
+            }
+        ],
+        now=now,
+        excluded_checkpoint_keys={"T_MINUS_10M"},
+    )
+
+    assert due == []
+
+
+def test_pick_due_checkpoint_ignores_invalid_snapshot_label() -> None:
+    now = datetime(2026, 6, 22, 10, 0, tzinfo=UTC)
+
+    due = pick_due_checkpoint(
+        match_start=now + timedelta(minutes=10),
+        now=now,
+        snapshots=[
+            {
+                "snapshot_label": "T_MINUS_10M",
+                "invalid_for_model": True,
+            }
+        ],
+    )
+
+    assert due is not None
+    assert due.key == "T_MINUS_10M"
 
 
 def test_build_snapshot_timing_fields_marks_post_start_rows_invalid() -> None:
@@ -162,11 +198,16 @@ def test_run_checkpoint_capture_replays_historical_v2_windows_without_live_fetch
     )
 
     assert summary["target_matches"] == 1
-    assert summary["due_matches"] == 3
-    assert summary["checkpoint_counts"] == {"T_MINUS_10M": 1, "T_MINUS_2D": 1, "T_MINUS_3D": 1}
+    assert summary["due_matches"] == 4
+    assert summary["checkpoint_counts"] == {
+        "T_MINUS_10M": 1,
+        "T_MINUS_12H": 1,
+        "T_MINUS_2D": 1,
+        "T_MINUS_3D": 1,
+    }
     assert summary["matched_events"] == 1
-    assert summary["market_snapshots"] == 3
-    assert summary["checkpoint_gap_count"] == 1
+    assert summary["market_snapshots"] == 5
+    assert summary["checkpoint_gap_count"] == 2
     assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}

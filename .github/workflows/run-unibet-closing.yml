@@ -1,6 +1,8 @@
 name: V2 Run Unibet Closing Odds
 
 on:
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       date:
@@ -11,9 +13,14 @@ on:
         description: "Optional ISO timestamp override for manual replay."
         required: false
         type: string
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
-  group: ullebets-v2-backend
+  group: ullebets-v2-closing
   cancel-in-progress: false
 
 permissions:
@@ -26,8 +33,9 @@ jobs:
     with:
       timeout_minutes: 45
       checkout_legacy_repo: false
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
-        ARGS=(--mode fixture-db --dry-run)
+        ARGS=(--mode fixture-db --refresh-derived --dry-run)
         if [ -n "${{ inputs.date }}" ]; then
           ARGS+=(--date "${{ inputs.date }}")
         fi

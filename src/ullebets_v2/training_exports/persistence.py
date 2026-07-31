@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.collections import TRAINING_EXPORTS
+
 
 def persist_training_export_records(
     database: Any,
@@ -13,7 +15,7 @@ def persist_training_export_records(
 ) -> dict[str, int]:
     training_export_upserts = 0
     for row in training_export_docs:
-        result = database["training_exports_v2"].update_one(
+        result = database[TRAINING_EXPORTS].update_one(
             {"export_key": row["export_key"]},
             {"$set": row},
             upsert=True,

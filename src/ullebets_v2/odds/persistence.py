@@ -3,6 +3,22 @@ from __future__ import annotations
 from typing import Any
 
 
+def _dedupe_documents(
+    rows: list[dict[str, Any]],
+    *,
+    key_fields: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for row in rows:
+        key = tuple(row.get(field) for field in key_fields)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return deduped
+
+
 def persist_odds_data_records(
     database: Any,
     *,
@@ -29,7 +45,7 @@ def persist_odds_data_records(
         event_link_upserts += 1 if result.upserted_id is not None else 0
 
     market_offer_upserts = 0
-    for row in market_offer_docs:
+    for row in _dedupe_documents(market_offer_docs, key_fields=("offer_key",)):
         result = database["market_offers"].update_one(
             {"offer_key": row["offer_key"]},
             {"$set": row},

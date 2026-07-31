@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.collections import ANALYSIS_CANDIDATES, ANALYSIS_RUNS, ANALYSIS_SNAPSHOTS
+
 
 def persist_analysis_records(
     database: Any,
@@ -13,7 +15,7 @@ def persist_analysis_records(
     audit_rows: list[dict[str, Any]],
     health_rows: list[dict[str, Any]],
 ) -> dict[str, int]:
-    run_result = database["analysis_runs_v2"].update_one(
+    run_result = database[ANALYSIS_RUNS].update_one(
         {"run_id": analysis_run_doc["run_id"]},
         {"$set": analysis_run_doc},
         upsert=True,
@@ -22,7 +24,7 @@ def persist_analysis_records(
 
     candidate_upserts = 0
     for row in analysis_candidate_docs:
-        result = database["analysis_candidates_v2"].update_one(
+        result = database[ANALYSIS_CANDIDATES].update_one(
             {"candidate_key": row["candidate_key"]},
             {"$set": row},
             upsert=True,
@@ -31,7 +33,7 @@ def persist_analysis_records(
 
     snapshot_upserts = 0
     if analysis_snapshot_doc:
-        result = database["analysis_snapshots_v2"].update_one(
+        result = database[ANALYSIS_SNAPSHOTS].update_one(
             {"analysis_key": analysis_snapshot_doc["analysis_key"]},
             {"$set": analysis_snapshot_doc},
             upsert=True,

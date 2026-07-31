@@ -3,7 +3,11 @@ from pathlib import Path
 import pytest
 
 from ullebets_v2.config import V2Config
-from ullebets_v2.safety import ensure_distinct_database_roles, ensure_v2_database
+from ullebets_v2.safety import (
+    ensure_distinct_database_roles,
+    ensure_no_simulated_time_write,
+    ensure_v2_database,
+)
 
 
 def test_v2_config_reads_env_and_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -70,3 +74,23 @@ def test_ensure_distinct_database_roles_rejects_target_legacy_overlap(tmp_path: 
 
     with pytest.raises(RuntimeError, match="target_matches_legacy_app"):
         ensure_distinct_database_roles(config)
+
+
+def test_simulated_time_is_only_allowed_for_dry_runs() -> None:
+    ensure_no_simulated_time_write(
+        time_override=None,
+        dry_run=False,
+        job_name="live-job",
+    )
+    ensure_no_simulated_time_write(
+        time_override="2026-01-01T00:00:00Z",
+        dry_run=True,
+        job_name="replay-job",
+    )
+
+    with pytest.raises(RuntimeError, match="simulated time"):
+        ensure_no_simulated_time_write(
+            time_override="2026-01-01T00:00:00Z",
+            dry_run=False,
+            job_name="live-job",
+        )

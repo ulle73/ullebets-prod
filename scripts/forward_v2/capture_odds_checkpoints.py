@@ -12,6 +12,7 @@ if str(SRC) not in sys.path:
 
 from ullebets_v2.checkpoints.service import run_checkpoint_capture
 from ullebets_v2.config import V2Config
+from ullebets_v2.date_windows import resolve_target_limit
 from ullebets_v2.odds.oracle import OriginalJsOracle
 from ullebets_v2.odds.service import (
     build_smoke_targets_for_league,
@@ -20,7 +21,10 @@ from ullebets_v2.odds.service import (
     load_legacy_backtest_targets,
     load_replay_fixture_targets,
 )
-from ullebets_v2.safety import ensure_v2_database
+from ullebets_v2.safety import (
+    ensure_no_simulated_time_write,
+    ensure_v2_database,
+)
 from ullebets_v2.storage.mongo import get_database, get_legacy_app_database
 from ullebets_v2.support.loaders import load_support_documents
 
@@ -31,9 +35,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--source-workflow", default="run-unibet-odds-checkpoints.yml")
     parser.add_argument("--league")
-    parser.add_argument("--limit", type=int, default=25)
+    parser.add_argument("--limit", type=int)
     parser.add_argument("--max-days-ahead", type=int, default=7)
     parser.add_argument("--checkpoint")
+    parser.add_argument(
+        "--exclude-checkpoint",
+        action="append",
+        default=[],
+        help="Checkpoint key to leave to another capture job. May be repeated.",
+    )
     parser.add_argument("--date", dest="dates", action="append", default=[])
     parser.add_argument("--now")
     parser.add_argument("--leagues-path", type=Path)
@@ -53,6 +63,11 @@ def main() -> int:
     args = parse_args()
     config = V2Config.from_env(args.repo_root)
     ensure_v2_database(config)
+    ensure_no_simulated_time_write(
+        time_override=args.now,
+        dry_run=args.dry_run,
+        job_name="capture_odds_checkpoints",
+    )
     config.ensure_directories()
     support_docs = load_support_documents(
         leagues_path=args.leagues_path or config.default_leagues_path(),
@@ -84,7 +99,7 @@ def main() -> int:
             support_docs=support_docs,
             legacy_backtest_database=get_legacy_app_database(config),
             legacy_match_database=get_legacy_app_database(config),
-            limit=args.limit if args.limit > 0 else None,
+            limit=resolve_target_limit(args.limit),
         )
     elif args.mode == "fixture-db":
         read_database = get_database(config)
@@ -94,6 +109,7 @@ def main() -> int:
             max_days_ahead=args.max_days_ahead,
             reference_time=now,
             league_name=args.league,
+            forward_only=True,
         )
         targets = load_fixture_targets_from_database(
             database=read_database,
@@ -101,7 +117,8 @@ def main() -> int:
             max_days_ahead=args.max_days_ahead,
             reference_time=now,
             league_name=args.league,
-            limit=args.limit if args.limit > 0 else None,
+            forward_only=True,
+            limit=resolve_target_limit(args.limit),
         )
     else:
         if not args.league:
@@ -109,12 +126,12 @@ def main() -> int:
         targets = build_smoke_targets_for_league(
             league_name=args.league,
             support_docs=support_docs,
-            limit=args.limit,
+            limit=resolve_target_limit(args.limit, default_when_unspecified=1),
             max_days_ahead=args.max_days_ahead,
             reference_time=now,
         )
 
-    database = None if args.dry_run else (read_database or get_database(config))
+    database = None if args.dry_run else (read_database if read_database is not None else get_database(config))
     oracle = OriginalJsOracle(config.old_repo_root) if args.use_original_oracle else None
     legacy_backtest_database = get_legacy_app_database(config) if args.mode in {"replay-fixtures", "legacy-backtest"} else None
     summary = run_checkpoint_capture(
@@ -124,6 +141,7 @@ def main() -> int:
         database=database,
         dry_run=args.dry_run,
         checkpoint_filter=args.checkpoint,
+        excluded_checkpoint_keys=set(args.exclude_checkpoint),
         oracle=oracle,
         legacy_backtest_database=legacy_backtest_database,
         now=now,

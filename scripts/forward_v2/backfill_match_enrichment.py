@@ -50,7 +50,7 @@ def main() -> int:
     dates = resolve_dates(args)
     write_database = None if args.dry_run else get_database(config)
     if args.source_mode == "db":
-        read_database = write_database or get_database(config)
+        read_database = write_database if write_database is not None else get_database(config)
         summary = run_match_enrichment_backfill_from_raw(
             read_database=read_database,
             source_workflow=args.source_workflow,

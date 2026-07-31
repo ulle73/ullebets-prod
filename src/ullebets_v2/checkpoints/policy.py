@@ -44,6 +44,22 @@ V2_ODDS_CHECKPOINTS = [
         max_minutes_to_kickoff=36 * 60,
     ),
     V2OddsCheckpoint(
+        key="T_MINUS_12H",
+        label="12 timmar fore matchstart",
+        snapshot_type="research",
+        target_days=0,
+        min_minutes_to_kickoff=6 * 60,
+        max_minutes_to_kickoff=18 * 60,
+    ),
+    V2OddsCheckpoint(
+        key="T_MINUS_2H",
+        label="2 timmar fore matchstart",
+        snapshot_type="research",
+        target_days=0,
+        min_minutes_to_kickoff=60,
+        max_minutes_to_kickoff=6 * 60,
+    ),
+    V2OddsCheckpoint(
         key="T_MINUS_10M",
         label="10 minuter fore matchstart",
         snapshot_type="closing",
@@ -74,6 +90,8 @@ def _to_datetime(value: Any) -> datetime | None:
 def get_captured_checkpoint_keys(snapshot_docs: list[dict[str, Any]] | None = None) -> list[str]:
     captured: list[str] = []
     for snapshot in snapshot_docs or []:
+        if snapshot.get("invalid_for_model") is True:
+            continue
         key = snapshot.get("snapshot_label")
         if isinstance(key, str):
             key = key.strip()

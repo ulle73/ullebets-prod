@@ -1,0 +1,55 @@
+name: V2 EV Shadow Settlement
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ullebets-v2-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ev-shadow-settlement:
+    uses: ./.github/workflows/v2-python-job.yml
+    secrets: inherit
+    with:
+      timeout_minutes: 20
+      checkout_legacy_repo: false
+      dry_run: ${{ inputs.dry_run || false }}
+      run_command: |
+        python scripts/forward_v2/settle_forward_bets.py \
+          --source-workflow ev-shadow-settlement.yml \
+          --dry-run
+        python scripts/forward_v2/audit_ev_forward_model.py \
+          --repo-root . \
+          --model-id ev_logistic_recency45_asof_v2 \
+          --dry-run
+        python scripts/forward_v2/audit_ev_forward_model.py \
+          --repo-root . \
+          --model-id ev_logistic_recency45_asof_capped_v3 \
+          --dry-run
+        python scripts/forward_v2/audit_ev_forward_model.py \
+          --repo-root . \
+          --model-id ev_nested_logistic_recency45_asof_capped_v4_shadow \
+          --dry-run
+        python scripts/forward_v2/audit_ev_forward_model.py \
+          --repo-root . \
+          --model-id ev_ensemble_v3_75_v4_25_shadow \
+          --dry-run
+        python scripts/forward_v2/audit_ev_forward_model.py \
+          --repo-root . \
+          --model-id ev_scope_interaction_recency45_asof_capped_v6_shadow \
+          --dry-run
+        python scripts/forward_v2/evaluate_ev_score_archive.py \
+          --repo-root . \
+          --dry-run

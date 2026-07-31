@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 from ullebets_v2.settlement.reports import build_settlement_parity_rows
 from ullebets_v2.settlement.rules import settle_line
-from ullebets_v2.settlement.service import run_model_snapshot_settlement
+from ullebets_v2.settlement.service import run_forward_bet_settlement, run_model_snapshot_settlement
 
 
 def test_settle_line_applies_win_loss_push_rules() -> None:
@@ -64,6 +64,7 @@ def test_run_model_snapshot_settlement_dry_run_settles_total_scope_against_all_s
     assert settled["actual_value"] == 12
     assert settled["settlement_result"] == "win"
     assert settled["roi_units"] == 0.95
+    assert settled["selection_source"] == "model_snapshot"
     assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
@@ -137,6 +138,114 @@ def test_run_model_snapshot_settlement_dry_run_handles_empty_input() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_forward_bet_settlement_dry_run_reuses_push_rules_and_saved_odds() -> None:
+    summary = run_forward_bet_settlement(
+        source_workflow="settle-forward-bets.yml",
+        forward_bet_docs=[
+            {
+                "prediction_key": "pred-1",
+                "selection_key": "sel-1",
+                "match_key": "match-1",
+                "offer_key": "offer-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 10.0,
+                "saved_odds": 2.05,
+                "saved_at": "2026-06-22T09:50:00Z",
+                "match_start_time": "2026-06-22T10:00:00Z",
+                "invalid_for_model": False,
+            }
+        ],
+        match_stats_canonical=[
+            {
+                "match_key": "match-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "all",
+                "actual_value": 10,
+            }
+        ],
+        match_results_canonical=[
+            {
+                "match_key": "match-1",
+                "home_score": 1,
+                "away_score": 0,
+            }
+        ],
+        dry_run=True,
+        settled_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+    )
+
+    assert summary["forward_bets"] == 1
+    assert summary["settled_bets"] == 1
+    assert summary["status_counts"] == {"settled": 1}
+    assert summary["result_counts"] == {"push": 1}
+    settled = summary["settled_docs"][0]
+    assert settled["selection_source"] == "forward_bet"
+    assert settled["selected_odds"] == 2.05
+    assert settled["settlement_result"] == "push"
+    assert settled["roi_units"] == 0.0
+    assert summary["parity_status_counts"] == {"matched": 1}
+    assert summary["audit_status_counts"] == {"ok": 1}
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_forward_bet_settlement_excludes_snapshot_created_after_prediction() -> None:
+    summary = run_forward_bet_settlement(
+        source_workflow="settle-forward-bets.yml",
+        forward_bet_docs=[
+            {
+                "prediction_key": "pred-invalid-timing",
+                "selection_key": "sel-invalid-timing",
+                "match_key": "match-1",
+                "offer_key": "offer-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "away",
+                "direction": "under",
+                "line_value": 5.5,
+                "saved_odds": 1.81,
+                "odds_snapshot_time": "2026-07-30T00:25:00Z",
+                "prediction_created_at": "2026-07-29T23:53:20Z",
+                "match_start_time": "2026-07-30T00:30:00Z",
+                "invalid_for_model": False,
+                "valid_for_forward_evaluation": True,
+            }
+        ],
+        match_stats_canonical=[
+            {
+                "match_key": "match-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "away",
+                "actual_value": 1,
+            }
+        ],
+        match_results_canonical=[
+            {
+                "match_key": "match-1",
+                "home_score": 0,
+                "away_score": 4,
+            }
+        ],
+        dry_run=True,
+        settled_at=datetime(2026, 7, 30, 3, 0, tzinfo=UTC),
+    )
+
+    assert summary["status_counts"] == {"invalid_timing": 1}
+    assert summary["result_counts"] == {}
+    settled = summary["settled_docs"][0]
+    assert settled["timing_status"] == "snapshot_after_prediction_creation"
+    assert settled["valid_for_performance"] is False
+    assert settled["settlement_result"] is None
+    assert settled["pnl_units"] is None
+    assert settled["roi_units"] is None
+    assert summary["audit_status_counts"] == {"warn": 1}
+    assert summary["health_status_counts"] == {"warn": 1}
 
 
 def test_run_model_snapshot_settlement_dry_run_treats_historical_source_gap_as_non_blocking() -> None:

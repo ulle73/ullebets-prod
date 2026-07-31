@@ -10,6 +10,11 @@ on:
         required: false
         default: false
         type: boolean
+      dry_run:
+        description: "Run without writes (smoke test)."
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ullebets-v2-backend
@@ -24,6 +29,7 @@ jobs:
     secrets: inherit
     with:
       timeout_minutes: 45
+      dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         if [ "${{ inputs.skip_correction }}" != "true" ]; then
           python scripts/forward_v2/settle_model_snapshots.py \

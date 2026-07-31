@@ -77,7 +77,7 @@ def main() -> int:
         source_config = EnrichmentSourceConfig.from_env(merged_env)
 
         if args.fixture_source == "db":
-            read_database = write_database or get_database(config)
+            read_database = write_database if write_database is not None else get_database(config)
             targets = load_fixture_targets_from_database(read_database, dates)
         else:
             if not dates:

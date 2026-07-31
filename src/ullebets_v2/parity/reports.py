@@ -10,6 +10,16 @@ def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
 
+def _coerce_report_date(report_date: date | str | None) -> str:
+    if isinstance(report_date, datetime):
+        return report_date.date().isoformat()
+    if isinstance(report_date, date):
+        return report_date.isoformat()
+    if isinstance(report_date, str) and report_date.strip():
+        return report_date
+    return utc_now().date().isoformat()
+
+
 def build_parity_report_row(
     *,
     workflow_entry: dict[str, Any],
@@ -18,7 +28,7 @@ def build_parity_report_row(
     parity_status: str = "planned",
     blocking_issues: list[str] | None = None,
     audit_risks: list[str] | None = None,
-    report_date: date | None = None,
+    report_date: date | str | None = None,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     return {
@@ -34,14 +44,14 @@ def build_parity_report_row(
         "parity_status": parity_status,
         "blocking_issues": blocking_issues or [],
         "audit_risks": audit_risks or [],
-        "report_date": report_date or utc_now().date(),
+        "report_date": _coerce_report_date(report_date),
         "generated_at": generated_at or utc_now(),
     }
 
 
 def materialize_parity_rows(
     *,
-    report_date: date | None = None,
+    report_date: date | str | None = None,
     generated_at: datetime | None = None,
 ) -> list[dict[str, Any]]:
     return [
@@ -61,7 +71,7 @@ def build_audit_report_row(
     status: str = "planned",
     metrics: dict[str, Any] | None = None,
     findings: list[str] | None = None,
-    report_date: date | None = None,
+    report_date: date | str | None = None,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     return {
@@ -70,7 +80,7 @@ def build_audit_report_row(
         "status": status,
         "metrics": metrics or {},
         "findings": findings or [],
-        "report_date": report_date or utc_now().date(),
+        "report_date": _coerce_report_date(report_date),
         "generated_at": generated_at or utc_now(),
     }
 
@@ -81,7 +91,7 @@ def build_health_report_row(
     status: str,
     summary: str,
     metrics: dict[str, Any] | None = None,
-    report_date: date | None = None,
+    report_date: date | str | None = None,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     return {
@@ -89,6 +99,6 @@ def build_health_report_row(
         "status": status,
         "summary": summary,
         "metrics": metrics or {},
-        "report_date": report_date or utc_now().date(),
+        "report_date": _coerce_report_date(report_date),
         "generated_at": generated_at or utc_now(),
     }
