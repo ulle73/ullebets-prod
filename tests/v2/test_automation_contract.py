@@ -90,6 +90,15 @@ def test_shared_runner_uses_current_node24_actions() -> None:
     assert "actions/setup-node@v4" not in workflow
 
 
+def test_full_runtime_pins_frozen_model_dependencies() -> None:
+    project = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert 'numpy==2.2.2' in project
+    assert 'pandas==2.2.3' in project
+    assert 'joblib==1.5.0' in project
+    assert 'scikit-learn==1.7.1' in project
+
+
 def test_workflow_directory_flags_missing_source_workflow_and_runner_dry_run_wiring() -> None:
     workflow_dir = repo_root() / ".github" / "workflows"
     workflow_path = workflow_dir / "run-unibet-forward.yml"

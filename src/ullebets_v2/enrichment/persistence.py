@@ -5,6 +5,9 @@ from typing import Any
 from pymongo import ReplaceOne
 
 
+BULK_WRITE_BATCH_SIZE = 200
+
+
 def persist_enrichment_records(
     database: Any,
     *,
@@ -31,8 +34,12 @@ def persist_enrichment_records(
                 )
                 for doc in docs
             ]
-            result = collection.bulk_write(operations, ordered=False)
-            return len(getattr(result, "upserted_ids", {}) or {})
+            created = 0
+            for offset in range(0, len(operations), BULK_WRITE_BATCH_SIZE):
+                batch = operations[offset : offset + BULK_WRITE_BATCH_SIZE]
+                result = collection.bulk_write(batch, ordered=False)
+                created += len(getattr(result, "upserted_ids", {}) or {})
+            return created
 
         created = 0
         for doc in docs:

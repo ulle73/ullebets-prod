@@ -78,9 +78,11 @@ class BulkOnlyCollection:
     def __init__(self) -> None:
         self.docs: list[dict] = []
         self.bulk_calls = 0
+        self.bulk_sizes: list[int] = []
 
     def bulk_write(self, operations: list, ordered: bool = False) -> FakeBulkResult:  # noqa: ARG002
         self.bulk_calls += 1
+        self.bulk_sizes.append(len(operations))
         upserted_ids: dict[int, str] = {}
         for index, operation in enumerate(operations):
             query = dict(operation._filter)
@@ -527,6 +529,36 @@ def test_persist_enrichment_records_uses_bulk_upserts_when_available(tmp_path: P
     assert database["match_stats_canonical"].count_documents() == len(docs["match_stats_canonical"])
     assert database["raw_match_statistics"].bulk_calls >= 1
     assert database["match_results_canonical"].bulk_calls >= 1
+
+
+def test_persist_enrichment_records_chunks_large_bulk_upserts() -> None:
+    database = BulkOnlyDatabase()
+    stats = [
+        {
+            "match_key": "sofascore:1",
+            "stat_key": f"stat-{index}",
+            "period": "ALL",
+            "scope": "home",
+        }
+        for index in range(401)
+    ]
+
+    persist_enrichment_records(
+        database,
+        raw_match_statistics=[],
+        raw_incidents=[],
+        raw_shotmaps=[],
+        raw_results=[],
+        match_stats_canonical=stats,
+        match_results=[],
+        parity_rows=[],
+        audit_rows=[],
+    )
+
+    collection = database["match_stats_canonical"]
+    assert collection.bulk_calls == 3
+    assert collection.bulk_sizes == [200, 200, 1]
+    assert collection.count_documents() == 401
 
 
 def test_build_teamstats_source_rows_accepts_utf8_bom(tmp_path: Path) -> None:

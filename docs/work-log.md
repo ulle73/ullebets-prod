@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -59,6 +59,17 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `PARTIAL`: source connectivity diagnostics still contain endpoint failures,
   although the production fixture, enrichment, and odds paths succeeded in
   tested windows.
+- `PARTIAL`: scheduled `V2 EV Shadow Forward` run `30668128118` exposed
+  unpinned hosted `numpy/pandas` versions. Exact manifest-compatible pins are
+  implemented and covered by the local `394/394` suite; hosted verification
+  remains required after deployment.
+- `VERIFIED`: scheduled workflows are write-mode by default. Their command
+  templates include `--dry-run`, but the shared runner removes that flag when
+  the workflow input is false. Manual dry-run remains available as a safety
+  control.
+- `VERIFIED`: the latest completed match date for every followed league is now
+  stored in V2. Across 41 matches, raw statistics, incidents, shotmaps,
+  results, canonical results, and all 1,107 primary stat rows are complete.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -136,6 +147,75 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-01 - Scheduled forward-scoring runtime audit
+
+Status: `PARTIAL`
+
+Objective:
+Answer whether the current model, match-data, statistics, and odds lifecycle is
+fully operational using the latest persisted and hosted-run evidence.
+
+Changes:
+
+- Pinned the frozen model runtime dependencies in `pyproject.toml`.
+- Changed enrichment persistence to use 200-operation bulk batches.
+- Updated the local ignored `.env.local` target from `app` to `ullebets_v2`.
+- Fetched and stored the latest completed match dates for all seven followed
+  leagues.
+
+Tests:
+
+```text
+gh run list --limit 20 --json databaseId,name,workflowName,status,conclusion,event,createdAt,updatedAt,headSha,url
+gh run view 30668128118 --log-failed
+python -m pytest -q
+python scripts/forward_v2/ingest_fixtures_window.py --mode live --start-date 2026-05-16 --end-date 2026-05-24 --source-workflow production-latest-completed-2026-08-01
+python scripts/forward_v2/ingest_fixtures_window.py --mode live --date 2026-07-31 --source-workflow production-latest-completed-2026-08-01
+python scripts/forward_v2/backfill_match_enrichment.py --source-mode db --start-date 2026-05-18 --end-date 2026-05-24 --source-workflow production-latest-completed-rebuild-2026-08-01
+```
+
+Results:
+
+- Latest scheduled `V2 EV Shadow Forward` run `30668128118` failed on
+  `main@69e6455`.
+- All four frozen scorer invocations reject the hosted runtime: manifests
+  expect `numpy 2.2.2` and `pandas 2.2.3`; the unpinned install produced
+  `numpy 2.5.1` and `pandas 3.0.5`.
+- The shared workflow runner was inspected and its existing contract tests
+  prove scheduled jobs strip command-template `--dry-run`; the earlier claim
+  that production scoring was forced to dry-run was incorrect.
+- Exact runtime pins now match all frozen manifests: `numpy 2.2.2`,
+  `pandas 2.2.3`, `joblib 1.5.0`, and `scikit-learn 1.7.1`.
+- Production fixture ingest stored 181 canonical fixtures for 16-24 May and 6
+  for 31 July, with zero unmatched fixture identities.
+- The first 39-match enrichment fetched every required source successfully but
+  exposed one CosmosDB timeout on a single 10,085-operation canonical bulk.
+- Raw statistics, incidents, shotmaps, results, and canonical results were
+  preserved for all 39 affected matches. Batched canonical rebuilding then
+  completed successfully from raw without refetching sources.
+- Across the latest completed date per league: 41/41 matches have all four raw
+  enrichment payload families, scored canonical results, and exactly 27
+  corners/shots/shots-on-goal period/scope rows. There are 1,107 primary rows,
+  zero duplicate primary keys, and zero missing actual values.
+- Full regression suite: `394 passed`.
+
+Insight:
+The frozen model correctly fails closed on runtime drift. Production workflow
+write mode was already correct; reproducible dependency pinning was the actual
+scorer defect. Large historical enrichment batches also require bounded bulk
+writes on CosmosDB even though normal daily windows are smaller.
+
+Remaining:
+
+- Deploy the manifest-compatible dependency pins and verify a hosted scorer
+  run succeeds.
+- Prove one hosted scoring write before kickoff on an in-domain fixture.
+
+Next:
+
+- Push the runtime and enrichment persistence fixes, execute the hosted scorer,
+  then wait for an in-domain prematch fixture for the first persisted score.
 
 ### 2026-07-31 - Match-aware GitHub Actions odds scheduling
 

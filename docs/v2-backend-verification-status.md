@@ -1,11 +1,53 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 Branch: `feature/ullebets-v2-backend`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Production Runtime And Latest-Match Ingest On 2026-08-01
+
+The latest scheduled `V2 EV Shadow Forward` GitHub Actions run
+`30668128118` failed on `main@69e6455` before any scoring completed.
+
+- Frozen manifests require `numpy 2.2.2` and `pandas 2.2.3`.
+- The full dependency profile installed `numpy 2.5.1` and `pandas 3.0.5`
+  because the project dependency bounds do not pin those packages.
+- Runtime validation correctly rejected all four scorer invocations.
+- `pyproject.toml` now pins the exact manifest-compatible versions and a
+  regression contract prevents drift.
+- The shared workflow runner removes command-template `--dry-run` flags when
+  scheduled execution uses its default false input. Production was not forced
+  to dry-run; manual dry-run remains intentionally available.
+
+The local full suite passes `394/394`; hosted scoring remains pending until the
+pinning change is deployed and rerun.
+
+The latest completed match dates for all followed leagues were then fetched in
+production write mode. Fixture ingest stored 181 canonical matches for 16-24
+May and 6 for 31 July, with zero unmatched identities. Latest-date enrichment
+coverage is:
+
+- A-League Men: 1 match on 23 May
+- Bundesliga: 1 match on source date 22 May
+- Ligue 1: 8 matches on source date 18 May
+- Premier League: 10 matches on 24 May
+- La Liga: 10 matches on 24 May
+- Serie A: 9 matches on 24 May
+- Brasileirão Série A: 2 matches on 31 July
+
+All 41 matches have raw statistics, incidents, shotmaps, results, canonical
+results with scores, and exactly 27 primary stat rows. The 1,107 primary rows
+have zero duplicate keys and zero missing actual values.
+
+The first 39-match write exposed a CosmosDB timeout because 10,085 canonical
+stat upserts were sent as one bulk command. Raw payloads and canonical results
+had already persisted. Enrichment persistence now uses 200-operation batches,
+and job `b0d64776e3704278a0754fa1511cc1b0` rebuilt the canonical stats from raw
+and finished `succeeded`. A redundant retry was terminated after the primary
+job succeeded and its job row was explicitly marked failed for auditability.
 
 ## Critical Timing Correction On 2026-07-30
 

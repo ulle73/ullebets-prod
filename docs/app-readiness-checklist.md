@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -16,6 +16,8 @@ Status details and evidence:
 
 ## Critical blockers
 
+- [ ] `PARTIAL` Scheduled EV forward scoring runtime drift is fixed and tested
+  locally; hosted production verification remains pending deployment.
 - [ ] `FAILED` Capture a real T-10 odds window before kickoff; all six current
   Brazil windows were missed by the execution automation.
 - [ ] `UNPROVEN` Materialize a valid closing line from that live capture.
@@ -77,6 +79,9 @@ Status details and evidence:
 - [x] Corners, total shots, and shots on goal map to canonical
   stat/period/scope rows.
 - [x] Tested finished matches produced 27 canonical primary-stat rows each.
+- [x] The latest completed match date for every followed league is persisted:
+  41/41 matches have raw statistics, incidents, shotmaps, results, scored
+  canonical results, and exactly 27 primary-stat rows each.
 - [x] Teamprofiles can be rebuilt from canonical history.
 - [ ] `PARTIAL` Run and save a live/parity acceptance report for
   `matchups_score`.
@@ -167,7 +172,9 @@ Current acceptance window:
 - [x] A match-aware hourly Actions scheduler owns production checkpoints and
   enables the five-minute closing watcher only around uncaptured upcoming
   fixtures.
-- [x] EV shadow scoring and settlement workflows exist.
+- [ ] `PARTIAL` EV shadow runtime versions are now pinned to the frozen
+  manifests and scheduled execution is write-mode by default; the corrected
+  hosted workflow still needs a successful run.
 - [ ] `PARTIAL` Prove every scheduled workflow in real write mode through a
   complete prematch-to-postmatch lifecycle.
 - [ ] `PARTIAL` Attach persisted parity/health evidence to every workflow run.
