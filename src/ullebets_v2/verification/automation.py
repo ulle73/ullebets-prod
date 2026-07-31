@@ -27,9 +27,27 @@ REQUIRED_ENV_KEYS = [
 
 WORKFLOW_DRY_RUN_INPUT_DESCRIPTION = 'description: "Run without writes (smoke test)."'
 WORKFLOW_DRY_RUN_RUNNER_WIRING = "dry_run: ${{ inputs.dry_run || false }}"
-HELPER_WORKFLOW_FILES = ["v2-healthcheck.yml", "v2-python-job.yml"]
+HELPER_WORKFLOW_FILES = [
+    "v2-healthcheck.yml",
+    "v2-odds-scheduler.yml",
+    "v2-python-job.yml",
+]
 FORBIDDEN_DIRECT_WORKFLOW_FRAGMENTS = ["npm ", "pnpm ", "yarn ", "node ", "pages/api", "next "]
 HELPER_WORKFLOW_RULES = {
+    "v2-odds-scheduler.yml": {
+        "required_fragments": [
+            'cron: "23 * * * *"',
+            "actions: write",
+            "plan_closing_watch.py",
+            "gh workflow enable run-unibet-closing.yml",
+            "gh workflow disable run-unibet-closing.yml",
+            "capture_odds_checkpoints.py",
+            "--exclude-checkpoint T_MINUS_12H",
+            "--exclude-checkpoint T_MINUS_2H",
+            "--exclude-checkpoint T_MINUS_10M",
+        ],
+        "forbidden_fragments": [],
+    },
     "v2-healthcheck.yml": {
         "required_fragments": [
             "uses: ./.github/workflows/v2-python-job.yml",

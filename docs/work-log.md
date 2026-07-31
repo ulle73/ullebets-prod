@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `386/386`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `391/391`.
 
 ### Backend
 
@@ -127,16 +127,63 @@ Detailed model history:
 
 ## Next justified tests
 
-1. Deploy the closing scheduler to the environment that actually runs jobs.
-2. Capture and verify the next future real due T-10 window.
-3. Materialize a valid prematch closing line and refresh CLV from it.
-4. Score future matches from one of V6's six supported leagues before kickoff.
-5. Settle those in-domain selections without changing artifact, features,
+1. Capture and verify the next future real due T-10 window.
+2. Materialize a valid prematch closing line and refresh CLV from it.
+3. Score future matches from one of V6's six supported leagues before kickoff.
+4. Settle those in-domain selections without changing artifact, features,
    thresholds, scopes, periods, or registry.
-6. Evaluate forward ROI and CLV only after sufficient untouched observations
+5. Evaluate forward ROI and CLV only after sufficient untouched observations
    exist.
 
 ## Chronological entries
+
+### 2026-07-31 - Match-aware GitHub Actions odds scheduling
+
+Status: `VERIFIED`
+
+Objective:
+Retain GitHub Actions while avoiding permanent five- and ten-minute polling.
+
+Changes:
+
+- One hourly workflow now captures production T-3D/T-2D/T-1D checkpoints.
+- The same workflow enables `run-unibet-closing.yml` only when an uncaptured
+  fixture exists within two hours and disables it otherwise.
+- The T-10 watcher keeps five-minute precision only during that active match
+  window and still captures at most one valid T-10 snapshot per match.
+- T-12H/T-2H remain available for manual research but are excluded from the
+  production schedule.
+- Scheduler and closing jobs use a lean `pymongo` runtime instead of installing
+  the full ML dependency set on every check.
+
+Tests:
+
+```text
+python -m pytest -q
+python scripts/forward_v2/plan_closing_watch.py --lookahead-hours 2
+```
+
+Results:
+
+- `391 passed`.
+- A clean virtual environment containing only `pymongo` imported the planner,
+  checkpoint, and closing CLIs successfully.
+- The real read-only planner check against `ullebets_v2` returned
+  `action=disable`, with zero fixtures in the next two hours.
+
+Insight:
+GitHub Actions cannot create dynamic future cron events per fixture. Toggling a
+short-interval workflow from an hourly fixture-aware planner is the closest
+reliable Actions-native equivalent without wasting 288 full runs every day.
+
+Remaining:
+
+- The enable/capture/disable lifecycle still needs persisted proof from the
+  next real fixture window.
+
+Next:
+
+- Inspect the next hourly planner activation and subsequent valid T-10 capture.
 
 ### 2026-07-31 - T-10 scheduler ownership and release verification
 

@@ -35,7 +35,8 @@ def test_closing_workflow_runs_frequently_enough_for_t_minus_10m() -> None:
         / "run-unibet-closing.yml"
     ).read_text(encoding="utf-8")
 
-    assert 'cron: "*/5 * * * *"' in workflow
+    assert 'cron: "2-57/5 * * * *"' in workflow
+    assert "dependency_profile: lean" in workflow
     assert "--refresh-derived" in workflow
 
 
@@ -47,6 +48,27 @@ def test_regular_checkpoint_workflow_leaves_t_minus_10m_to_closing_job() -> None
         / "run-unibet-odds-checkpoints.yml"
     ).read_text(encoding="utf-8")
 
+    assert "schedule:" not in workflow
+    assert "dependency_profile: lean" in workflow
+    assert "--exclude-checkpoint T_MINUS_10M" in workflow
+
+
+def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watch() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "v2-odds-scheduler.yml"
+    ).read_text(encoding="utf-8")
+
+    assert 'cron: "23 * * * *"' in workflow
+    assert "actions: write" in workflow
+    assert "plan_closing_watch.py" in workflow
+    assert "gh workflow enable run-unibet-closing.yml" in workflow
+    assert "gh workflow disable run-unibet-closing.yml" in workflow
+    assert "capture_odds_checkpoints.py" in workflow
+    assert "--exclude-checkpoint T_MINUS_12H" in workflow
+    assert "--exclude-checkpoint T_MINUS_2H" in workflow
     assert "--exclude-checkpoint T_MINUS_10M" in workflow
 
 

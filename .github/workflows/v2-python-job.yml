@@ -22,6 +22,10 @@ on:
         required: false
         type: boolean
         default: false
+      dependency_profile:
+        required: false
+        type: string
+        default: "full"
 
 permissions:
   contents: read
@@ -57,10 +61,15 @@ jobs:
           python-version: ${{ inputs.python_version }}
           cache: pip
 
-      - name: Install V2 dependencies
+      - name: Install full V2 dependencies
+        if: ${{ inputs.dependency_profile == 'full' }}
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .
+
+      - name: Install lean V2 runtime dependency
+        if: ${{ inputs.dependency_profile == 'lean' }}
+        run: python -m pip install "pymongo>=4.8.0"
 
       - name: Check out original backend reference repo
         if: ${{ inputs.checkout_legacy_repo }}

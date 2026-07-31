@@ -164,7 +164,9 @@ Current acceptance window:
 - [x] Original workflow names have V2 job mappings.
 - [x] Shared GitHub Actions runner enforces `ullebets_v2`.
 - [x] Emergency dry-run mode exists.
-- [x] Closing workflow has a five-minute schedule and concurrency group.
+- [x] A match-aware hourly Actions scheduler owns production checkpoints and
+  enables the five-minute closing watcher only around uncaptured upcoming
+  fixtures.
 - [x] EV shadow scoring and settlement workflows exist.
 - [ ] `PARTIAL` Prove every scheduled workflow in real write mode through a
   complete prematch-to-postmatch lifecycle.
@@ -206,10 +208,10 @@ Current acceptance window:
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `386/386`.
+- [x] Current V2 regression suite passes `391/391`.
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
-  `386/386` tests.
+  `391/391` tests.
 - [ ] `NOT STARTED` Deploy backend jobs and frontend to their final production
   environments.
 - [ ] `NOT STARTED` Run a production acceptance test over at least one complete

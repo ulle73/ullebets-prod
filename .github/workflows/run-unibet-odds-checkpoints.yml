@@ -1,8 +1,6 @@
 name: V2 Run Unibet Odds Checkpoints
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
       date:
@@ -42,6 +40,7 @@ jobs:
     with:
       timeout_minutes: 45
       checkout_legacy_repo: false
+      dependency_profile: lean
       dry_run: ${{ inputs.dry_run || false }}
       run_command: |
         ARGS=(--mode fixture-db --source-workflow run-unibet-odds-checkpoints.yml --max-days-ahead "${{ inputs.days_ahead || '7' }}" --exclude-checkpoint T_MINUS_10M --dry-run)
