@@ -169,7 +169,8 @@ Current acceptance window:
 - [x] Emergency dry-run mode exists.
 - [x] A match-aware hourly Actions scheduler owns production checkpoints and
   enables the five-minute closing watcher only around uncaptured upcoming
-  fixtures.
+  fixtures. Hosted write-mode run `30673575119` proved that an already-disabled
+  watcher is handled idempotently and checkpoint capture still executes.
 - [x] EV shadow runtime versions are pinned to the frozen manifests; hosted
   production write-mode run `30672830616` passed all four scorers. It produced
   zero rows because no upcoming canonical model markets existed.
@@ -213,10 +214,10 @@ Current acceptance window:
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `392/392`.
+- [x] Current V2 regression suite passes `394/394`.
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
-  `392/392` tests.
+  `392/392` tests at that checkpoint.
 - [ ] `NOT STARTED` Deploy backend jobs and frontend to their final production
   environments.
 - [ ] `NOT STARTED` Run a production acceptance test over at least one complete

@@ -28,6 +28,17 @@ hosted production write-mode run `30672830616` passed V3, V4, V5, and V6 with
 upcoming model-ready markets existed. That is a valid empty production result,
 not a dry-run or source failure.
 
+The next scheduled odds run exposed a separate orchestration defect: GitHub
+returned HTTP `403` when the scheduler tried to disable an already-disabled
+closing workflow, aborting before checkpoint capture. `main@cdb83b9` now reads
+the workflow state before mutation. Hosted production write-mode run
+`30673575119` treated `disabled_manually` as a successful no-op, reached the
+checkpoint job, and persisted succeeded job run
+`0e4b84a64e4f44eb82412b5ba0753ed8`. There were zero due matches and zero
+errors because no fixture was inside the current window. Automatic enablement,
+T-10 capture, closing-line materialization, and CLV still require the next real
+fixture window.
+
 The latest completed match dates for all followed leagues were then fetched in
 production write mode. Fixture ingest stored 181 canonical matches for 16-24
 May and 6 for 31 July, with zero unmatched identities. Latest-date enrichment

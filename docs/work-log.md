@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `392/392`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `394/394`.
 
 ### Backend
 
@@ -146,6 +146,58 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-01 - Production odds scheduler idempotency repair
+
+Status: `PARTIAL`
+
+Objective:
+Ensure the deployed match-aware scheduler cannot abort regular checkpoint
+capture merely because the T-10 workflow is already in the requested state.
+
+Changes:
+
+- Made closing-workflow enable/disable transitions idempotent by reading the
+  current GitHub workflow state before applying a change.
+- Added an automation contract regression for the no-op state path.
+- Deployed the repair on `main@cdb83b9`.
+
+Tests:
+
+```text
+python -m pytest tests/v2/test_automation_contract.py tests/v2/test_closing_watch.py tests/v2/test_checkpoint_capture.py tests/v2/test_closing_capture.py tests/v2/test_closing_downstream.py tests/v2/test_clv_tracking.py -q
+python -m pytest -q
+gh workflow run v2-odds-scheduler.yml --ref main -f lookahead_hours=2 -f days_ahead=7 -f dry_run=false
+gh run watch 30673575119 --exit-status
+```
+
+Results:
+
+- The previous scheduled run `30672553536` failed with GitHub HTTP `403`
+  because it tried to disable an already disabled workflow.
+- Targeted closing/checkpoint tests passed `44/44`; the full suite passed
+  `394/394`.
+- Hosted production write-mode run `30673575119` completed all steps.
+- The current workflow state was `disabled_manually`; the new path treated it
+  as a successful no-op and continued to checkpoint capture.
+- With no fixture inside the current watch window, the persisted checkpoint
+  job `0e4b84a64e4f44eb82412b5ba0753ed8` correctly finished `succeeded` with
+  `0` due matches, `0` errors, and audit/health status `ok`.
+
+Insight:
+GitHub workflow enable/disable commands are not idempotent. State inspection
+must precede mutation or an expected disabled state can suppress unrelated
+checkpoint collection.
+
+Remaining:
+
+- The next real fixture window must still prove automatic enablement, valid
+  T-10 capture, closing-line materialization, and CLV refresh.
+
+Next:
+
+- Inspect the first scheduler run with a fixture inside two hours, then verify
+  persisted T-10, closing, and CLV evidence without simulating time.
 
 ### 2026-08-01 - Scheduled forward-scoring runtime audit
 
