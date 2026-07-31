@@ -62,7 +62,14 @@ def test_workflow_directory_flags_missing_source_workflow_and_runner_dry_run_wir
             original,
             count=1,
             flags=re.MULTILINE,
-        ).replace("      dry_run: ${{ inputs.dry_run || false }}\n", "", 1)
+        )
+        mutated = re.sub(
+            r"^      dry_run: \$\{\{ inputs\.dry_run \|\| false \}\}\r?\n",
+            "",
+            mutated,
+            count=1,
+            flags=re.MULTILINE,
+        )
         workflow_path.write_text(mutated, encoding="utf-8")
         report = inspect_workflow_directory(workflow_dir)
     finally:
@@ -81,10 +88,16 @@ def test_workflow_directory_flags_missing_workflow_dispatch_dry_run_input() -> N
     original_bytes = workflow_path.read_bytes()
     original = original_bytes.decode("utf-8")
     try:
-        mutated = original.replace(
-            '      dry_run:\n        description: "Run without writes (smoke test)."\n        required: false\n        default: false\n        type: boolean\n',
+        mutated = re.sub(
+            r'^      dry_run:\r?\n'
+            r'^        description: "Run without writes \(smoke test\)\."\r?\n'
+            r'^        required: false\r?\n'
+            r'^        default: false\r?\n'
+            r'^        type: boolean\r?\n',
             "",
-            1,
+            original,
+            count=1,
+            flags=re.MULTILINE,
         )
         workflow_path.write_text(mutated, encoding="utf-8")
         report = inspect_workflow_directory(workflow_dir)
