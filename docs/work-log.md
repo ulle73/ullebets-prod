@@ -23,8 +23,8 @@ Valid empty source responses are not failures when no matches or markets exist.
 
 ### Repository and data boundaries
 
-- `VERIFIED`: V2 is preserved on `feature/ullebets-v2-backend` and has been
-  merge-verified for `main`.
+- `VERIFIED`: V2 is preserved on `feature/ullebets-v2-backend`, merged to
+  `main`, and deployed through active GitHub Actions workflows.
 - `VERIFIED`: V2 writes target only `ullebets_v2`.
 - `VERIFIED`: `app` and `ullebets_unibet` are read-only reference sources.
 - `VERIFIED`: raw and canonical/derived data are separated.
@@ -172,6 +172,17 @@ Results:
 - Feature commits `7557729` and `6009db9` were merged without conflicts in a
   clean worktree based on `origin/main`; the merged checkout also passed
   `386/386` tests.
+- `main` was pushed at `5aae938`; GitHub registered all 24 V2 workflows as
+  active.
+- Repository secrets `MONGODB_URI`, `RAPIDAPI_KEYS`, and the compatibility
+  `RAPIDAPI_KEY` were configured from the ignored local environment without
+  committing or printing their values.
+- GitHub Actions run
+  [30647673244](https://github.com/ulle73/ullebets-prod/actions/runs/30647673244)
+  completed successfully on `main` in 1m45s,
+  proving repository checkout, dependency installation, Mongo connectivity,
+  fixture-database inspection, and the V2 healthcheck command in the hosted
+  runner environment.
 
 Insight:
 The backend code already contained the capture mechanisms, but an undeployed
@@ -186,8 +197,9 @@ Remaining:
 
 Next:
 
-- Deploy the committed workflows to the default branch, then inspect the next
-  real T-10 job run rather than running another manual polling loop.
+- Inspect the next scheduled real T-10 job run and its persisted snapshots,
+  closing lines, CLV tracking, and forward results rather than running another
+  manual polling loop.
 
 ### 2026-07-31 - Brazil post-match completion and missed T-10 audit
 
