@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `391/391`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `392/392`.
 
 ### Backend
 
@@ -165,11 +165,21 @@ python scripts/forward_v2/plan_closing_watch.py --lookahead-hours 2
 
 Results:
 
-- `391 passed`.
+- `392 passed`.
 - A clean virtual environment containing only `pymongo` imported the planner,
   checkpoint, and closing CLIs successfully.
 - The real read-only planner check against `ullebets_v2` returned
   `action=disable`, with zero fixtures in the next two hours.
+- GitHub dry-run
+  [30667410766](https://github.com/ulle73/ullebets-prod/actions/runs/30667410766)
+  completed in 14 seconds with zero due targets and no workflow-state change.
+- GitHub write/state run
+  [30667457674](https://github.com/ulle73/ullebets-prod/actions/runs/30667457674)
+  completed in 14 seconds and disabled the T-10 workflow because no fixture
+  was due within two hours.
+- Official runner dependencies were updated to `actions/checkout@v7`,
+  `actions/setup-python@v7`, and `actions/setup-node@v7` after the first hosted
+  run exposed the Node 20 deprecation warning.
 
 Insight:
 GitHub Actions cannot create dynamic future cron events per fixture. Toggling a

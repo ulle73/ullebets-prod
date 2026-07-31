@@ -208,10 +208,10 @@ Current acceptance window:
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `391/391`.
+- [x] Current V2 regression suite passes `392/392`.
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
-  `391/391` tests.
+  `392/392` tests.
 - [ ] `NOT STARTED` Deploy backend jobs and frontend to their final production
   environments.
 - [ ] `NOT STARTED` Run a production acceptance test over at least one complete
