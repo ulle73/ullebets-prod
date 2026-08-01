@@ -1,8 +1,6 @@
-name: V2 Run Unibet Backtests
+name: V2 Legacy EV Parity Replay
 
 on:
-  schedule:
-    - cron: "30 5 * * *"
   workflow_dispatch:
     inputs:
       date:

@@ -61,6 +61,23 @@ def test_ev_model_scores_have_immutable_score_key_index() -> None:
     assert score_key_index["unique"] is True
 
 
+def test_forward_bets_index_supports_registered_policy_dedupe() -> None:
+    plan = build_core_index_plan()
+    forward_plan = next(
+        item for item in plan
+        if item["collection"] == "forward_bets"
+    )
+
+    policy_index = next(
+        index for index in forward_plan["indexes"]
+        if index["name"] == "selection_policy_match"
+    )
+    assert policy_index["keys"] == [
+        ("selection_policy_id", 1),
+        ("match_key", 1),
+    ]
+
+
 def test_workflow_matrix_uses_suffix_free_v2_outputs() -> None:
     for workflow in WORKFLOW_PARITY_MATRIX:
         assert all(not output.endswith("_v2") for output in workflow["v2_outputs"])

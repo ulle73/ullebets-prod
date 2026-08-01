@@ -336,6 +336,13 @@ def build_core_index_plan() -> list[dict[str, Any]]:
             "indexes": [
                 {"keys": [("prediction_key", 1)], "name": "prediction_key_unique", "unique": True},
                 {"keys": [("selection_key", 1)], "name": "selection_key"},
+                {
+                    "keys": [
+                        ("selection_policy_id", 1),
+                        ("match_key", 1),
+                    ],
+                    "name": "selection_policy_match",
+                },
                 {"keys": [("export_mode", 1), ("saved_at", -1)], "name": "export_mode_saved_at"},
                 {"keys": [("match_start_time", 1)], "name": "match_start_time"},
             ],

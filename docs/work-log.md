@@ -147,6 +147,119 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-01 - V6 registered forward-policy activation
+
+Status: `PARTIAL`
+
+Objective:
+Make frozen V6 scores, rather than the legacy JS EV formula or V3, the only
+source for new model-specific forward selections.
+
+Changes:
+
+- `ev-shadow-forward.yml` now runs only the frozen V6 artifact.
+- Added immutable `forward_policy_registry_v1`, preserving V5 unchanged while
+  registering the exact V6 corners + away/total policy for forward testing.
+- Added a policy materialization boundary from immutable `ev_model_scores` to
+  immutable `forward_bets`, with policy fingerprint, source score key, timing,
+  artifact, odds, probability, EV, and feature-fingerprint provenance.
+- Added policy/match dedupe and an index supporting that lookup.
+- Removed the production schedule from legacy `run-unibet-backtests.yml`; it
+  remains manually available as `V2 Legacy EV Parity Replay`.
+
+Tests:
+
+```text
+python -m pytest tests/v2/test_ev_forward_predictions.py tests/v2/test_ev_score_evaluation.py tests/v2/test_automation_contract.py -q
+python -m pytest tests/v2/test_ev_policy_registry.py tests/v2/test_ev_forward_predictions.py tests/v2/test_ev_score_evaluation.py tests/v2/test_automation_contract.py -q
+python -m pytest -q
+python scripts/forward_v2/healthcheck_v2.py
+python -m compileall -q src/ullebets_v2 scripts/forward_v2
+python scripts/forward_v2/bootstrap_indexes.py
+python scripts/forward_v2/score_ev_shadow_model.py --repo-root . --artifact models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib --manifest models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json --score-only --selection-policy-registry models/ev/forward_policy_registry_v1.json --selection-policy-id v6_corners_away_total_forward_v1 --dry-run
+python scripts/forward_v2/score_ev_shadow_model.py --repo-root . --artifact models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib --manifest models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json --score-only --selection-policy-registry models/ev/forward_policy_registry_v1.json --selection-policy-id v6_corners_away_total_forward_v1 --now 2026-07-30T00:30:00Z --dry-run
+```
+
+Results:
+
+- Full suite: `408 passed`.
+- Healthcheck: `overall_status=ok`, zero missing/invalid workflow contracts.
+- Current real-time dry-run: zero future persisted `market_snapshots`, a valid
+  empty result with the new V6 policy loaded.
+- Historical prematch dry-run: `319` input snapshots, `30` canonical markets,
+  `48` V6 side scores, zero future-stat observations used.
+- All `48` scores were excluded because Brasileirão Série A is outside V6's
+  six-league training domain; registered forward selections remained `0`.
+- Both scorer runs were dry-runs and made no database writes.
+- Index bootstrap applied `selection_policy_match` to `forward_bets`; all 36
+  collection plans completed with `0` repaired and `0` deleted documents.
+
+Insight:
+V6 is now the configured production forward model, but it still fails closed
+outside its fitted domain. This is an orchestration activation, not new proof
+that the historical `+28.65%` survives forward testing.
+
+Remaining:
+
+- Push the workflow before hosted production can use the new policy path.
+- Observe a real prematch score and immutable selection from a V6-supported
+  league, then settle it and measure model-specific ROI/CLV.
+
+Next:
+
+- After deployment, inspect the first hosted V6 run with an in-domain fixture;
+  do not use Brazil to bypass the domain contract.
+
+### 2026-08-01 - Current legacy-EV backtest path verification
+
+Status: `PARTIAL`
+
+Objective:
+Verify whether the V2 replacement for the original `run-unibet-backtests`
+path currently performs live Kambi discovery, normalizes every available
+line, and calculates the legacy EV outputs.
+
+Changes:
+
+- No code, database, model, or policy changes.
+- Exercised the current fixture-database path against live Kambi data in
+  read-only dry-run mode.
+
+Tests:
+
+```text
+python scripts/forward_v2/build_model_snapshots.py --mode fixture-db --snapshot-mode backtest --source-workflow current-backtest-verification-2026-08-01 --max-days-ahead 7 --dry-run
+```
+
+Results:
+
+- The exact seven-day window contained one match, Grêmio - São Paulo.
+- Event linkage succeeded `1/1`; two raw payload documents and `59` normalized
+  market offers were produced in memory.
+- The V2-owned legacy JS EV runtime generated `108` directed line rows with
+  EV details, zero source errors, and zero model errors.
+- Parity, audit, and health status were all `matched`/`ok`.
+- Dry-run made no database writes. Three additional future fixtures were just
+  outside the exact seven-day cutoff.
+
+Insight:
+The original-style `odds -> line sides -> legacy EV` mechanism works on a
+current live market. It is not the V6 model and does not prove that the legacy
+EV formulas are profitable. The existing 370 historical replay rows also
+lack primary EV values and settlement, so they are not a completed historical
+backtest acceptance sample.
+
+Remaining:
+
+- Persist a non-empty scheduled `run-unibet-backtests.yml` execution and
+  settle its rows from canonical outcomes.
+- Keep legacy-EV output separate from V6 forward evidence and promotion.
+
+Next:
+
+- Inspect the next scheduled non-empty backtest run; do not rerun the live
+  dry-run unless source behavior, mappings, or model runtime changes.
+
 ### 2026-08-01 - Resilient T-2H/T-30/T-10 closing policy
 
 Status: `PARTIAL`

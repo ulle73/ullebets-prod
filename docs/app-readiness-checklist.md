@@ -127,6 +127,8 @@ Current acceptance window:
 - [x] Forward predictions are immutable after creation.
 - [x] V6 model artifact exists and its hash matches its manifest.
 - [x] Registry V5 resolves to 20 immutable policies with a stable fingerprint.
+- [x] Production forward scoring is configured to use only the frozen V6
+  artifact and a separate immutable V6 forward-policy registry.
 - [x] Training-domain filtering excludes unknown leagues from evidence.
 - [x] Historical experiments 000-077 are documented with negative results.
 - [x] The strongest historical V6 policy has leakage-safe walk-forward evidence.

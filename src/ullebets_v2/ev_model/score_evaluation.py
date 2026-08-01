@@ -92,7 +92,7 @@ def _filter_model_domain(
     return audit_score_domain(scores, training_domain)
 
 
-def _select_online_policy(
+def select_online_policy(
     rows: list[dict[str, Any]],
     *,
     minimum_ev: float,
@@ -484,7 +484,7 @@ def build_score_policy_evaluation(
             model_id=model_id,
             training_domain_by_model=training_domain_by_model,
         )
-        selections = _select_online_policy(
+        selections = select_online_policy(
             domain_scores,
             minimum_ev=minimum_ev,
             maximum_ev=maximum_ev,
@@ -537,7 +537,7 @@ _POLICY_FILTER_COLUMNS = {
 }
 
 
-def _filter_policy_scores(
+def filter_policy_scores(
     scores: list[dict[str, Any]],
     filters: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -597,7 +597,7 @@ def build_registered_policy_evaluation(
             for row in scores
             if str(row.get("model_id")) == model_id
         ]
-        policy_scores = _filter_policy_scores(
+        policy_scores = filter_policy_scores(
             model_scores,
             dict(policy.get("filters") or {}),
         )
@@ -621,7 +621,7 @@ def build_registered_policy_evaluation(
             if maximum_bets_value is not None
             else None
         )
-        selections = _select_online_policy(
+        selections = select_online_policy(
             domain_scores,
             minimum_ev=minimum_ev,
             maximum_ev=maximum_ev,

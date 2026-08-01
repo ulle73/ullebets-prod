@@ -23,6 +23,7 @@ from ullebets_v2.ev_model.domain import (
 )
 from ullebets_v2.ev_model.engineering import TEAM_STATS_KEYS
 from ullebets_v2.ev_model.forward_predictions import (
+    build_registered_policy_prediction_docs,
     build_forward_prediction_docs,
     exclude_previously_frozen_matches,
     persist_forward_prediction_docs,
@@ -35,6 +36,12 @@ from ullebets_v2.ev_model.forward_scores import (
 )
 from ullebets_v2.ev_model.market_walk_forward import (
     select_market_classifier_bets,
+)
+from ullebets_v2.ev_model.policy_registry import load_policy_registry
+from ullebets_v2.ev_model.score_evaluation import (
+    filter_policy_scores,
+    fingerprint_policy_registry,
+    select_online_policy,
 )
 from ullebets_v2.ev_model.shadow_candidate import (
     score_shadow_candidate_sides,
@@ -79,6 +86,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--match-key", action="append", default=[])
     parser.add_argument("--now")
     parser.add_argument("--score-only", action="store_true")
+    parser.add_argument("--selection-policy-registry", type=Path)
+    parser.add_argument("--selection-policy-id")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -216,6 +225,41 @@ def main() -> int:
         raise RuntimeError(
             "this challenger manifest requires --score-only"
         )
+    if bool(args.selection_policy_registry) != bool(
+        args.selection_policy_id
+    ):
+        raise RuntimeError(
+            "selection policy registry and policy id must be provided together"
+        )
+    selection_policy = None
+    selection_registry = None
+    selection_registry_fingerprint = None
+    if args.selection_policy_registry is not None:
+        registry_path = (
+            args.selection_policy_registry
+            if args.selection_policy_registry.is_absolute()
+            else config.repo_root / args.selection_policy_registry
+        )
+        selection_registry = load_policy_registry(registry_path)
+        matching_policies = [
+            row
+            for row in selection_registry.get("policies", [])
+            if str(row.get("policy_id")) == args.selection_policy_id
+        ]
+        if len(matching_policies) != 1:
+            raise RuntimeError(
+                "selection policy id must resolve to exactly one policy"
+            )
+        selection_policy = matching_policies[0]
+        if str(selection_policy.get("model_id")) != str(
+            manifest.get("model_id")
+        ):
+            raise RuntimeError(
+                "selection policy model does not match scorer manifest"
+            )
+        selection_registry_fingerprint = fingerprint_policy_registry(
+            selection_registry
+        )
     validate_model_runtime(dict(manifest.get("runtime_versions") or {}))
 
     database = get_database(config)
@@ -269,6 +313,32 @@ def main() -> int:
         )
         previously_frozen_keys = valid_frozen_match_keys(
             previously_frozen_rows
+        )
+        registered_frozen_rows = (
+            list(
+                database[FORWARD_BETS].find(
+                    {
+                        "prediction_type": (
+                            "ev_registered_score_policy"
+                        ),
+                        "selection_policy_id": args.selection_policy_id,
+                        "match_key": {"$in": candidate_target_keys},
+                    },
+                    projection={
+                        "_id": 0,
+                        "match_key": 1,
+                        "odds_snapshot_time": 1,
+                        "prediction_created_at": 1,
+                        "match_start_time": 1,
+                        "invalid_for_model": 1,
+                    },
+                )
+            )
+            if selection_policy is not None
+            else []
+        )
+        registered_frozen_keys = valid_frozen_match_keys(
+            registered_frozen_rows
         )
         _, excluded_snapshot_rows = (
             exclude_previously_frozen_matches(
@@ -377,6 +447,82 @@ def main() -> int:
             if not args.score_only and not selections.empty
             else []
         )
+        registered_prediction_docs: list[dict[str, Any]] = []
+        registered_selected_before_dedupe = 0
+        if selection_policy is not None and not in_domain_side_scores.empty:
+            in_domain_score_docs = build_forward_score_docs(
+                in_domain_side_scores,
+                model_id=str(manifest["model_id"]),
+                artifact_sha256=artifact_sha256,
+                training_end=str(manifest["training"]["end"]),
+                feature_columns=list(manifest["features"]),
+                created_at=now,
+            )
+            if not args.dry_run and in_domain_score_docs:
+                persisted_score_docs = list(
+                    database[EV_MODEL_SCORES].find(
+                        {
+                            "score_key": {
+                                "$in": [
+                                    row["score_key"]
+                                    for row in in_domain_score_docs
+                                ]
+                            }
+                        },
+                        projection={"_id": 0},
+                    )
+                )
+                if len(persisted_score_docs) != len(
+                    in_domain_score_docs
+                ):
+                    raise RuntimeError(
+                        "registered policy selection requires every source "
+                        "score to be persisted first"
+                    )
+                in_domain_score_docs = persisted_score_docs
+            filtered_score_docs = filter_policy_scores(
+                in_domain_score_docs,
+                dict(selection_policy.get("filters") or {}),
+            )
+            maximum_bets_value = selection_policy.get(
+                "maximum_bets_per_match"
+            )
+            registered_selections = select_online_policy(
+                filtered_score_docs,
+                minimum_ev=float(selection_policy["minimum_ev"]),
+                maximum_ev=(
+                    float(selection_policy["maximum_ev"])
+                    if selection_policy.get("maximum_ev") is not None
+                    else None
+                ),
+                maximum_bets_per_match=(
+                    int(maximum_bets_value)
+                    if maximum_bets_value is not None
+                    else None
+                ),
+            )
+            registered_selected_before_dedupe = len(
+                registered_selections
+            )
+            registered_selections = [
+                row
+                for row in registered_selections
+                if str(row.get("match_key"))
+                not in registered_frozen_keys
+            ]
+            registered_prediction_docs = (
+                build_registered_policy_prediction_docs(
+                    registered_selections,
+                    policy=selection_policy,
+                    registry_id=str(
+                        selection_registry.get("registry_id")
+                    ),
+                    registry_fingerprint=str(
+                        selection_registry_fingerprint
+                    ),
+                    created_at=now,
+                )
+            )
         persistence = {
             "inserted": 0,
             "existing": 0,
@@ -386,6 +532,16 @@ def main() -> int:
             persistence = persist_forward_prediction_docs(
                 database[FORWARD_BETS],
                 prediction_docs,
+            )
+        registered_persistence = {
+            "inserted": 0,
+            "existing": 0,
+            "conflicts": 0,
+        }
+        if not args.dry_run:
+            registered_persistence = persist_forward_prediction_docs(
+                database[FORWARD_BETS],
+                registered_prediction_docs,
             )
 
         summary = {
@@ -424,6 +580,29 @@ def main() -> int:
                 selected_before_prediction_dedupe
             ),
             "selected_bets": len(prediction_docs),
+            "selection_policy": (
+                {
+                    "registry_id": selection_registry.get("registry_id"),
+                    "registry_fingerprint": (
+                        selection_registry_fingerprint
+                    ),
+                    "policy_id": selection_policy.get("policy_id"),
+                    "policy_status": selection_policy.get("status"),
+                    "model_id": selection_policy.get("model_id"),
+                }
+                if selection_policy is not None
+                else None
+            ),
+            "registered_previously_frozen_match_count": len(
+                registered_frozen_keys
+            ),
+            "registered_selected_before_prediction_dedupe": (
+                registered_selected_before_dedupe
+            ),
+            "registered_selected_bets": len(
+                registered_prediction_docs
+            ),
+            "registered_persistence": registered_persistence,
             "target_outcome_rows_read": 0,
             "feature_audit": feature_audit,
             "persistence": persistence,

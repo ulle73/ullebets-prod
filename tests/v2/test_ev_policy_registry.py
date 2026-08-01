@@ -102,3 +102,29 @@ def test_frozen_v5_registry_contains_exact_v6_primary_challenger() -> None:
             "scopes": ["away", "total"],
         },
     }
+
+
+def test_forward_registry_promotes_exact_v6_policy_without_mutating_v5() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    resolved = load_policy_registry(
+        repo_root / "models" / "ev" / "forward_policy_registry_v1.json"
+    )
+
+    assert resolved["registry_id"] == "forward_policy_registry_v1"
+    assert resolved["registered_before_forward_settlement"] is True
+    assert resolved["immutable_after_first_forward_settlement"] is True
+    assert resolved["policies"] == [
+        {
+            "policy_id": "v6_corners_away_total_forward_v1",
+            "model_id": (
+                "ev_scope_interaction_recency45_asof_capped_v6_shadow"
+            ),
+            "status": "forward_test_primary",
+            "minimum_ev": 0.075,
+            "maximum_ev": 0.25,
+            "filters": {
+                "stat_keys": ["cornerKicks"],
+                "scopes": ["away", "total"],
+            },
+        }
+    ]

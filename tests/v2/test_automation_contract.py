@@ -282,3 +282,40 @@ def test_legacy_dependency_contract_summarizes_native_vs_legacy_workflows() -> N
     assert rows["backfill-teamstats-from-date.yml"]["parity_or_replay"]["legacy_app_db"] is True
     assert rows["run-auto-analysis-checkpoints.yml"]["default_runtime"]["old_repo"] is False
     assert rows["ai-bets-daily.yml"]["default_runtime"]["old_repo"] is False
+
+
+def test_ev_forward_workflow_uses_only_registered_v6_primary_policy() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "ev-shadow-forward.yml"
+    ).read_text(encoding="utf-8")
+
+    assert workflow.count("score_ev_shadow_model.py") == 1
+    assert (
+        "ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib"
+        in workflow
+    )
+    assert "forward_policy_registry_v1.json" in workflow
+    assert (
+        "v6_corners_away_total_forward_v1"
+        in workflow
+    )
+    assert "--selection-policy-registry" in workflow
+    assert "--selection-policy-id" in workflow
+    assert "ev_logistic_recency45_asof_capped_v3" not in workflow
+    assert "ev_nested_logistic_recency45_asof_capped_v4_shadow" not in workflow
+    assert "ev_ensemble_v3_75_v4_25_shadow" not in workflow
+
+
+def test_legacy_ev_backtest_is_manual_parity_only() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "run-unibet-backtests.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "schedule:" not in workflow
+    assert "Legacy EV Parity Replay" in workflow

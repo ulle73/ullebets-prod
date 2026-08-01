@@ -235,6 +235,143 @@ def build_forward_prediction_docs(
     return docs
 
 
+def build_registered_policy_prediction_docs(
+    score_selections: list[dict[str, Any]],
+    *,
+    policy: dict[str, Any],
+    registry_id: str,
+    registry_fingerprint: str,
+    created_at: datetime | None = None,
+) -> list[dict[str, Any]]:
+    timestamp = created_at or datetime.now(tz=UTC)
+    timestamp = (
+        timestamp
+        if timestamp.tzinfo is not None
+        else timestamp.replace(tzinfo=UTC)
+    ).astimezone(UTC)
+    policy_id = str(policy.get("policy_id") or "")
+    policy_model_id = str(policy.get("model_id") or "")
+    if not policy_id or not policy_model_id:
+        raise ValueError("registered forward policy requires ids")
+
+    docs: list[dict[str, Any]] = []
+    for score in score_selections:
+        score_model_id = str(score.get("model_id") or "")
+        if score_model_id != policy_model_id:
+            raise ValueError(
+                "registered policy model does not match score model"
+            )
+        if (
+            score.get("valid_for_policy_evaluation") is not True
+            or score.get("invalid_for_model") is True
+        ):
+            raise ValueError(
+                "registered policy predictions require valid score rows"
+            )
+        snapshot_time = pd.to_datetime(
+            score.get("odds_snapshot_time"),
+            errors="coerce",
+            utc=True,
+        )
+        score_created_at = pd.to_datetime(
+            score.get("score_created_at"),
+            errors="coerce",
+            utc=True,
+        )
+        match_start = pd.to_datetime(
+            score.get("match_start_time"),
+            errors="coerce",
+            utc=True,
+        )
+        selection_created_at = pd.Timestamp(timestamp)
+        if (
+            pd.isna(snapshot_time)
+            or pd.isna(score_created_at)
+            or pd.isna(match_start)
+        ):
+            raise ValueError(
+                "registered policy predictions require valid timing"
+            )
+        if (
+            snapshot_time > score_created_at
+            or score_created_at > selection_created_at
+        ):
+            raise ValueError(
+                "score and snapshot must be available before selection"
+            )
+        if (
+            snapshot_time >= match_start
+            or score_created_at >= match_start
+            or selection_created_at >= match_start
+        ):
+            raise ValueError(
+                "registered policy predictions must be created before kickoff"
+            )
+        score_key = str(score.get("score_key") or "")
+        if not score_key:
+            raise ValueError(
+                "registered policy predictions require score_key"
+            )
+        prediction_key = f"{policy_id}|{score_key}"
+        doc: dict[str, Any] = {
+            "prediction_key": prediction_key,
+            "selection_key": prediction_key,
+            "prediction_type": "ev_registered_score_policy",
+            "model_id": score_model_id,
+            "model_status": "forward_test_only",
+            "artifact_sha256": score.get("artifact_sha256"),
+            "model_training_end": score.get("training_end"),
+            "selection_policy_id": policy_id,
+            "selection_policy_status": policy.get("status"),
+            "selection_policy_registry_id": registry_id,
+            "selection_policy_registry_fingerprint": (
+                registry_fingerprint
+            ),
+            "selection_policy_filters": dict(
+                policy.get("filters") or {}
+            ),
+            "source_score_key": score_key,
+            "source_score_created_at": score_created_at.to_pydatetime(),
+            "match_key": str(score.get("match_key") or ""),
+            "sample_key": str(score.get("sample_key") or ""),
+            "side_key": str(score.get("side_key") or ""),
+            "snapshot_key": str(score.get("snapshot_key") or ""),
+            "offer_key": str(score.get("offer_key") or ""),
+            "stat_key": str(score.get("stat_key") or ""),
+            "period": str(score.get("period") or ""),
+            "scope": str(score.get("scope") or ""),
+            "direction": str(score.get("direction") or ""),
+            "line_value": float(score["line_value"]),
+            "selected_odds": float(score["offered_odds"]),
+            "saved_odds": float(score["offered_odds"]),
+            "predicted_win_probability": float(
+                score["predicted_win_probability"]
+            ),
+            "expected_roi_units": float(score["expected_roi_units"]),
+            "minimum_ev": float(policy["minimum_ev"]),
+            "maximum_ev": (
+                float(policy["maximum_ev"])
+                if policy.get("maximum_ev") is not None
+                else None
+            ),
+            "stake_units": 1.0,
+            "odds_snapshot_time": snapshot_time.to_pydatetime(),
+            "match_start_time": match_start.to_pydatetime(),
+            "prediction_created_at": timestamp,
+            "prediction_created_before_kickoff": True,
+            "valid_for_forward_evaluation": True,
+            "invalid_for_model": False,
+            "feature_fingerprint_sha256": score.get(
+                "feature_fingerprint_sha256"
+            ),
+        }
+        doc["prediction_fingerprint_sha256"] = (
+            _prediction_fingerprint(doc)
+        )
+        docs.append(doc)
+    return docs
+
+
 def persist_forward_prediction_docs(
     collection: Any,
     docs: list[dict[str, Any]],

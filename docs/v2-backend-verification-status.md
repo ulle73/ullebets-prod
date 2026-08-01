@@ -1,7 +1,7 @@
 # Ullebets V2 Backend Verification Status
 
 Last updated: 2026-08-01
-Branch: `feature/ullebets-v2-backend`
+Branch: `main`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
@@ -71,12 +71,53 @@ All 41 matches have raw statistics, incidents, shotmaps, results, canonical
 results with scores, and exactly 27 primary stat rows. The 1,107 primary rows
 have zero duplicate keys and zero missing actual values.
 
+A current read-only verification of the original-style backtest replacement
+then processed Grêmio - São Paulo from the live fixture database. Kambi event
+linkage succeeded `1/1`, `59` normalized offers produced `108` directed legacy
+EV line rows, and source/model errors were both zero. Parity, audit, and health
+were `matched`/`ok`. This proves the current `odds -> line sides -> legacy EV`
+mechanism, not profitability and not V6 behavior. The next non-empty scheduled
+write run and canonical settlement remain unproven.
+
 The first 39-match write exposed a CosmosDB timeout because 10,085 canonical
 stat upserts were sent as one bulk command. Raw payloads and canonical results
 had already persisted. Enrichment persistence now uses 200-operation batches,
 and job `b0d64776e3704278a0754fa1511cc1b0` rebuilt the canonical stats from raw
 and finished `succeeded`. A redundant retry was terminated after the primary
 job succeeded and its job row was explicitly marked failed for auditability.
+
+## V6 Forward Policy Activation On 2026-08-01
+
+The production scorer is now configured to run only the frozen V6 artifact.
+V3 no longer creates the authoritative forward rows, and V4/V5 are no longer
+rescored by the production forward workflow. The old JS EV snapshot builder
+has been removed from its daily schedule and retained only as a manual parity
+replay.
+
+V5's frozen score-policy registry was not changed. A separate immutable
+`forward_policy_registry_v1` registers the exact historically selected V6
+policy: corners only, away/total scopes, EV strictly above `7.5%` and below
+`25%`. In-domain qualifying scores are materialized to `forward_bets` with a
+stable policy id/fingerprint and direct source-score provenance. Existing
+policy/match selections are excluded on rerun.
+
+Verification evidence:
+
+- full suite: `408/408` passed
+- V2 healthcheck: `overall_status=ok`
+- historical prematch replay: `319` snapshots, `30` canonical markets and
+  `48` V6 side scores
+- domain audit: `48/48` Brazil scores correctly excluded and `0` selections
+- current real-time run: valid empty result because no future persisted market
+  snapshots were available at execution time
+- index bootstrap: all 36 collection plans applied; the new
+  `selection_policy_match` index exists with zero repaired/deleted documents
+
+No model score or prediction write was made during these checks; only index
+metadata changed. A real immutable V6 selection from A-League Men, Bundesliga,
+La Liga, Ligue 1, Premier League, or Serie A remains unproven until the
+workflow is deployed and one of those leagues has a qualifying prematch
+market.
 
 ## Critical Timing Correction On 2026-07-30
 

@@ -1,0 +1,26 @@
+{
+  "registry_id": "forward_policy_registry_v1",
+  "registered_at": "2026-08-01T00:00:00Z",
+  "registered_before_forward_settlement": true,
+  "immutable_after_first_forward_settlement": true,
+  "source_score_policy_registry_id": "score_policy_registry_v5",
+  "historical_model_search_family_size": 162,
+  "policies": [
+    {
+      "policy_id": "v6_corners_away_total_forward_v1",
+      "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+      "status": "forward_test_primary",
+      "minimum_ev": 0.075,
+      "maximum_ev": 0.25,
+      "filters": {
+        "stat_keys": [
+          "cornerKicks"
+        ],
+        "scopes": [
+          "away",
+          "total"
+        ]
+      }
+    }
+  ]
+}

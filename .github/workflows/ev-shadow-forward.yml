@@ -29,22 +29,9 @@ jobs:
       run_command: |
         python scripts/forward_v2/score_ev_shadow_model.py \
           --repo-root . \
-          --dry-run
-        python scripts/forward_v2/score_ev_shadow_model.py \
-          --repo-root . \
-          --artifact models/ev/ev_nested_logistic_recency45_asof_capped_v4_shadow/ev_nested_logistic_recency45_asof_capped_v4_shadow.joblib \
-          --manifest models/ev/ev_nested_logistic_recency45_asof_capped_v4_shadow/model_manifest.json \
-          --score-only \
-          --dry-run
-        python scripts/forward_v2/score_ev_shadow_model.py \
-          --repo-root . \
-          --artifact models/ev/ev_ensemble_v3_75_v4_25_shadow/ev_ensemble_v3_75_v4_25_shadow.joblib \
-          --manifest models/ev/ev_ensemble_v3_75_v4_25_shadow/model_manifest.json \
-          --score-only \
-          --dry-run
-        python scripts/forward_v2/score_ev_shadow_model.py \
-          --repo-root . \
           --artifact models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib \
           --manifest models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json \
           --score-only \
+          --selection-policy-registry models/ev/forward_policy_registry_v1.json \
+          --selection-policy-id v6_corners_away_total_forward_v1 \
           --dry-run
