@@ -176,7 +176,9 @@ Current acceptance window:
   fixtures. Hosted write-mode run `30673575119` proved that an already-disabled
   watcher is handled idempotently and checkpoint capture still executes.
 - [x] T-2H is assigned to the hourly job; T-30/T-10 are exclusively assigned
-  to the closing watcher, with T-30 excluded from official model CLV.
+  to the closing watcher, with T-30 excluded from official model CLV. Hosted
+  write-mode scheduler run `30674861895` passed this deployed contract with a
+  valid empty source horizon.
 - [x] EV shadow runtime versions are pinned to the frozen manifests; hosted
   production write-mode run `30672830616` passed all four scorers. It produced
   zero rows because no upcoming canonical model markets existed.

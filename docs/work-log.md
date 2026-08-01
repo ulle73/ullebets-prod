@@ -182,6 +182,9 @@ Results:
 - Full regression suite passed `402/402`.
 - Current real-time read-only preflight completed with audit and health `ok`.
   It found zero fixtures in the next seven days, so no live capture was due.
+- Hosted production write-mode run `30674861895` succeeded on commit `f6a6ea0`.
+  It found zero fixtures in the source horizon, persisted parity/audit/health
+  reports with zero errors, and kept the closing watcher safely disabled.
 - Synthetic timing contracts prove T-30 fallback creation, T-10 upgrade,
   duplicate prevention, and exclusion of fallback CLV from promotion metrics.
 

@@ -49,7 +49,10 @@ canonical closing observation. Older T-2H/T-1D rows cannot be promoted to a
 closing line when both near-close captures are absent. Targeted tests pass
 `61/61`, the full suite passes `402/402`, and the current database preflight
 returned a valid empty result because no future fixture existed in the source
-horizon. The first real T-2H/T-30/T-10 lifecycle remains unproven.
+horizon. Hosted production write-mode scheduler run `30674861895` also
+succeeded with parity/audit/health reports, zero errors, and zero due targets;
+the closing watcher remained safely disabled. The first real
+T-2H/T-30/T-10 lifecycle remains unproven.
 
 The latest completed match dates for all followed leagues were then fetched in
 production write mode. Fixture ingest stored 181 canonical matches for 16-24
