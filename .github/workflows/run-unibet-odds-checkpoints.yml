@@ -13,7 +13,7 @@ on:
         default: "7"
         type: string
       checkpoint:
-        description: "Optional filter (T_MINUS_3D, T_MINUS_2D, T_MINUS_1D, T_MINUS_12H, T_MINUS_2H, T_MINUS_10M)"
+        description: "Optional filter (T_MINUS_3D, T_MINUS_2D, T_MINUS_1D, T_MINUS_12H, T_MINUS_2H)"
         required: false
         type: string
       now:
@@ -43,7 +43,7 @@ jobs:
       dependency_profile: lean
       dry_run: ${{ inputs.dry_run || false }}
       run_command: |
-        ARGS=(--mode fixture-db --source-workflow run-unibet-odds-checkpoints.yml --max-days-ahead "${{ inputs.days_ahead || '7' }}" --exclude-checkpoint T_MINUS_10M --dry-run)
+        ARGS=(--mode fixture-db --source-workflow run-unibet-odds-checkpoints.yml --max-days-ahead "${{ inputs.days_ahead || '7' }}" --exclude-checkpoint T_MINUS_30M --exclude-checkpoint T_MINUS_10M --dry-run)
         if [ -n "${{ inputs.date }}" ]; then
           ARGS+=(--date "${{ inputs.date }}")
         fi

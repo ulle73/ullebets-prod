@@ -181,6 +181,12 @@ def build_closing_audit_rows(
         )
     status = "ok" if unmatched_match_count == 0 and offerless_match_count == 0 and invalid_for_model_count == 0 and not source_errors else "warn"
     valid_snapshots = sum(1 for row in market_snapshot_docs if not row.get("invalid_for_model"))
+    official_closing_count = sum(
+        1 for row in closing_line_docs if row.get("closing_is_official") is True
+    )
+    fallback_closing_count = sum(
+        1 for row in closing_line_docs if row.get("closing_quality") == "t30_fallback"
+    )
     return [
         build_audit_report_row(
             audit_type="closing_capture",
@@ -193,6 +199,8 @@ def build_closing_audit_rows(
                 "market_snapshot_count": len(market_snapshot_docs),
                 "valid_market_snapshot_count": valid_snapshots,
                 "closing_line_count": len(closing_line_docs),
+                "official_closing_line_count": official_closing_count,
+                "fallback_t30_closing_line_count": fallback_closing_count,
                 "offerless_match_count": offerless_match_count,
                 "invalid_for_model_count": invalid_for_model_count,
                 "checkpoint_gap_count": len(gap_rows),
@@ -219,7 +227,7 @@ def build_closing_health_rows(
             build_health_report_row(
                 job_name="capture_closing_snapshots",
                 status="ok",
-                summary="No due closing targets inside the T_MINUS_10M window.",
+                summary="No due closing targets inside the T_MINUS_30M or T_MINUS_10M windows.",
                 metrics={"due_match_count": 0, "closing_line_count": 0},
                 report_date=report_date or utc_now().date().isoformat(),
             )
@@ -229,7 +237,7 @@ def build_closing_health_rows(
             build_health_report_row(
                 job_name="capture_closing_snapshots",
                 status="ok",
-                summary="No due closing targets inside the T_MINUS_10M window.",
+                summary="No due closing targets inside the T_MINUS_30M or T_MINUS_10M windows.",
                 metrics={"due_match_count": 0, "closing_line_count": 0},
                 report_date=report_date or utc_now().date().isoformat(),
             )
@@ -255,6 +263,12 @@ def build_closing_health_rows(
                     if row.get("v2_event_id") and not row.get("checkpoint_capture_gap")
                 ),
                 "closing_line_count": len(closing_line_docs),
+                "official_closing_line_count": sum(
+                    1 for row in closing_line_docs if row.get("closing_is_official") is True
+                ),
+                "fallback_t30_closing_line_count": sum(
+                    1 for row in closing_line_docs if row.get("closing_quality") == "t30_fallback"
+                ),
                 "invalid_for_model_count": invalid_for_model_count,
                 "historical_policy_gap_count": gap_count,
                 "checkpoint_gap_count": gap_count,

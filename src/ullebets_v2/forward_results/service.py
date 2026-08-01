@@ -228,6 +228,10 @@ def build_forward_result_docs(
                 "latest_observed_odds": _to_float(clv_row.get("latest_observed_odds")) if clv_row else None,
                 "closing_snapshot_label": clv_row.get("closing_snapshot_label") if clv_row else None,
                 "closing_snapshot_time": clv_row.get("closing_snapshot_time") if clv_row else None,
+                "closing_quality": clv_row.get("closing_quality") if clv_row else None,
+                "closing_age_minutes": clv_row.get("closing_age_minutes") if clv_row else None,
+                "official_clv": clv_row.get("official_clv") if clv_row else False,
+                "clv_basis": clv_row.get("clv_basis") if clv_row else None,
                 "closing_odds": tracked_closing_odds,
                 "clv_pct": _to_float(clv_row.get("clv_pct")) if clv_row else None,
                 "implied_edge_delta": _to_float(clv_row.get("implied_edge_delta")) if clv_row else None,
@@ -361,7 +365,19 @@ def run_forward_result_refresh(
         report_date=report_date,
     )
     settled_rows_only = [row for row in result_docs if row.get("result_loop_status") == "settled"]
-    clv_tracked_rows = [row for row in result_docs if row.get("clv_status") == "tracked"]
+    clv_tracked_rows = [
+        row
+        for row in result_docs
+        if row.get("clv_status") == "tracked"
+        and (
+            row.get("official_clv") is True
+            or row.get("closing_snapshot_label") == "T_MINUS_10M"
+            or row.get("closing_quality") == "t10"
+        )
+    ]
+    clv_fallback_rows = [
+        row for row in result_docs if row.get("clv_status") == "tracked_fallback_t30"
+    ]
     pnl_units = round(sum(_to_float(row.get("pnl_units")) or 0.0 for row in settled_rows_only), 2)
     performance_rows = [
         row for row in result_docs if row.get("valid_for_performance")
@@ -413,8 +429,16 @@ def run_forward_result_refresh(
             for status in sorted({row.get("timing_status") for row in result_docs})
         },
         "beat_close_count": sum(1 for row in clv_tracked_rows if row.get("beat_closing_line") is True),
+        "fallback_t30_clv_count": len(clv_fallback_rows),
         "avg_clv_pct": round(sum(_to_float(row.get("clv_pct")) or 0.0 for row in clv_tracked_rows) / len(clv_tracked_rows), 2)
         if clv_tracked_rows
+        else None,
+        "avg_fallback_t30_clv_pct": round(
+            sum(_to_float(row.get("clv_pct")) or 0.0 for row in clv_fallback_rows)
+            / len(clv_fallback_rows),
+            2,
+        )
+        if clv_fallback_rows
         else None,
         "settled_count": len(settled_rows_only),
         "win_rate_pct": round((wins / len(settled_rows_only)) * 100) if settled_rows_only else 0,

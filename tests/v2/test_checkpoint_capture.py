@@ -23,8 +23,17 @@ def test_pick_due_checkpoint_uses_v2_policy_windows() -> None:
     assert pick_due_checkpoint(match_start=now + timedelta(hours=24), now=now).key == "T_MINUS_1D"
     assert pick_due_checkpoint(match_start=now + timedelta(hours=12), now=now).key == "T_MINUS_12H"
     assert pick_due_checkpoint(match_start=now + timedelta(hours=2), now=now).key == "T_MINUS_2H"
+    assert pick_due_checkpoint(match_start=now + timedelta(minutes=30), now=now).key == "T_MINUS_30M"
     assert pick_due_checkpoint(match_start=now + timedelta(minutes=10), now=now).key == "T_MINUS_10M"
     assert pick_due_checkpoint(match_start=now - timedelta(minutes=1), now=now) is None
+
+
+def test_near_close_windows_hand_off_without_overlap() -> None:
+    now = datetime(2026, 6, 22, 10, 0, tzinfo=UTC)
+
+    assert pick_due_checkpoint(match_start=now + timedelta(minutes=49), now=now).key == "T_MINUS_30M"
+    assert pick_due_checkpoint(match_start=now + timedelta(minutes=15), now=now).key == "T_MINUS_30M"
+    assert pick_due_checkpoint(match_start=now + timedelta(minutes=14), now=now).key == "T_MINUS_10M"
 
 
 def test_select_due_checkpoint_targets_skips_already_captured_snapshot_label() -> None:
@@ -207,7 +216,7 @@ def test_run_checkpoint_capture_replays_historical_v2_windows_without_live_fetch
     }
     assert summary["matched_events"] == 1
     assert summary["market_snapshots"] == 5
-    assert summary["checkpoint_gap_count"] == 2
+    assert summary["checkpoint_gap_count"] == 3
     assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}

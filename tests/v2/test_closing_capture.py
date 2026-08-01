@@ -88,8 +88,87 @@ def test_build_closing_line_docs_keeps_latest_valid_prematch_snapshot() -> None:
     assert closing["opening_over_odds"] == 1.9
     assert closing["closing_over_odds"] == 1.8
     assert closing["closing_snapshot_label"] == "T_MINUS_10M"
+    assert closing["closing_quality"] == "t10"
+    assert closing["closing_is_official"] is True
+    assert closing["closing_age_minutes"] == 10
     assert closing["prematch_observation_count"] == 2
     assert closing["invalid_snapshot_count"] == 1
+
+
+def test_build_closing_line_docs_marks_t30_as_fallback_and_t10_upgrades_it() -> None:
+    start_time = datetime(2026, 6, 22, 12, 0, tzinfo=UTC)
+    base = {
+        "match_key": "match-1",
+        "offer_key": "offer-1",
+        "stat_key": "cornerKicks",
+        "scope": "total",
+        "period": "ALL",
+        "line": 10.5,
+        "match_start_time": start_time,
+        "invalid_for_model": False,
+    }
+    t30_docs = build_closing_line_docs(
+        market_snapshot_docs=[
+            {
+                **base,
+                "snapshot_key": "t30",
+                "snapshot_label": "T_MINUS_30M",
+                "snapshot_time": start_time - timedelta(minutes=30),
+                "over_odds": 1.9,
+            }
+        ],
+        refreshed_at=start_time - timedelta(minutes=30),
+    )
+
+    assert t30_docs[0]["closing_quality"] == "t30_fallback"
+    assert t30_docs[0]["closing_is_official"] is False
+    assert t30_docs[0]["closing_age_minutes"] == 30
+
+    t10_docs = build_closing_line_docs(
+        market_snapshot_docs=[
+            {
+                **base,
+                "snapshot_key": "t30",
+                "snapshot_label": "T_MINUS_30M",
+                "snapshot_time": start_time - timedelta(minutes=30),
+                "over_odds": 1.9,
+            },
+            {
+                **base,
+                "snapshot_key": "t10",
+                "snapshot_label": "T_MINUS_10M",
+                "snapshot_time": start_time - timedelta(minutes=10),
+                "over_odds": 1.8,
+            },
+        ],
+        refreshed_at=start_time - timedelta(minutes=10),
+    )
+
+    assert t10_docs[0]["closing_snapshot_label"] == "T_MINUS_10M"
+    assert t10_docs[0]["closing_quality"] == "t10"
+    assert t10_docs[0]["closing_is_official"] is True
+
+
+def test_build_closing_line_docs_does_not_promote_early_snapshot_to_close() -> None:
+    start_time = datetime(2026, 6, 22, 12, 0, tzinfo=UTC)
+
+    docs = build_closing_line_docs(
+        market_snapshot_docs=[
+            {
+                "snapshot_key": "t2h",
+                "match_key": "match-1",
+                "offer_key": "offer-1",
+                "snapshot_label": "T_MINUS_2H",
+                "snapshot_time": start_time - timedelta(hours=2),
+                "match_start_time": start_time,
+                "over_odds": 1.9,
+                "invalid_for_model": False,
+            }
+        ],
+        refreshed_at=start_time - timedelta(hours=2),
+    )
+
+    assert docs == []
 
 
 def test_run_closing_capture_dry_run_builds_closing_lines_for_due_window() -> None:
@@ -166,6 +245,60 @@ def test_run_closing_capture_dry_run_handles_empty_window() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_closing_capture_captures_t30_fallback_window() -> None:
+    now = datetime(2026, 6, 22, 10, 0, tzinfo=UTC)
+
+    def closing_transport(url: str, headers: dict[str, str], timeout_seconds: int):  # noqa: ARG001
+        class Response:
+            def __init__(self, status: int, data: dict) -> None:
+                self.status = status
+                self.data = data
+                self.headers = {}
+
+        if "betoffer/event/" in url:
+            return fake_transport(url, headers, timeout_seconds)
+        return Response(
+            200,
+            {
+                "events": [
+                    {
+                        "event": {
+                            "id": "evt-1",
+                            "homeName": "Arsenal",
+                            "awayName": "Bournemouth",
+                            "start": (now + timedelta(minutes=30)).isoformat().replace("+00:00", "Z"),
+                            "group": "Premier League",
+                        }
+                    }
+                ]
+            },
+        )
+
+    summary = run_closing_capture(
+        targets=[
+            {
+                "match_key": "match-1",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": now + timedelta(minutes=30),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-closing.yml",
+        dry_run=True,
+        transport=closing_transport,
+        oracle=FakeOracle(),
+        now=now,
+    )
+
+    assert summary["checkpoint_counts"] == {"T_MINUS_30M": 1}
+    assert summary["fallback_closing_lines"] == 1
+    assert summary["official_closing_lines"] == 0
+    assert summary["closing_line_docs"][0]["closing_quality"] == "t30_fallback"
 
 
 def test_run_closing_capture_replays_historical_closing_snapshot_without_live_fetch() -> None:

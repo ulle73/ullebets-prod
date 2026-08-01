@@ -412,6 +412,20 @@ def _closing_lookup(closing_line_docs: list[dict[str, Any]]) -> tuple[dict[str, 
     return by_offer_key, by_tuple
 
 
+def _closing_quality(closing: dict[str, Any] | None) -> str | None:
+    if closing is None:
+        return None
+    explicit = str(closing.get("closing_quality") or "").strip()
+    if explicit:
+        return explicit
+    label = str(closing.get("closing_snapshot_label") or "").strip()
+    if label == "T_MINUS_10M":
+        return "t10"
+    if label == "T_MINUS_30M":
+        return "t30_fallback"
+    return "unclassified"
+
+
 def build_clv_tracking_docs(
     *,
     tracked_bet_docs: list[dict[str, Any]],
@@ -442,6 +456,8 @@ def build_clv_tracking_docs(
             )
 
         direction = "under" if str(tracked.get("direction") or "").lower() == "under" else "over"
+        closing_quality = _closing_quality(closing)
+        official_clv = closing_quality == "t10"
         opening_odds = None
         latest_odds = None
         closing_odds = None
@@ -463,11 +479,13 @@ def build_clv_tracking_docs(
             clv_status = "missing_closing_line"
         elif saved_odds is None or closing_odds is None or closing_odds <= 1 or saved_odds <= 1:
             clv_status = "missing_selected_odds"
+        elif closing_quality == "t30_fallback":
+            clv_status = "tracked_fallback_t30"
 
         clv_pct = None
         implied_edge_delta = None
         beat_closing_line = None
-        if clv_status == "tracked":
+        if clv_status in {"tracked", "tracked_fallback_t30"}:
             clv_pct = round(((saved_odds / closing_odds) - 1.0) * 100, 1)
             implied_edge_delta = round(((1.0 / closing_odds) - (1.0 / saved_odds)) * 100, 2)
             beat_closing_line = saved_odds > closing_odds
@@ -534,6 +552,10 @@ def build_clv_tracking_docs(
                 "latest_observed_odds": latest_odds,
                 "closing_snapshot_time": closing.get("closing_snapshot_time") if closing else None,
                 "closing_snapshot_label": closing.get("closing_snapshot_label") if closing else None,
+                "closing_quality": closing_quality,
+                "closing_age_minutes": closing.get("closing_age_minutes") if closing else None,
+                "official_clv": official_clv,
+                "clv_basis": closing.get("closing_snapshot_label") if closing else None,
                 "closing_odds": closing_odds,
                 "opening_observed_at": closing.get("opening_snapshot_time") if closing else None,
                 "latest_observed_at": closing.get("latest_snapshot_time") if closing else None,
@@ -638,6 +660,22 @@ def run_clv_tracking_refresh(
         "status_counts": {
             status: sum(1 for row in clv_docs if row.get("clv_status") == status)
             for status in sorted({row.get("clv_status") for row in clv_docs})
+        },
+        "official_clv_rows": sum(
+            1
+            for row in clv_docs
+            if row.get("clv_status") == "tracked" and row.get("official_clv") is True
+        ),
+        "fallback_clv_rows": sum(
+            1 for row in clv_docs if row.get("clv_status") == "tracked_fallback_t30"
+        ),
+        "closing_quality_counts": {
+            quality: sum(
+                1 for row in clv_docs if str(row.get("closing_quality") or "missing") == quality
+            )
+            for quality in sorted(
+                {str(row.get("closing_quality") or "missing") for row in clv_docs}
+            )
         },
         "clv_docs": clv_docs,
     }

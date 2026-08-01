@@ -169,6 +169,8 @@ def build_clv_tracking_parity_rows(
         audit_risks.append("closing_coverage_gap")
     if invalid_timing_count:
         audit_risks.append("timing_leakage_risk")
+    if status_counts.get("tracked_fallback_t30", 0):
+        audit_risks.append("t30_fallback_clv_present")
     if legacy_reference_docs and parity_status != "matched":
         audit_risks.append("legacy_clv_parity_risk")
     return [
@@ -233,6 +235,8 @@ def build_clv_tracking_audit_rows(
         findings.append("missing_selected_or_closing_odds_present")
     if status_counts.get("invalid_snapshot_timing", 0):
         findings.append("invalid_snapshot_timing_present")
+    if status_counts.get("tracked_fallback_t30", 0):
+        findings.append("t30_fallback_clv_reported_separately")
     if legacy_mismatches["legacy_missing_reference_count"]:
         findings.append("legacy_missing_reference_rows_present")
     if legacy_mismatches["legacy_reference_only_count"]:
@@ -266,7 +270,19 @@ def build_clv_tracking_audit_rows(
         or legacy_mismatches["legacy_beat_close_mismatch_count"]
         or legacy_mismatches["legacy_prematch_count_mismatch_count"]
     ) else "ok"
-    tracked_rows = [row for row in clv_docs if row.get("clv_status") == "tracked"]
+    tracked_rows = [
+        row
+        for row in clv_docs
+        if row.get("clv_status") == "tracked"
+        and (
+            row.get("official_clv") is True
+            or row.get("closing_snapshot_label") == "T_MINUS_10M"
+            or row.get("closing_quality") == "t10"
+        )
+    ]
+    fallback_rows = [
+        row for row in clv_docs if row.get("clv_status") == "tracked_fallback_t30"
+    ]
     return [
         build_audit_report_row(
             audit_type="clv_tracking",
@@ -275,6 +291,10 @@ def build_clv_tracking_audit_rows(
             metrics={
                 "tracked_count": len(clv_docs),
                 "tracked_with_clv_count": len(tracked_rows),
+                "official_clv_count": sum(
+                    1 for row in tracked_rows if row.get("official_clv") is True
+                ),
+                "fallback_t30_clv_count": len(fallback_rows),
                 "beat_close_count": sum(1 for row in tracked_rows if row.get("beat_closing_line") is True),
                 "status_counts": status_counts,
                 **legacy_mismatches,
@@ -314,7 +334,17 @@ def build_clv_tracking_health_rows(
             ),
             metrics={
                 "tracked_count": len(clv_docs),
-                "tracked_with_clv_count": status_counts.get("tracked", 0),
+                "tracked_with_clv_count": sum(
+                    1
+                    for row in clv_docs
+                    if row.get("clv_status") == "tracked"
+                    and (
+                        row.get("official_clv") is True
+                        or row.get("closing_snapshot_label") == "T_MINUS_10M"
+                        or row.get("closing_quality") == "t10"
+                    )
+                ),
+                "fallback_t30_clv_count": status_counts.get("tracked_fallback_t30", 0),
                 "missing_closing_line_count": status_counts.get("missing_closing_line", 0),
                 "invalid_snapshot_timing_count": status_counts.get("invalid_snapshot_timing", 0),
             },

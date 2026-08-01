@@ -215,6 +215,7 @@ def main() -> int:
                         "offer_key": {"$in": stale_closing_keys},
                         "$or": [
                             {"clv_status": "tracked"},
+                            {"clv_status": "tracked_fallback_t30"},
                             {"clv_pct": {"$ne": None}},
                             {
                                 "closing_invalidation_reason": {

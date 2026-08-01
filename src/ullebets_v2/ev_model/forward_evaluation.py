@@ -93,6 +93,8 @@ def build_forward_evaluation_report(
     settled: list[dict[str, Any]] = []
     clv_values: list[float] = []
     beat_close_values: list[bool] = []
+    fallback_t30_clv_values: list[float] = []
+    fallback_t30_beat_close_values: list[bool] = []
     start_times: list[datetime] = []
     valid_prediction_rows: list[dict[str, Any]] = []
 
@@ -159,18 +161,52 @@ def build_forward_evaluation_report(
                 }
             )
         clv = clv_lookup.get(key)
+        closing_label = str(clv.get("closing_snapshot_label") or "") if clv else ""
+        closing_quality = str(clv.get("closing_quality") or "") if clv else ""
+        official_clv = bool(
+            clv
+            and (
+                clv.get("official_clv") is True
+                or closing_label == "T_MINUS_10M"
+                or closing_quality == "t10"
+            )
+        )
+        fallback_t30_clv = bool(
+            clv
+            and not official_clv
+            and (
+                closing_label == "T_MINUS_30M"
+                or closing_quality == "t30_fallback"
+            )
+        )
         if (
             prediction_is_valid
             and clv is not None
             and clv.get("clv_pct") is not None
+            and official_clv
         ):
             clv_values.append(float(clv["clv_pct"]))
         if (
             prediction_is_valid
             and clv is not None
             and isinstance(clv.get("beat_closing_line"), bool)
+            and official_clv
         ):
             beat_close_values.append(bool(clv["beat_closing_line"]))
+        if (
+            prediction_is_valid
+            and clv is not None
+            and clv.get("clv_pct") is not None
+            and fallback_t30_clv
+        ):
+            fallback_t30_clv_values.append(float(clv["clv_pct"]))
+        if (
+            prediction_is_valid
+            and clv is not None
+            and isinstance(clv.get("beat_closing_line"), bool)
+            and fallback_t30_clv
+        ):
+            fallback_t30_beat_close_values.append(bool(clv["beat_closing_line"]))
 
     pnl_units = sum(float(row["pnl_units"]) for row in settled)
     settled_count = len(settled)
@@ -276,6 +312,24 @@ def build_forward_evaluation_report(
             "beat_close_pct": (
                 sum(beat_close_values) / len(beat_close_values) * 100.0
                 if beat_close_values
+                else None
+            ),
+            "fallback_t30_rows": len(fallback_t30_clv_values),
+            "fallback_t30_coverage_pct": (
+                len(fallback_t30_clv_values) / len(valid_prediction_rows) * 100.0
+                if valid_prediction_rows
+                else 0.0
+            ),
+            "fallback_t30_mean_clv_pct": (
+                float(np.mean(fallback_t30_clv_values))
+                if fallback_t30_clv_values
+                else None
+            ),
+            "fallback_t30_beat_close_pct": (
+                sum(fallback_t30_beat_close_values)
+                / len(fallback_t30_beat_close_values)
+                * 100.0
+                if fallback_t30_beat_close_values
                 else None
             ),
         },

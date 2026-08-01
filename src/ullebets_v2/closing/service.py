@@ -20,6 +20,10 @@ from ullebets_v2.odds.persistence import persist_odds_data_records
 from ullebets_v2.odds.service import run_unibet_odds_ingest
 
 
+CLOSING_CAPTURE_CHECKPOINTS = ("T_MINUS_30M", "T_MINUS_10M")
+PRODUCTION_CLOSING_LABELS = frozenset(CLOSING_CAPTURE_CHECKPOINTS)
+
+
 def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
@@ -41,6 +45,7 @@ def build_closing_line_docs(
     market_snapshot_docs: list[dict[str, Any]],
     refreshed_at: datetime,
     restrict_match_keys: set[str] | None = None,
+    eligible_closing_labels: frozenset[str] | None = PRODUCTION_CLOSING_LABELS,
 ) -> list[dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in market_snapshot_docs:
@@ -77,9 +82,33 @@ def build_closing_line_docs(
         if not valid_rows:
             continue
 
+        closing_candidates = valid_rows
+        if eligible_closing_labels is not None:
+            closing_candidates = [
+                row
+                for row in valid_rows
+                if str(row.get("snapshot_label") or "") in eligible_closing_labels
+            ]
+        if not closing_candidates:
+            continue
+
         opening_row = valid_rows[0]
         latest_row = valid_rows[-1]
-        closing_row = latest_row
+        closing_row = closing_candidates[-1]
+        closing_snapshot_time = _to_datetime(closing_row.get("snapshot_time"))
+        match_start_time = _to_datetime(closing_row.get("match_start_time"))
+        closing_age_minutes = None
+        if closing_snapshot_time is not None and match_start_time is not None:
+            closing_age_minutes = round(
+                (match_start_time - closing_snapshot_time).total_seconds() / 60
+            )
+        closing_label = str(closing_row.get("snapshot_label") or "")
+        if closing_label == "T_MINUS_10M":
+            closing_quality = "t10"
+        elif closing_label == "T_MINUS_30M":
+            closing_quality = "t30_fallback"
+        else:
+            closing_quality = "legacy_fallback"
         price_history = [
             {
                 "snapshot_label": row.get("snapshot_label"),
@@ -117,6 +146,9 @@ def build_closing_line_docs(
                 "closing_snapshot_time": closing_row.get("snapshot_time"),
                 "closing_over_odds": closing_row.get("over_odds"),
                 "closing_under_odds": closing_row.get("under_odds"),
+                "closing_quality": closing_quality,
+                "closing_is_official": closing_quality == "t10",
+                "closing_age_minutes": closing_age_minutes,
                 "prematch_observation_count": len(valid_rows),
                 "invalid_snapshot_count": invalid_snapshot_count,
                 "snapshot_labels_seen": [
@@ -155,10 +187,12 @@ def run_closing_capture(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     captured_at = now or utc_now()
+    eligible_closing_labels: frozenset[str] | None = PRODUCTION_CLOSING_LABELS
     snapshots = existing_snapshot_docs
     if snapshots is None and database is not None:
         snapshots = load_existing_snapshot_docs(database, [str(target["match_key"]) for target in targets])
     if legacy_backtest_database is not None:
+        eligible_closing_labels = None
         replay_due = select_replay_checkpoint_targets(
             targets=targets,
             legacy_backtest_database=legacy_backtest_database,
@@ -194,11 +228,21 @@ def run_closing_capture(
         errors = sum(1 for row in match_rows if row.get("error"))
         matched_events = len({row["match_key"] for row in match_rows if row.get("v2_event_id")})
     else:
-        due_targets = select_due_checkpoint_targets(
-            targets=targets,
-            now=captured_at,
-            existing_snapshot_docs=snapshots,
-            checkpoint_filter="T_MINUS_10M",
+        due_targets = []
+        for checkpoint_key in CLOSING_CAPTURE_CHECKPOINTS:
+            due_targets.extend(
+                select_due_checkpoint_targets(
+                    targets=targets,
+                    now=captured_at,
+                    existing_snapshot_docs=snapshots,
+                    checkpoint_filter=checkpoint_key,
+                )
+            )
+        due_targets.sort(
+            key=lambda row: (
+                row.get("start_time") or captured_at,
+                str(row.get("match_key") or ""),
+            )
         )
 
         odds_summary = run_unibet_odds_ingest(
@@ -227,6 +271,7 @@ def run_closing_capture(
         market_snapshot_docs=all_snapshot_docs,
         refreshed_at=captured_at,
         restrict_match_keys=due_match_keys,
+        eligible_closing_labels=eligible_closing_labels,
     )
     report_date = captured_at.date().isoformat()
     parity_rows = build_closing_parity_rows(
@@ -256,16 +301,42 @@ def run_closing_capture(
         report_date=report_date,
     )
     invalid_for_model_rows = sum(1 for row in market_snapshot_docs if row.get("invalid_for_model"))
+    checkpoint_counts = {
+        checkpoint_key: sum(
+            1 for row in due_targets if row.get("checkpoint_key") == checkpoint_key
+        )
+        for checkpoint_key in CLOSING_CAPTURE_CHECKPOINTS
+        if any(row.get("checkpoint_key") == checkpoint_key for row in due_targets)
+    }
+    closing_quality_counts = {
+        quality: sum(
+            1 for row in closing_line_docs if row.get("closing_quality") == quality
+        )
+        for quality in sorted(
+            {
+                str(row.get("closing_quality") or "missing")
+                for row in closing_line_docs
+            }
+        )
+    }
     summary: dict[str, Any] = {
         "job": "capture_closing_snapshots",
         "captured_at": captured_at.isoformat(),
         "target_matches": len(targets),
         "due_matches": len(due_targets),
+        "checkpoint_counts": checkpoint_counts,
         "raw_docs": len(documents.get("raw_docs", [])),
         "event_links": len(documents.get("event_link_docs", [])),
         "market_offers": len(documents.get("market_offer_docs", [])),
         "market_snapshots": len(market_snapshot_docs),
         "closing_lines": len(closing_line_docs),
+        "official_closing_lines": sum(
+            1 for row in closing_line_docs if row.get("closing_is_official") is True
+        ),
+        "fallback_closing_lines": sum(
+            1 for row in closing_line_docs if row.get("closing_quality") == "t30_fallback"
+        ),
+        "closing_quality_counts": closing_quality_counts,
         "matched_events": matched_events,
         "errors": errors,
         "invalid_for_model_rows": invalid_for_model_rows,

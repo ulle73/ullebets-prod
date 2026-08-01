@@ -45,10 +45,10 @@ HELPER_WORKFLOW_RULES = {
             "gh workflow disable run-unibet-closing.yml",
             "capture_odds_checkpoints.py",
             "--exclude-checkpoint T_MINUS_12H",
-            "--exclude-checkpoint T_MINUS_2H",
+            "--exclude-checkpoint T_MINUS_30M",
             "--exclude-checkpoint T_MINUS_10M",
         ],
-        "forbidden_fragments": [],
+        "forbidden_fragments": ["--exclude-checkpoint T_MINUS_2H"],
     },
     "v2-healthcheck.yml": {
         "required_fragments": [

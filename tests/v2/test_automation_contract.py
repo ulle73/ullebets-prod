@@ -40,7 +40,7 @@ def test_closing_workflow_runs_frequently_enough_for_t_minus_10m() -> None:
     assert "--refresh-derived" in workflow
 
 
-def test_regular_checkpoint_workflow_leaves_t_minus_10m_to_closing_job() -> None:
+def test_regular_checkpoint_workflow_leaves_t30_and_t10_to_closing_job() -> None:
     workflow = (
         repo_root()
         / ".github"
@@ -50,6 +50,7 @@ def test_regular_checkpoint_workflow_leaves_t_minus_10m_to_closing_job() -> None
 
     assert "schedule:" not in workflow
     assert "dependency_profile: lean" in workflow
+    assert "--exclude-checkpoint T_MINUS_30M" in workflow
     assert "--exclude-checkpoint T_MINUS_10M" in workflow
 
 
@@ -73,7 +74,8 @@ def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watc
     assert "gh workflow disable run-unibet-closing.yml" in workflow
     assert "capture_odds_checkpoints.py" in workflow
     assert "--exclude-checkpoint T_MINUS_12H" in workflow
-    assert "--exclude-checkpoint T_MINUS_2H" in workflow
+    assert "--exclude-checkpoint T_MINUS_2H" not in workflow
+    assert "--exclude-checkpoint T_MINUS_30M" in workflow
     assert "--exclude-checkpoint T_MINUS_10M" in workflow
 
 

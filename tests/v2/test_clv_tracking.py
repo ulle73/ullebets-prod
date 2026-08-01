@@ -82,6 +82,8 @@ def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds
     over_doc = next(row for row in summary["clv_docs"] if row["tracking_key"] == "sel-over")
     under_doc = next(row for row in summary["clv_docs"] if row["tracking_key"] == "sel-under")
     assert over_doc["closing_odds"] == 1.8
+    assert over_doc["closing_quality"] == "t10"
+    assert over_doc["official_clv"] is True
     assert over_doc["opening_odds"] is None
     assert over_doc["saved_odds"] == 2.0
     assert over_doc["clv_pct"] == 11.1
@@ -92,6 +94,54 @@ def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds
     assert summary["parity_status_counts"] == {"matched": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_clv_tracking_keeps_t30_fallback_separate_from_official_clv() -> None:
+    summary = run_clv_tracking_refresh(
+        tracked_bet_docs=[
+            {
+                "tracking_key": "sel-over",
+                "selection_key": "sel-over",
+                "match_key": "match-1",
+                "offer_key": "offer-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 10.5,
+                "saved_odds": 2.0,
+                "odds_snapshot_time": "2026-06-22T08:00:00Z",
+                "prediction_created_at": "2026-06-22T08:05:00Z",
+                "match_start_time": "2026-06-22T10:00:00Z",
+            }
+        ],
+        closing_line_docs=[
+            {
+                "closing_key": "offer-1",
+                "offer_key": "offer-1",
+                "match_key": "match-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "line": 10.5,
+                "closing_snapshot_time": "2026-06-22T09:30:00Z",
+                "closing_snapshot_label": "T_MINUS_30M",
+                "closing_quality": "t30_fallback",
+                "closing_age_minutes": 30,
+                "closing_over_odds": 1.8,
+            }
+        ],
+        dry_run=True,
+        refreshed_at=datetime(2026, 6, 22, 9, 31, tzinfo=UTC),
+    )
+
+    row = summary["clv_docs"][0]
+    assert row["clv_status"] == "tracked_fallback_t30"
+    assert row["clv_pct"] == 11.1
+    assert row["closing_quality"] == "t30_fallback"
+    assert row["official_clv"] is False
+    assert summary["official_clv_rows"] == 0
+    assert summary["fallback_clv_rows"] == 1
 
 
 def test_run_clv_tracking_refresh_dry_run_keeps_distinct_prediction_rows_for_same_tracking_key() -> None:

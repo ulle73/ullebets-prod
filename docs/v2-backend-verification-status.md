@@ -39,6 +39,18 @@ errors because no fixture was inside the current window. Automatic enablement,
 T-10 capture, closing-line materialization, and CLV still require the next real
 fixture window.
 
+Production checkpoint policy was then hardened for GitHub Actions timing.
+The hourly scheduler now captures T-2H in addition to T-3D/T-2D/T-1D. The
+five-minute closing workflow owns both a broad T-30 fallback window (15-50
+minutes before kickoff) and the existing T-10 window (5-15 minutes). T-30
+closing rows are labeled `t30_fallback`; only T-10 is official closing CLV and
+eligible for model promotion metrics. A later T-10 replaces T-30 as the latest
+canonical closing observation. Older T-2H/T-1D rows cannot be promoted to a
+closing line when both near-close captures are absent. Targeted tests pass
+`61/61`, the full suite passes `402/402`, and the current database preflight
+returned a valid empty result because no future fixture existed in the source
+horizon. The first real T-2H/T-30/T-10 lifecycle remains unproven.
+
 The latest completed match dates for all followed leagues were then fetched in
 production write mode. Fixture ingest stored 181 canonical matches for 16-24
 May and 6 for 31 July, with zero unmatched identities. Latest-date enrichment

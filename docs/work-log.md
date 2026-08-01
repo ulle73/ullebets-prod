@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `394/394`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `402/402`.
 
 ### Backend
 
@@ -146,6 +146,59 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-01 - Resilient T-2H/T-30/T-10 closing policy
+
+Status: `PARTIAL`
+
+Objective:
+Reduce missed closing coverage under delayed GitHub Actions schedules without
+misreporting an earlier price as the true closing line.
+
+Changes:
+
+- Added `T_MINUS_30M` with a broad 15-50 minute capture window.
+- Promoted T-2H collection into the hourly production checkpoint job while
+  retaining its historical research classification for model evidence.
+- Reserved T-30 and T-10 exclusively for the five-minute closing workflow.
+- Materialized T-30 as `t30_fallback`; a later T-10 upgrades the same closing
+  row to official `t10` quality.
+- Prevented T-2H/T-1D or older rows from becoming closing lines when both
+  near-close checkpoints are missing.
+- Propagated closing quality through CLV and forward results. T-30 CLV uses
+  `tracked_fallback_t30` and is excluded from official model promotion CLV.
+
+Tests:
+
+```text
+python -m pytest tests/v2/test_checkpoint_capture.py tests/v2/test_closing_capture.py tests/v2/test_clv_tracking.py tests/v2/test_forward_results.py tests/v2/test_ev_forward_evaluation.py tests/v2/test_ev_score_evaluation.py tests/v2/test_ev_snapshot_integrity.py tests/v2/test_automation_contract.py -q
+python -m pytest -q
+python scripts/forward_v2/capture_closing_snapshots.py --mode fixture-db --source-workflow near-close-production-preflight --max-days-ahead 7 --dry-run
+```
+
+Results:
+
+- Targeted checkpoint/closing/CLV/promotion tests passed `61/61`.
+- Full regression suite passed `402/402`.
+- Current real-time read-only preflight completed with audit and health `ok`.
+  It found zero fixtures in the next seven days, so no live capture was due.
+- Synthetic timing contracts prove T-30 fallback creation, T-10 upgrade,
+  duplicate prevention, and exclusion of fallback CLV from promotion metrics.
+
+Insight:
+A T-30 fallback improves Actions tolerance, but it is not market close. The
+quality label must remain part of every closing, CLV, and promotion report.
+
+Remaining:
+
+- Persist a real T-2H/T-30/T-10 lifecycle on the next fixture with Kambi
+  markets. Code and dry-run evidence do not replace that live proof.
+
+Next:
+
+- Inspect the first scheduler activation with a real future fixture and verify
+  that T-30 persists even if T-10 is delayed, then verify that a later T-10
+  upgrades the closing and official CLV.
 
 ### 2026-08-01 - Production odds scheduler idempotency repair
 

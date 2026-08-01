@@ -328,7 +328,9 @@ def _evaluate_selection_clv(
             closing_by_offer[offer_key] = row
 
     clv_values: list[float] = []
+    fallback_t30_clv_values: list[float] = []
     beat_close = 0
+    fallback_t30_beat_close = 0
     invalid_closing_timing = 0
     for selection in selections:
         closing = closing_by_offer.get(
@@ -353,6 +355,26 @@ def _evaluate_selection_clv(
         ):
             invalid_closing_timing += 1
             continue
+        closing_label = str(
+            closing.get("closing_snapshot_label") or ""
+        )
+        closing_quality = str(
+            closing.get("closing_quality") or ""
+        )
+        official_closing = bool(
+            closing.get("closing_is_official") is True
+            or closing_label == "T_MINUS_10M"
+            or closing_quality == "t10"
+        )
+        fallback_t30 = bool(
+            not official_closing
+            and (
+                closing_label == "T_MINUS_30M"
+                or closing_quality == "t30_fallback"
+            )
+        )
+        if not official_closing and not fallback_t30:
+            continue
         direction = str(selection.get("direction"))
         closing_odds = pd.to_numeric(
             closing.get(f"closing_{direction}_odds"),
@@ -369,17 +391,17 @@ def _evaluate_selection_clv(
             or float(saved_odds) <= 1.0
         ):
             continue
-        clv_values.append(
-            (
-                float(saved_odds)
-                / float(closing_odds)
-                - 1.0
+        clv_value = (
+            float(saved_odds) / float(closing_odds) - 1.0
+        ) * 100.0
+        if official_closing:
+            clv_values.append(clv_value)
+            beat_close += int(float(saved_odds) > float(closing_odds))
+        else:
+            fallback_t30_clv_values.append(clv_value)
+            fallback_t30_beat_close += int(
+                float(saved_odds) > float(closing_odds)
             )
-            * 100.0
-        )
-        beat_close += int(
-            float(saved_odds) > float(closing_odds)
-        )
     return {
         "selected_bets": len(selections),
         "rows_with_clv": len(clv_values),
@@ -396,6 +418,24 @@ def _evaluate_selection_clv(
         "beat_close_rate_pct": (
             beat_close / len(clv_values) * 100.0
             if clv_values
+            else None
+        ),
+        "fallback_t30_rows": len(fallback_t30_clv_values),
+        "fallback_t30_coverage_pct": (
+            len(fallback_t30_clv_values) / len(selections) * 100.0
+            if selections
+            else 0.0
+        ),
+        "fallback_t30_mean_clv_pct": (
+            float(np.mean(fallback_t30_clv_values))
+            if fallback_t30_clv_values
+            else None
+        ),
+        "fallback_t30_beat_close_rate_pct": (
+            fallback_t30_beat_close
+            / len(fallback_t30_clv_values)
+            * 100.0
+            if fallback_t30_clv_values
             else None
         ),
         "invalid_closing_timing": (

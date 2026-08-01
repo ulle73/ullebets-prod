@@ -18,6 +18,8 @@ Status details and evidence:
 
 - [ ] `FAILED` Capture a real T-10 odds window before kickoff; all six current
   Brazil windows were missed by the execution automation.
+- [ ] `UNPROVEN` Capture the new real T-30 fallback and prove that a later
+  T-10 upgrades it without mixing fallback CLV into official model evidence.
 - [ ] `UNPROVEN` Materialize a valid closing line from that live capture.
 - [ ] `UNPROVEN` Calculate CLV from a valid live closing line.
 - [ ] `BLOCKED` Accumulate in-domain V6 forward predictions and settlements.
@@ -99,6 +101,8 @@ Status details and evidence:
 - [x] A real T-1D capture succeeded for two of two due matches.
 - [ ] `UNPROVEN` Prove a real T-3D capture.
 - [ ] `UNPROVEN` Prove a real T-2D capture.
+- [ ] `UNPROVEN` Prove a real production T-2H capture.
+- [ ] `UNPROVEN` Prove a real T-30M fallback capture.
 - [ ] `UNPROVEN` Prove a real T-10M capture.
 - [ ] `UNPROVEN` Build closing lines from the final valid prematch snapshot.
 - [ ] `UNPROVEN` Refresh CLV from valid live closing lines.
@@ -171,6 +175,8 @@ Current acceptance window:
   enables the five-minute closing watcher only around uncaptured upcoming
   fixtures. Hosted write-mode run `30673575119` proved that an already-disabled
   watcher is handled idempotently and checkpoint capture still executes.
+- [x] T-2H is assigned to the hourly job; T-30/T-10 are exclusively assigned
+  to the closing watcher, with T-30 excluded from official model CLV.
 - [x] EV shadow runtime versions are pinned to the frozen manifests; hosted
   production write-mode run `30672830616` passed all four scorers. It produced
   zero rows because no upcoming canonical model markets existed.
@@ -214,7 +220,7 @@ Current acceptance window:
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `394/394`.
+- [x] Current V2 regression suite passes `402/402`.
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
   `392/392` tests at that checkpoint.

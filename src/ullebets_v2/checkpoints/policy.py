@@ -60,6 +60,14 @@ V2_ODDS_CHECKPOINTS = [
         max_minutes_to_kickoff=6 * 60,
     ),
     V2OddsCheckpoint(
+        key="T_MINUS_30M",
+        label="30 minuter fore matchstart",
+        snapshot_type="near_closing",
+        target_days=0,
+        min_minutes_to_kickoff=15,
+        max_minutes_to_kickoff=50,
+    ),
+    V2OddsCheckpoint(
         key="T_MINUS_10M",
         label="10 minuter fore matchstart",
         snapshot_type="closing",

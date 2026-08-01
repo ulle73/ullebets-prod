@@ -84,7 +84,7 @@ jobs:
             --source-workflow run-unibet-odds-checkpoints.yml
             --max-days-ahead "${{ inputs.days_ahead || '7' }}"
             --exclude-checkpoint T_MINUS_12H
-            --exclude-checkpoint T_MINUS_2H
+            --exclude-checkpoint T_MINUS_30M
             --exclude-checkpoint T_MINUS_10M
           )
           if [ "${{ inputs.dry_run || false }}" = "true" ]; then

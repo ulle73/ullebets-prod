@@ -44,6 +44,10 @@ def test_run_forward_result_refresh_dry_run_builds_settled_clv_tracked_rows() ->
                 "latest_observed_odds": 1.9,
                 "closing_snapshot_label": "T_MINUS_10M",
                 "closing_snapshot_time": "2026-07-28T09:55:00Z",
+                "closing_quality": "t10",
+                "closing_age_minutes": 5,
+                "official_clv": True,
+                "clv_basis": "T_MINUS_10M",
                 "closing_odds": 1.8,
                 "clv_pct": 11.1,
                 "implied_edge_delta": 5.56,
@@ -92,8 +96,59 @@ def test_run_forward_result_refresh_dry_run_builds_settled_clv_tracked_rows() ->
     assert row["result_loop_key"] == "pred-1"
     assert row["result_loop_status"] == "settled"
     assert row["closing_odds"] == 1.8
+    assert row["closing_quality"] == "t10"
+    assert row["official_clv"] is True
     assert row["settlement_result"] == "win"
     assert row["odds_captured_after_start"] is False
+
+
+def test_forward_results_report_t30_fallback_separately() -> None:
+    summary = run_forward_result_refresh(
+        forward_bet_docs=[
+            {
+                "prediction_key": "pred-1",
+                "selection_key": "sel-1",
+                "tracking_key": "sel-1",
+                "match_key": "match-1",
+                "offer_key": "offer-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "direction": "over",
+                "line_value": 10.5,
+                "saved_odds": 2.0,
+                "saved_at": "2026-07-28T09:00:00Z",
+                "match_start_time": "2026-07-28T10:00:00Z",
+            }
+        ],
+        clv_tracking_docs=[
+            {
+                "clv_key": "pred-1",
+                "prediction_key": "pred-1",
+                "tracking_key": "sel-1",
+                "selection_key": "sel-1",
+                "closing_key": "offer-1",
+                "closing_snapshot_label": "T_MINUS_30M",
+                "closing_snapshot_time": "2026-07-28T09:30:00Z",
+                "closing_quality": "t30_fallback",
+                "closing_age_minutes": 30,
+                "official_clv": False,
+                "clv_basis": "T_MINUS_30M",
+                "closing_odds": 1.8,
+                "clv_pct": 11.1,
+                "beat_closing_line": True,
+                "clv_status": "tracked_fallback_t30",
+            }
+        ],
+        settled_bet_docs=[],
+        dry_run=True,
+        refreshed_at=datetime(2026, 7, 28, 9, 31, tzinfo=UTC),
+    )
+
+    assert summary["fallback_t30_clv_count"] == 1
+    assert summary["avg_fallback_t30_clv_pct"] == 11.1
+    assert summary["avg_clv_pct"] is None
+    assert summary["result_docs"][0]["official_clv"] is False
 
 
 def test_run_forward_result_refresh_dry_run_marks_timing_and_missing_layers() -> None:
