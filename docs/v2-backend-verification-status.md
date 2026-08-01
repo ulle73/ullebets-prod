@@ -115,9 +115,15 @@ Verification evidence:
 
 No model score or prediction write was made during these checks; only index
 metadata changed. A real immutable V6 selection from A-League Men, Bundesliga,
-La Liga, Ligue 1, Premier League, or Serie A remains unproven until the
-workflow is deployed and one of those leagues has a qualifying prematch
-market.
+La Liga, Ligue 1, Premier League, or Serie A remains unproven until one of
+those leagues has a qualifying prematch market.
+
+Deployment is now verified on `main@f607338`. Hosted write-mode run
+`30717651924` succeeded with `dry_run=false`, loaded only V6,
+`forward_policy_registry_v1`, and `v6_corners_away_total_forward_v1`. It read
+zero future snapshots and wrote zero scores/selections, so the deployment and
+empty-path behavior are proven while a non-empty in-domain production path
+remains unproven.
 
 ## Critical Timing Correction On 2026-07-30
 

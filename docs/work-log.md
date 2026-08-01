@@ -178,6 +178,8 @@ python -m compileall -q src/ullebets_v2 scripts/forward_v2
 python scripts/forward_v2/bootstrap_indexes.py
 python scripts/forward_v2/score_ev_shadow_model.py --repo-root . --artifact models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib --manifest models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json --score-only --selection-policy-registry models/ev/forward_policy_registry_v1.json --selection-policy-id v6_corners_away_total_forward_v1 --dry-run
 python scripts/forward_v2/score_ev_shadow_model.py --repo-root . --artifact models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib --manifest models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json --score-only --selection-policy-registry models/ev/forward_policy_registry_v1.json --selection-policy-id v6_corners_away_total_forward_v1 --now 2026-07-30T00:30:00Z --dry-run
+gh workflow run ev-shadow-forward.yml --ref main
+gh run watch 30717651924 --exit-status
 ```
 
 Results:
@@ -193,6 +195,11 @@ Results:
 - Both scorer runs were dry-runs and made no database writes.
 - Index bootstrap applied `selection_policy_match` to `forward_bets`; all 36
   collection plans completed with `0` repaired and `0` deleted documents.
+- Commit `f607338` was pushed to `main`. Hosted write-mode run `30717651924`
+  succeeded and loaded only V6 with `forward_policy_registry_v1` and policy
+  `v6_corners_away_total_forward_v1`; `dry_run=false`.
+- The hosted run had `0` future input snapshots and therefore persisted `0`
+  scores/selections. This was a valid empty run, not a scorer failure.
 
 Insight:
 V6 is now the configured production forward model, but it still fails closed
@@ -201,7 +208,6 @@ that the historical `+28.65%` survives forward testing.
 
 Remaining:
 
-- Push the workflow before hosted production can use the new policy path.
 - Observe a real prematch score and immutable selection from a V6-supported
   league, then settle it and measure model-specific ROI/CLV.
 
