@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -69,6 +69,17 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: the latest completed match date for every followed league is now
   stored in V2. Across 41 matches, raw statistics, incidents, shotmaps,
   results, canonical results, and all 1,107 primary stat rows are complete.
+- `VERIFIED`: live T-2D capture has 161 valid prematch rows across two
+  matches, and live T-1D capture has 244 valid rows across three matches.
+- `VERIFIED`: the hourly production scheduler is active. Hosted run
+  `30949327663` succeeded, saw all 10 upcoming Brazil fixtures, correctly
+  found zero due checkpoints, and persisted audit/health status `ok`.
+- `VERIFIED`: a current read-only Kambi dry-run linked 10/10 upcoming
+  fixtures, returned 11 raw payload documents and 607 normalized offers, with
+  zero source or mapping errors.
+- `UNPROVEN`: T-3D, T-2H, T-30, T-10, closing-line materialization, and valid
+  closing-based CLV still have no persisted live evidence. The first current
+  T-3D window opens on 5 August at 07:00 UTC.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -137,15 +148,72 @@ Detailed model history:
 
 ## Next justified tests
 
-1. Capture and verify the next future real due T-10 window.
-2. Materialize a valid prematch closing line and refresh CLV from it.
-3. Score future matches from one of V6's six supported leagues before kickoff.
-4. Settle those in-domain selections without changing artifact, features,
+1. Verify the first current T-3D capture after 5 August 07:00 UTC.
+2. Verify the subsequent T-2H, T-30, and T-10 captures without manual time
+   simulation.
+3. Materialize a valid prematch closing line and refresh CLV from it.
+4. Score future matches from one of V6's six supported leagues before kickoff.
+5. Settle those in-domain selections without changing artifact, features,
    thresholds, scopes, periods, or registry.
-5. Evaluate forward ROI and CLV only after sufficient untouched observations
+6. Evaluate forward ROI and CLV only after sufficient untouched observations
    exist.
 
 ## Chronological entries
+
+### 2026-08-04 - Current production checkpoint audit
+
+Status: `PARTIAL`
+
+Objective:
+Verify the latest scheduled odds state and identify exactly which production
+checkpoints are proven before the 8-9 August Brazil window.
+
+Changes:
+
+- Updated the work log, readiness checklist, and backend verification status.
+- No production code, database data, or workflow configuration changed.
+
+Tests:
+
+```text
+Read-only MongoDB audit of fixtures_canonical, market_snapshots,
+raw_odds_kambi, closing_lines, clv_tracking, and job_runs
+python scripts/forward_v2/ingest_unibet_odds.py --mode fixture-db --max-days-ahead 7 --dry-run
+gh run list --workflow v2-odds-scheduler.yml --limit 3 --json ...
+gh run list --workflow ev-shadow-forward.yml --limit 3 --json ...
+```
+
+Results:
+
+- 10 future canonical Brazil fixtures exist; the next is Grêmio - São Paulo
+  at `2026-08-08T19:00:00Z`.
+- Valid persisted snapshots: T-2D `161` rows over two matches and T-1D `244`
+  rows over three matches.
+- No valid T-3D, T-2H, T-30, or T-10 row exists. All `248` stored T-10 rows
+  are old invalid timing rows and remain excluded.
+- Latest raw odds write remains `2026-07-30T00:28:39.392Z`; this is expected
+  because no current fixture was due at the latest scheduler run.
+- Scheduled run `30949327663` succeeded with 10 target matches, zero due
+  matches, zero fetch errors, and audit/health status `ok`.
+- Current Kambi dry-run linked `10/10` matches, produced `11` raw documents
+  and `607` normalized offers, and returned zero errors.
+- `closing_lines` remains empty, so official closing CLV is still unavailable.
+
+Insight:
+The source, fixture linkage, and scheduler empty-window behavior are currently
+healthy. T-3D is not failed: the first new fixture was still about 93.5 hours
+from kickoff, outside the 60-84 hour T-3D policy window.
+
+Remaining:
+
+- Real persisted T-3D, T-2H, T-30, T-10, closing-line, and CLV evidence.
+- In-domain V6 predictions and untouched settlements.
+
+Next:
+
+- Inspect the first scheduler run after `2026-08-05T07:00:00Z`; it should
+  persist T-3D data for Grêmio - São Paulo when GitHub Actions executes within
+  the broad 24-hour checkpoint window.
 
 ### 2026-08-01 - V6 registered forward-policy activation
 

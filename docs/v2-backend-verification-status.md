@@ -1,11 +1,43 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 Branch: `main`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Current Checkpoint Evidence On 2026-08-04
+
+A read-only production audit at `2026-08-04T21:33:37Z` found 10 future
+canonical Brasileirão Série A fixtures for 8-9 August. The next fixture is
+Grêmio - São Paulo at `2026-08-08T19:00:00Z`.
+
+Persisted checkpoint evidence is:
+
+- T-2D: `161` valid prematch rows across two matches
+- T-1D: `244` valid prematch rows across three matches
+- T-3D: no persisted row
+- T-2H: no persisted row
+- T-30: no persisted row
+- T-10: no valid persisted row; all `248` historical rows are marked invalid
+
+The latest raw odds write is still `2026-07-30T00:28:39.392Z`. This is not a
+current failure: at the latest scheduled checkpoint job all 10 fixtures were
+outside every due checkpoint window. Job run
+`5869cacebf294545bbf16b9dc5dde5a0`, corresponding to hosted Actions run
+`30949327663`, completed `succeeded` with 10 target matches, zero due matches,
+zero source errors, and audit/health status `ok`.
+
+A current source dry-run independently linked all `10/10` fixtures to Kambi,
+returned `11` raw payload documents and `607` normalized offers, and reported
+zero source or mapping errors. The source and match linkage are therefore
+currently healthy.
+
+The first new T-3D opportunity opens at `2026-08-05T07:00:00Z`, when the first
+fixture enters the configured 60-84 hour window. Closing lines remain at zero,
+so T-3D, T-2H, T-30, T-10, closing-line materialization, and official CLV must
+remain unproven until their real scheduled windows persist valid evidence.
 
 ## Production Runtime And Latest-Match Ingest On 2026-08-01
 

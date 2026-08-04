@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -16,8 +16,9 @@ Status details and evidence:
 
 ## Critical blockers
 
-- [ ] `FAILED` Capture a real T-10 odds window before kickoff; all six current
-  Brazil windows were missed by the execution automation.
+- [ ] `UNPROVEN` Capture a real T-10 odds window before kickoff with the active
+  match-aware production scheduler; the previous six Brazil windows were
+  missed before that scheduler contract was deployed.
 - [ ] `UNPROVEN` Capture the new real T-30 fallback and prove that a later
   T-10 upgrades it without mixing fallback CLV into official model evidence.
 - [ ] `UNPROVEN` Materialize a valid closing line from that live capture.
@@ -98,9 +99,9 @@ Status details and evidence:
 - [x] Market offers are normalized without mutating raw payloads.
 - [x] Odds rows carry source and snapshot metadata.
 - [x] Odds at or after kickoff are excluded from model, ROI, and CLV.
-- [x] A real T-1D capture succeeded for two of two due matches.
+- [x] Real T-1D capture has 244 valid prematch rows across three matches.
 - [ ] `UNPROVEN` Prove a real T-3D capture.
-- [ ] `UNPROVEN` Prove a real T-2D capture.
+- [x] Real T-2D capture has 161 valid prematch rows across two matches.
 - [ ] `UNPROVEN` Prove a real production T-2H capture.
 - [ ] `UNPROVEN` Prove a real T-30M fallback capture.
 - [ ] `UNPROVEN` Prove a real T-10M capture.
@@ -109,15 +110,16 @@ Status details and evidence:
 
 Current acceptance window:
 
-- Six future Brazil fixtures are present; the first four kick off at 20:00
-  Europe/Stockholm on 30 July.
-- T-10 preflight and `27/27` targeted tests pass.
-- All six fixture windows passed without a valid T-10 capture. The heartbeat
-  was delivered after the final window and is not a production scheduler.
-- Post-match enrichment, settlement, and forward results are now complete for
-  the final match, but closing odds and CLV cannot be reconstructed afterward.
-- No live checkbox above may be checked before persisted prematch timing,
-  closing-line, and CLV evidence exists.
+- Ten future Brazil fixtures are present for 8-9 August. The first is Grêmio -
+  São Paulo at `2026-08-08T19:00:00Z`.
+- Scheduled run `30949327663` succeeded on 4 August with all 10 fixtures in
+  scope, zero due checkpoints, zero errors, and audit/health status `ok`.
+- A current Kambi dry-run linked 10/10 matches and produced 11 raw payloads
+  plus 607 normalized offers without writing data.
+- The first current T-3D window opens at `2026-08-05T07:00:00Z`; no current
+  fixture was due when the latest scheduler run executed.
+- No live checkbox for T-3D/T-2H/T-30/T-10, closing, or CLV may be checked
+  before valid persisted production evidence exists.
 
 ## 6. Model snapshots, analysis, and predictions
 
@@ -177,6 +179,9 @@ Current acceptance window:
   enables the five-minute closing watcher only around uncaptured upcoming
   fixtures. Hosted write-mode run `30673575119` proved that an already-disabled
   watcher is handled idempotently and checkpoint capture still executes.
+- [x] Hosted scheduler run `30949327663` on 4 August saw all 10 current future
+  fixtures, correctly selected zero due checkpoints, and completed with zero
+  errors plus persisted audit/health status `ok`.
 - [x] T-2H is assigned to the hourly job; T-30/T-10 are exclusively assigned
   to the closing watcher, with T-30 excluded from official model CLV. Hosted
   write-mode scheduler run `30674861895` passed this deployed contract with a
@@ -224,7 +229,7 @@ Current acceptance window:
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `402/402`.
+- [x] Current V2 regression suite passes `408/408`.
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
   `392/392` tests at that checkpoint.
