@@ -29,7 +29,7 @@ export function MatchDetailPage() {
       <StateNotice state={detail.dataState} title="Utanför V6-domän" detail="Modellrader får granskas diagnostiskt men får inte rankas som Auto-val eller användas som forward-proof." />
 
       <section className="content-section">
-        <div className="section-heading"><div><p className="eyebrow">Oddsflöde</p><h2>Checkpoint-tidslinje</h2></div><span className="muted-label">T-30/T-10 saknas i denna preview</span></div>
+        <div className="section-heading"><div><p className="eyebrow">Oddsflöde</p><h2>Checkpoint-tidslinje</h2></div><span className="muted-label">T-30/T-10 saknas i denna snapshot</span></div>
         <CheckpointTimeline checkpoints={detail.checkpoints} />
       </section>
 
@@ -40,10 +40,14 @@ export function MatchDetailPage() {
 
       <section className="content-section">
         <div className="section-heading"><div><p className="eyebrow">Teamprofiles</p><h2>Lagjämförelse</h2></div><Link className="quiet-link" to="/lag/gremio">Öppna lagprofil</Link></div>
-        <div className="stats-table" role="table" aria-label="Lagstatistik">
-          <div className="stats-row stats-row--head" role="row"><span>Stat</span><span>{detail.match.homeTeamName}</span><span>{detail.match.awayTeamName}</span><span>Ligasnitt</span></div>
-          {detail.teamStats.map((row) => <div className="stats-row" role="row" key={row.label}><strong>{row.label}</strong><span>{row.homeValue?.toLocaleString('sv-SE') ?? 'Saknas'}</span><span>{row.awayValue?.toLocaleString('sv-SE') ?? 'Saknas'}</span><span>{row.leagueAverage?.toLocaleString('sv-SE') ?? 'Saknas'}</span></div>)}
-        </div>
+        {detail.teamStats.length === 0 ? (
+          <StateNotice state="empty" title="Verifierade teamprofile-värden saknas i denna preview" detail="Sidan visar inte uppskattade snitt. När read-modellen levererar teamprofiles visas for/against, ligasnitt och rank här." />
+        ) : (
+          <div className="stats-table" role="table" aria-label="Lagstatistik">
+            <div className="stats-row stats-row--head" role="row"><span>Stat</span><span>{detail.match.homeTeamName}</span><span>{detail.match.awayTeamName}</span><span>Ligasnitt</span></div>
+            {detail.teamStats.map((row) => <div className="stats-row" role="row" key={row.label}><strong>{row.label}</strong><span>{row.homeValue?.toLocaleString('sv-SE') ?? 'Saknas'}</span><span>{row.awayValue?.toLocaleString('sv-SE') ?? 'Saknas'}</span><span>{row.leagueAverage?.toLocaleString('sv-SE') ?? 'Saknas'}</span></div>)}
+          </div>
+        )}
       </section>
     </div>
   );

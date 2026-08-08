@@ -27,6 +27,9 @@ export const previewMatches: MatchSummary[] = [
   },
 ];
 
+// The market identities mirror the user's legacy Ullebets screenshot. Numeric
+// probability/EV/odds fields remain null because no repository evidence maps
+// those exact values to these Brazil rows. Brazil is outside V6's fitted domain.
 export const previewSignals: Signal[] = [
   {
     id: 'gsp-over-fouls-away-2nd',
@@ -35,10 +38,10 @@ export const previewSignals: Signal[] = [
     statKey: 'fouls',
     scope: 'away',
     period: '2ND',
-    line: 7.5,
-    predictedWinProbability: 0.614,
-    expectedRoiUnits: 0.112,
-    offeredOdds: 1.86,
+    line: 7.1,
+    predictedWinProbability: null,
+    expectedRoiUnits: null,
+    offeredOdds: null,
     sourceProvider: 'Unibet/Kambi',
     snapshotLabel: 'T-2H',
     evidence: 'excluded',
@@ -51,10 +54,10 @@ export const previewSignals: Signal[] = [
     statKey: 'offsides',
     scope: 'home',
     period: 'ALL',
-    line: 1.5,
-    predictedWinProbability: 0.672,
-    expectedRoiUnits: 0.096,
-    offeredOdds: 1.72,
+    line: 1.7,
+    predictedWinProbability: null,
+    expectedRoiUnits: null,
+    offeredOdds: null,
     sourceProvider: 'Unibet/Kambi',
     snapshotLabel: 'T-2H',
     evidence: 'excluded',
@@ -67,10 +70,10 @@ export const previewSignals: Signal[] = [
     statKey: 'freeKicks',
     scope: 'away',
     period: 'ALL',
-    line: 14.5,
-    predictedWinProbability: 0.582,
-    expectedRoiUnits: 0.081,
-    offeredOdds: 1.91,
+    line: 14.9,
+    predictedWinProbability: null,
+    expectedRoiUnits: null,
+    offeredOdds: null,
     sourceProvider: 'Unibet/Kambi',
     snapshotLabel: 'T-2H',
     evidence: 'excluded',
@@ -90,12 +93,8 @@ export const previewMatchDetails: Record<string, MatchDetail> = {
       { label: 'T-30', state: 'missing', capturedAt: null },
       { label: 'T-10', state: 'missing', capturedAt: null },
     ],
-    teamStats: [
-      { label: 'Hörnor · Match', homeValue: 5.3, awayValue: 4.7, leagueAverage: 4.9 },
-      { label: 'Skott · Match', homeValue: 12.8, awayValue: 11.4, leagueAverage: 11.9 },
-      { label: 'Skott på mål · Match', homeValue: 4.6, awayValue: 4.1, leagueAverage: 4.2 },
-    ],
+    teamStats: [],
     dataState: 'excluded',
-    freshnessLabel: 'Förhandsvisning · backend-format',
+    freshnessLabel: 'Sparad verifieringssnapshot · 8 aug',
   },
 };
