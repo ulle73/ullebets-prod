@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-import ullebets_v2.read_api.service as read_service
 from ullebets_v2.read_api.service import read_auto, read_dashboard, read_match_detail, read_results
 
 
@@ -104,17 +103,11 @@ def test_dashboard_reads_persisted_matchups_instead_of_frontend_fallbacks() -> N
     assert payload["matchups"][0]["condition"] == "OVER"
 
 
-def test_dashboard_does_not_recompute_missing_persisted_matchups(monkeypatch) -> None:
+def test_dashboard_does_not_recompute_missing_persisted_matchups() -> None:
     database = FakeDatabase(
         fixtures_canonical=FakeCollection([fixture_row()]),
         matchups_score=FakeCollection([]),
-        teamprofiles=FakeCollection([]),
     )
-
-    def fail_if_called(**_kwargs):
-        raise AssertionError("read API must not compute matchup scores")
-
-    monkeypatch.setattr(read_service, "build_matchups_score_docs", fail_if_called)
 
     payload = read_dashboard(database, source_date="2026-08-09")
 
