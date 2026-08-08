@@ -20,11 +20,17 @@ export function OverviewPage() {
   const under = filtered.filter((row) => row.condition === 'UNDER');
 
   if (dashboard.isLoading) {
-    return <StateNotice state="loading" title="Läser V2-data" detail="Hämtar matcher och matchup-ranking från V2." />;
+    return <StateNotice state="loading" title="Läser V2-data" detail="Hämtar dagens matcher och matchup-ranking från V2." />;
   }
   if (dashboard.isError) {
     return <StateNotice state="failed" title="Read API kan inte nås" detail="Starta V2 read API och kontrollera MONGODB_URI. Frontend visar ingen reservdata." />;
   }
+
+  const sourceLabel = dashboard.data?.matchupSource === 'persisted'
+    ? 'Persistad V2-ranking'
+    : dashboard.data?.matchupSource === 'computed_read_only'
+      ? 'V2-ranking · read-only beräknad'
+      : 'V2-ranking saknas';
 
   return (
     <div className="page-stack">
@@ -32,11 +38,12 @@ export function OverviewPage() {
         <div>
           <p className="eyebrow">Workspace · Översikt</p>
           <h2>Dagens matchups</h2>
-          <p className="page-subtitle">Ranking direkt från V2:s matchups_score. Ingen frontendscore räknas eller fylls i.</p>
+          <p className="page-subtitle">Matchup-score, riktning, stat, period, scope, bias och ligasnitt kommer från V2:s matchupmotor. Frontend räknar inte fram eller fyller i produktdata.</p>
         </div>
         <div className="summary-strip" aria-label="Översiktsstatus">
           {dashboard.data?.selectedDate ? <span><CalendarDays size={14} />{dashboard.data.selectedDate}</span> : null}
           <span><Activity size={14} />{dashboard.data?.matches.length ?? 0} matcher</span>
+          <span>{sourceLabel}</span>
         </div>
       </section>
 
@@ -44,7 +51,7 @@ export function OverviewPage() {
         <StateNotice state="empty" title="Inga matcher i V2 för valt datum" detail="Ingen syntetisk fallback visas. Välj ett annat datum eller kontrollera fixtures_canonical." />
       ) : null}
       {(dashboard.data?.matches.length ?? 0) > 0 && matchups.length === 0 ? (
-        <StateNotice state="empty" title="Matcher finns men matchup-ranking saknas" detail="Read API försöker först läsa matchups_score och kan därefter använda V2:s befintliga matchup-builder mot teamprofiles, utan frontend-fixtures." />
+        <StateNotice state="empty" title="Matcher finns men matchup-ranking saknas" detail="V2 saknar tillräcklig persistad ranking eller aktuella teamprofiles för en säker read-only beräkning. Frontend visar inga ersättningsvärden." />
       ) : null}
 
       <div className="filter-toolbar">
