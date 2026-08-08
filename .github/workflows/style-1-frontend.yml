@@ -1,0 +1,57 @@
+name: Style-1 Frontend
+
+on:
+  push:
+    branches:
+      - style-1
+      - style-1-tdd
+    paths:
+      - "frontend/**"
+      - ".github/workflows/style-1-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Install frontend dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Upload generated lockfile
+        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: style-1-package-lock
+          path: frontend/package-lock.json
+          if-no-files-found: error
+
+      - name: Verify implemented frontend
+        run: |
+          if [ -f src/main.tsx ]; then
+            npm run typecheck
+            npm run lint
+            npm run test -- --run
+            npm run build
+          else
+            echo "Tooling bootstrap only; feature verification starts when src/main.tsx exists."
+          fi
