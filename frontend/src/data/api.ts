@@ -21,14 +21,13 @@ export function buildApiUrl(path: string, query: Record<string, QueryValue> = {}
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, {
+  const init: RequestInit = {
     method: 'GET',
     headers: { Accept: 'application/json' },
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error(`Read API returned ${response.status}`);
-  }
+  };
+  if (signal) init.signal = signal;
+  const response = await fetch(url, init);
+  if (!response.ok) throw new Error(`Read API returned ${response.status}`);
   return response.json() as Promise<T>;
 }
 
