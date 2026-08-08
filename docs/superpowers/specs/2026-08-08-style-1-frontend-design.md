@@ -2,7 +2,7 @@
 
 Date: 2026-08-08
 Branch: `style-1`
-Status: approved visual direction; implementation pending
+Status: approved visual direction; provenance gate required before implementation
 
 ## Objective
 
@@ -10,18 +10,20 @@ Build the complete Ullebets frontend as an isolated presentation layer without
 changing any existing V1/V2 model, prediction, odds, settlement, storage,
 workflow, or database behavior.
 
-The visual target is the approved Deep Navy version of the existing Ullebets
-layout: preserve the old product's information hierarchy and fast scanability,
-but remove excessive nested borders, reduce decorative pills, strengthen
-typographic hierarchy, and make the product feel more trustworthy and premium.
+The visual target is the approved Deep Navy evolution of the old Ullebets
+interface: preserve the fast sports-product scanability and familiar five-item
+navigation, while reducing nested borders, decorative pills and competing
+colors. The result should feel like a trustworthy professional sports-analysis
+product rather than a casino, crypto terminal or generic admin dashboard.
 
-The frontend must never fabricate a bookmaker, market, score, result, ROI, CLV,
-or model state that the backend does not actually expose. Empty or unproven
-states must be shown as such.
+Visual polish is subordinate to data truth. The frontend must never fabricate a
+bookmaker, market, score, result, ROI, CLV, model state, team crest, freshness
+state or recommendation that cannot be traced to an existing backend field or
+an explicitly documented display transformation.
 
 ## Non-negotiable safety boundary
 
-This branch is presentation-only.
+`style-1` is presentation-only.
 
 Do not modify:
 
@@ -29,39 +31,88 @@ Do not modify:
 - `src/ullebets_v2/**`
 - `scripts/**`
 - `models/**`
-- existing GitHub Actions workflow behavior
+- existing production GitHub Actions behavior
 - database write paths
 - model artifacts or policy registries
-- settlement, ROI, CLV, prediction, odds, fixture, or mapping logic
+- settlement, ROI, CLV, prediction, odds, fixture, mapping or model logic
 
-The frontend is added under a new top-level `frontend/` directory. It may define
-read-only TypeScript contracts that describe the future frontend API, but it
-must not add server-side business logic to satisfy those contracts in this
-styling branch.
+All frontend implementation lives under a new top-level `frontend/` directory.
+A branch-only frontend CI workflow may be added if it is path-scoped and cannot
+change production jobs.
+
+A future read API is a separate implementation concern. This branch may define
+TypeScript read models and adapters, but it must not add server-side business
+logic merely to make a mock UI convenient.
+
+## Gate 0: backend-to-UI provenance inventory
+
+No page implementation starts until the relevant visible fields have been
+mapped in the frontend data inventory.
+
+For every visible value or state, record:
+
+1. UI concept/label.
+2. Backend collection or deterministic output.
+3. Exact field or source fields.
+4. Whether the UI displays the raw value or an allowed deterministic
+   transformation.
+5. Freshness/timing semantics.
+6. Evidence/domain semantics.
+7. Empty, unavailable and excluded behavior.
+
+If a field has no mapped source, it is omitted or shown as unavailable. The
+frontend must not fill gaps with plausible-looking values.
+
+### Hard truth rules
+
+- No bookmaker name may be invented. Current odds presentation is grounded in
+  Unibet/Kambi source data. Bet365 or any other bookmaker must not appear unless
+  a later backend contract explicitly supplies it.
+- The legacy visual `72.3` / `85.4` style score is not automatically preserved.
+  V2/V6 exposes grounded values such as `predicted_win_probability` and
+  `expected_roi_units`; no synthetic 0-100 confidence score may be introduced
+  without a documented and approved transformation.
+- An analysis/model score is not the same as a registered V6 forward selection.
+  Their evidence labels must remain distinct.
+- A registered V6 selection is still `forward_test_only`; it is not proven
+  profit.
+- Out-of-domain scores, including Brazilian V6 diagnostics, may be displayed as
+  excluded/non-actionable diagnostics but never as proof or a recommended bet.
+- Historical backtest performance may be shown only as historical evidence. It
+  must never be visually merged with untouched forward performance.
+- T-30 closing is `t30_fallback`; it must never be presented as official CLV.
+  Official CLV requires the backend's official closing state (currently T-10).
+- League averages may only come from grounded team-profile league-average
+  fields or another documented read model.
+- Old UI concepts such as arbitrary biases, tempo badges, proprietary strength
+  labels or team crests must not be retained unless their exact source is
+  mapped.
+- Color is semantic, not evidence. Gold does not upgrade an unproven state.
 
 ## Product architecture
 
 Use a standalone frontend application:
 
 - React
-- TypeScript
+- TypeScript in strict mode
 - Vite
-- React Router for routes
-- TanStack Query for read-only server-state boundaries and future API wiring
+- React Router
+- TanStack Query as the read-only server-state boundary
+- Radix UI primitives for accessible interactive foundations
 - Lucide React for icons
-- Motion for restrained transitions and micro-interactions
-- CSS Modules or a small token-driven global CSS layer for styling
-- Vitest + React Testing Library for component/route behavior
-- ESLint + TypeScript strict mode
+- Motion for restrained micro-interactions
+- token-driven CSS owned by Ullebets
+- Vitest + React Testing Library
+- ESLint
 
-Avoid a heavy component framework. The UI is distinctive enough that a large
-pre-styled system would create more override work than value. Reusable local
-primitives should be used for buttons, pills, panels, tabs, status badges,
-empty states, skeletons, tooltips, and tables.
+Use Radix only where behavior/accessibility is valuable (for example Dialog,
+Dropdown Menu, Select, Tabs, Tooltip, Popover and Scroll Area). Do not adopt a
+pre-styled component framework. Ullebets owns its visual language.
 
-No animation may communicate data that is not real. Motion is limited to hover,
-focus, tab changes, route transitions, disclosure panels, and list entry/exit.
-Respect `prefers-reduced-motion`.
+Motion is limited to hover/focus feedback, route/tab changes, drawers,
+disclosures and list entry/exit. Respect `prefers-reduced-motion`. Animation may
+never imply changing odds, confidence or system health when the underlying data
+did not change.
 
 ## Visual system
 
@@ -81,60 +132,51 @@ Respect `prefers-reduced-motion`.
 - Default border: `rgba(255,255,255,0.08)`
 - Strong border: `rgba(255,255,255,0.12)`
 
-No neon glow. No decorative gradients as a primary visual device. Shadows are
-subtle and used only to create depth between real surfaces.
+No neon glow. No decorative gradient as a primary visual device. Shadows are
+subtle and only establish depth between real surfaces.
 
 ### Border rule
 
-Use spacing to separate sections and borders to separate interactive/content
-objects.
+Use spacing to separate sections and borders to separate actual content or
+interactive objects.
 
-The page must not recreate the old chain of:
+Do not recreate:
 
-`workspace border -> section border -> column border -> card border -> inner divider -> pill border`
+`workspace border -> section border -> column border -> card border -> divider -> pill border`
 
 Target maximum visible hierarchy:
 
 1. page background
-2. primary left/right panel boundary
-3. content cards and interactive controls
+2. primary left rail/workspace surfaces
+3. content cards and controls
 
-Tabs, filter rows, Over/Under columns, card metadata groups, and stat groupings
-are borderless unless an actual control requires a hit target.
+Tabs, filter rows, Over/Under groupings, metadata groups and stat sections are
+borderless unless the element is itself interactive.
 
 ### Typography and density
 
-- Inter or system sans stack
-- Strong numeric hierarchy for model score and odds when available
-- Team names and recommendation wording are more prominent than metadata
-- League, scope, period, and supporting statistics are secondary
-- Cards are approximately 15-20% denser than the legacy layout
-- More whitespace between functional sections, less dead space inside cards
+- system/Inter-like sans stack
+- team names and the actual bet instruction dominate metadata
+- model probability, EV and offered odds use tabular/numeric hierarchy
+- league, scope, period, checkpoint and evidence state remain secondary
+- recommendation cards are roughly 15-20% denser than the legacy layout
+- more macro whitespace between sections; less dead micro-space inside cards
 
 ### Semantic color
 
-- Cyan: brand, navigation, selection, focus
-- Green: Over only
-- Red: Under only
-- Gold: proof-ready or genuinely exceptional verified status only
-- Everything else: neutral navy/gray
+- cyan: brand, selection, focus and navigation
+- green: Over
+- red: Under
+- gold: verified proof/premium state only when the backend state warrants it
+- neutral navy/gray: ordinary metadata
 
-Do not use purple/blue/cyan pills simultaneously for ordinary metadata.
+Do not create a rainbow of purple/blue/cyan metadata pills.
 
-## Global shell
+## Information architecture
 
-Desktop retains the legacy split-screen mental model:
+### Primary navigation
 
-- left: `Dagens matcher`
-- right: active workspace/page
-
-The left match rail remains available on the main analysis surfaces and can be
-collapsed at narrower desktop widths.
-
-Mobile changes to a single-column flow with a top bar and a match-drawer/filter
-sheet. No desktop card may simply overflow horizontally on mobile.
-
-Top-level navigation preserves the familiar old Ullebets labels:
+Keep five primary destinations only:
 
 - Översikt
 - Auto
@@ -142,263 +184,204 @@ Top-level navigation preserves the familiar old Ullebets labels:
 - Resultatloop
 - Historik
 
-Additional deep pages are reached contextually rather than crowding the primary
-navigation.
+These are the recurrent user tasks and preserve the learned Ullebets structure.
 
-## Frontend routes
+### Contextual drill-down routes
 
-The complete Style-1 frontend consists of nine user-facing route families.
+- `/matcher/:matchId`
+- `/lag/:teamId`
+- `/modell`
+- `/systemstatus`
 
-### 1. `/` and `/oversikt` — Översikt
+They are reached from context, badges or detail links rather than competing in
+the primary navigation.
 
-The approved Deep Navy dashboard.
+Desktop keeps the old split mental model: `Dagens matcher` on the left and the
+active workspace on the right. On smaller widths the rail collapses into a
+Radix-based drawer/sheet pattern.
 
-Contains:
+## Route contracts
 
-- date selector
-- match count
-- search
-- Alla / Kommande / Pågår / Resultat filters
-- league filter
+### `/` and `/oversikt` — Översikt
+
+Purpose: answer, within seconds, what matches exist and what grounded analysis
+is worth inspecting.
+
+May show:
+
+- date and fixture count from canonical fixture data
+- search/status/league/stat filters derived from available rows
 - match list grouped by league
-- status counters: date, shortlist, proof-ready, alerts, played
-- advanced league/stat filters
-- top Over and Under recommendation columns
-- compact recommendation cards
-- data freshness/warning treatment when necessary
+- top Over/Under analysis rows when grounded data exists
+- model probability and/or expected EV when supplied by the row type
+- offered odds only from grounded Unibet/Kambi data
+- checkpoint/freshness state
+- explicit evidence badge: analysis, forward-test selection, excluded/OOD, etc.
 
-This page preserves the old two-column Over/Under scan because it is already a
-learned product pattern for the current user, but removes nested visual boxes.
+Do not add a `proof-ready` counter until a precise backend/read-model definition
+exists. Do not invent a generic 0-100 score.
 
-### 2. `/auto` — Auto
+### `/auto` — Auto
 
-Ranked automatic model output for the selected date/window.
+Purpose: show the strongest currently eligible automatic V6 forward-test
+selections, not every analytical market.
 
-Contains:
+Current registered V6 policy semantics must remain visible: corners only,
+away/total scopes, EV strictly above the registered minimum and below the
+registered maximum, and training-domain filtering. The UI consumes selection
+state; it does not reimplement policy logic.
 
-- strongest eligible selections first
-- model/domain eligibility state
-- score/EV/odds only when present in the data contract
-- checkpoint freshness
-- filter by league/stat/scope/period
-- explicit exclusion state for out-of-domain or non-actionable model output
+OOD diagnostic scores may be shown in a separate excluded section but never in
+the actionable ranking.
 
-No Brazilian/OOD score may be presented as proven model evidence.
+### `/watchlist` — Watchlist
 
-### 3. `/watchlist` — Watchlist
+User-curated match/signal identifiers stored in `localStorage` in Style-1.
+Canonical/model values are always re-read from the data adapter; localStorage
+must not become a second truth store for odds, model values or results.
 
-User-curated matches/signals.
+### `/resultatloop` — Resultatloop
 
-In Style-1 this is frontend-local state only (`localStorage`) so no new backend
-write logic is introduced. The data objects stored are identifiers and display
-preferences, never canonical betting/model data.
+Use the forward-result read model. Distinguish:
 
-Contains:
+- open
+- pending
+- settled
+- unresolved
+- excluded
 
-- watched matches
-- watched signal rows
-- kickoff countdown/time
-- latest known freshness state
-- empty state explaining how to add an item
+Show settlement, actual value, PnL/ROI and CLV only when those fields are valid
+for the row. Preserve timing/exclusion reasons.
 
-### 4. `/resultatloop` — Resultatloop
+### `/historik` — Historik
 
-Operational result loop for active/open and recently settled selections.
+Historical exploration with date/stat/league/scope/period filters. Performance
+must always name its evidence family. Official CLV and T-30 fallback coverage
+are distinct.
 
-Contains:
+### `/matcher/:matchId` — Match detail
 
-- open vs settled vs excluded states
-- match
-- market
-- selection
-- offered line/odds if available
-- actual outcome if settled
-- win/loss/push/excluded state
-- timing or data-quality exclusion reason when relevant
+Primary vertical-slice drill-down:
 
-It must never merge operational descriptive results with model-specific proven
-ROI.
+- canonical fixture identity, league, kickoff and status
+- grounded model/analysis signals
+- Unibet/Kambi market snapshots
+- checkpoint timeline where rows exist
+- team/profile comparison where available
+- result/settlement after finish
+- closing and CLV only when valid
 
-### 5. `/historik` — Historik
+Do not assume team crest URLs or live match minute data until mapped.
 
-Historical results and performance exploration.
+### `/lag/:teamId` — Team statistics
 
-Contains:
-
-- date range
-- league/stat/scope/period filters
-- settled table/list
-- ROI/PnL only for the selected evidence family actually returned
-- closing odds and CLV only when valid live closing data exists
-- coverage indicators
-- clear empty/unproven state when closing/CLV evidence is absent
-
-Historical descriptive numbers and forward model proof receive distinct labels.
-
-### 6. `/matcher/:matchId` — Match detail
-
-The primary drill-down page.
-
-Header:
-
-- league
-- kickoff/status
-- home and away teams
-- freshness/warning indicator
-
-Sections:
-
-- best signals
-- all model/analysis signals
-- available Unibet/Kambi market snapshots
-- checkpoint timeline: T-3D, T-2D, T-1D, T-2H, T-30, T-10 where present
-- team comparison by canonical stat
-- historical form relevant to the selected stat/scope/period
-- result and settlement after finish
-- closing/CLV only when valid
-
-No other bookmaker branding is permitted unless a future backend contract
-explicitly provides it.
-
-### 7. `/lag/:teamId` — Team statistics
-
-Dedicated team profile for the readiness requirement to expose team statistics
-by stat, period, and scope.
-
-Contains:
+Use team-profile data for:
 
 - team/league identity
-- canonical corners / total shots / shots on goal first
-- selectable stat
-- ALL / 1ST / 2ND period
-- home / away / total or for/against scope where supported by the actual data
-- recent match rows
-- averages and distribution summaries only from provided data
-- links back to related fixtures
+- home/away profile context
+- `for` / `against`
+- league average
+- rank when available
+- ALL / 1ST / 2ND
+- history rows and recent opponents
+- specials only when each displayed special has a documented mapping
 
-### 8. `/modell` — Modell & proof
+### `/modell` — Modell & proof
 
-Trust page for the model rather than a marketing page.
+Trust/transparency page:
 
-Contains:
+- active model/artifact identifier
+- supported training domain
+- registered forward policy summary
+- current domain/exclusion state
+- historical evidence clearly labelled historical
+- forward evidence clearly labelled untouched/forward
+- promotion-gate result and blocking reasons only from an actual evaluator/read
+  model
 
-- active production model identifier
-- supported training-domain leagues
-- current forward-evidence state
-- immutable policy summary
-- distinction between historical backtest and untouched forward evidence
-- promotion-gate progress only from real backend metrics
-- explicit `UNPROVEN`/`BLOCKED` presentation where current evidence is missing
+Never turn historical `+28.65%` into a current ROI headline.
 
-The page must not present historical +28.65% ROI as proven future performance.
+### `/systemstatus` — Data & system status
 
-### 9. `/systemstatus` — Data & system status
+Read-only operational transparency from job runs, health/audit reports,
+checkpoint coverage and data freshness. Do not expose credentials, masked API
+key fragments, raw connection strings or other operational secrets.
 
-Operational transparency page.
+## Read-model-first contract
 
-Contains:
+Style-1 freezes frontend domain models, not a speculative REST surface.
 
-- data freshness by source/subsystem
-- latest fixture/odds/stat/result update
-- source connectivity state
-- mapping/audit warnings
-- missed/available checkpoint coverage
-- closing/CLV coverage
-- model-domain exclusions
-- recent job health when exposed
+The frontend should depend on six coarse read capabilities:
 
-This is the destination for warning badges shown elsewhere in the product.
+1. `DashboardReadModel`
+2. `MatchDetailReadModel`
+3. `PredictionsReadModel`
+4. `ResultsReadModel`
+5. `TeamReadModel`
+6. `SystemStatusReadModel`
 
-## Planned read API contract
+Adapters may use grounded in-repo fixtures during Style-1. Their TypeScript
+shape must be traceable to the provenance inventory.
 
-Style-1 defines the client interfaces and URL contract but does not implement
-backend endpoints. A later backend/API branch can satisfy these without
-rewriting the UI.
+A later `frontend-read-api` branch can choose the smallest HTTP surface needed
+to populate these models. `/api/v1` remains the likely namespace, but endpoint
+count and boundaries are intentionally not frozen here.
 
-Version all routes under `/api/v1`.
+There are no Style-1 write endpoints.
 
-### Core endpoints
+## Vertical-slice gate
 
-1. `GET /api/v1/dashboard?date=YYYY-MM-DD`
-   - counters, league groups, fixture summaries, top signal summaries,
-     freshness summary
+Before scaling page markup, finish one complete flow:
 
-2. `GET /api/v1/fixtures?date=YYYY-MM-DD&status=&league_id=`
-   - fixture list for the left rail and match pages
+`Dagens matcher -> Översikt -> Match detail -> signal -> odds/stats/model status`
 
-3. `GET /api/v1/fixtures/:matchId`
-   - canonical match identity, teams, league, kickoff, result/status
+The slice must include:
 
-4. `GET /api/v1/fixtures/:matchId/signals`
-   - analysis/model signal rows with eligibility and evidence labels
+- desktop and mobile layout
+- loading state
+- valid empty state
+- unavailable/error state
+- excluded/unproven state
+- keyboard navigation
+- focus visibility
+- grounded example fixtures
+- route tests
 
-5. `GET /api/v1/fixtures/:matchId/odds`
-   - normalized Unibet/Kambi market snapshots and checkpoint metadata
+Only after this slice passes its verification gate should the same primitives be
+expanded to Auto, Watchlist, Resultatloop, Historik, Team, Model and System
+Status.
 
-6. `GET /api/v1/fixtures/:matchId/stats`
-   - team/match canonical stats needed by the match detail page
+## Data-state taxonomy
 
-7. `GET /api/v1/predictions?date=&state=&league_id=&stat_key=&scope=&period=`
-   - forward/operational prediction rows for Auto and Resultatloop
-
-8. `GET /api/v1/results?from=&to=&league_id=&stat_key=&scope=&period=`
-   - settled/open/excluded result rows
-
-9. `GET /api/v1/performance?from=&to=&evidence_family=&league_id=&stat_key=`
-   - PnL/ROI/CLV aggregates with explicit coverage and evidence family
-
-10. `GET /api/v1/teams/:teamId/stats?stat_key=&period=&scope=`
-    - team-profile statistics
-
-11. `GET /api/v1/model/status`
-    - active artifact/policy, domain, promotion/evidence state
-
-12. `GET /api/v1/system/status`
-    - freshness, source, audit, mapping and job-health summaries
-
-13. `GET /api/v1/meta/leagues`
-    - league filter metadata
-
-14. `GET /api/v1/meta/stats`
-    - canonical stat/scope/period filter metadata
-
-There are no Style-1 write endpoints. Watchlist is local-only until an explicit
-product/auth persistence requirement is approved.
-
-## Data truth and empty states
-
-Every view must support four distinct data states:
+Every async/read surface supports four primary states:
 
 1. loading
 2. valid empty
 3. unavailable/failed
 4. present but unproven/non-actionable
 
-These states must not be collapsed into a generic red error.
-
 Examples:
 
-- no fixtures on a date -> valid empty
-- no T-10 yet because the window has not occurred -> unproven
-- closing runner/source failure -> failed/unavailable
-- Brazil V6 score outside the fitted domain -> present but non-actionable
+- no fixtures for a date -> valid empty
+- T-10 window not yet reached -> unproven/not-yet-available
+- failed source/job -> unavailable/failed
+- Brazil V6 score outside training domain -> present but excluded
+- T-30 closing without T-10 -> fallback available, official CLV unavailable
 
-This distinction is a core trust feature.
+Do not collapse them into a single red error state.
 
-## Components
+## Reusable product components
 
-Build reusable components around stable product concepts rather than page-only
-markup:
+Build around stable domain concepts:
 
 - `AppShell`
-- `MatchRail`
 - `TopNav`
-- `StatusCounter`
-- `FilterBar`
+- `MatchRail`
 - `LeagueGroup`
 - `MatchRow`
+- `FilterBar`
 - `SignalCard`
-- `SignalScore`
+- `SignalMetric`
 - `DirectionBadge`
 - `EvidenceBadge`
 - `DataFreshness`
@@ -407,98 +390,92 @@ markup:
 - `PerformanceSummary`
 - `ResultTable`
 - `SystemHealthPanel`
-- `EmptyState`
-- `ErrorState`
+- `StateNotice`
 - `Skeleton`
-- `Tooltip`
 
-The styling system should use CSS custom-property tokens for color, spacing,
-radii, type scale, shadows, transitions and focus rings.
+Use Radix primitives underneath dialogs, selects, tooltips, popovers, menus,
+tabs and scroll areas instead of rebuilding keyboard/focus behavior manually.
 
 ## Accessibility
 
 Minimum requirements:
 
 - keyboard-accessible navigation and controls
-- visible focus ring distinct from hover
-- semantic buttons/links/forms
-- sufficient contrast
-- color is never the only Over/Under or win/loss indicator
+- visible focus distinct from hover
+- semantic buttons, links, headings, forms and tables
+- sufficient text/control contrast
+- color never acts as the only Over/Under, win/loss or health indicator
 - `aria-current` for active navigation
-- labels for icon-only controls
+- labels for icon-only actions
 - reduced-motion support
-- responsive zoom without clipped content
+- no clipped content at browser zoom
 
 ## Responsive behavior
 
-Target classes:
+- large desktop: persistent match rail + workspace
+- laptop: narrower/collapsible rail + workspace
+- tablet: rail becomes drawer; workspace full width
+- mobile: single column, compact header, filter controls in dialog/drawer
 
-- large desktop: split rail + workspace
-- normal laptop: narrower/collapsible rail + workspace
-- tablet: rail becomes drawer, content remains full-width
-- mobile: one column, compact header, filters in sheet, cards become stacked
+Decision-critical data must not require unreadable horizontal table scrolling;
+provide responsive list/card renderings where needed.
 
-Tables must provide a mobile list/card representation when horizontal scrolling
-would make the decision information difficult to parse.
+## Testing and commit gate
 
-## Testing strategy
+A commit is not verified because it renders.
 
-No Style-1 commit is considered verified merely because it renders.
-
-Every implementation commit must run the applicable subset of:
+Every implementation commit runs the applicable subset of:
 
 - `npm run typecheck`
 - `npm run lint`
 - `npm run test -- --run`
 - `npm run build`
-- route smoke tests
-- component interaction tests
-- responsive visual/manual checks for desktop and mobile
+- route/component behavior tests
+- responsive smoke checks
 
-The final branch verification must also run the existing Python regression suite
-or an equivalent unchanged-backend CI check to prove the frontend work did not
-modify backend behavior.
+For every commit:
 
-Verification evidence must be recorded per commit. A frontend-only CI workflow
-may be added for `style-1` if it is isolated and does not alter any existing
-production workflow behavior.
+1. inspect the diff against its parent
+2. confirm only intended paths changed
+3. run the applicable frontend verification
+4. inspect branch CI/status when available
+5. repair failures before starting the next commit
 
-## Commit strategy
+Final verification additionally proves that protected backend/model/workflow
+paths are unchanged from the Style-1 branch point and reruns the existing Python
+regression suite (or an equivalent clean backend CI check).
 
-Prefer small reviewable commits:
+## Implementation sequence
 
-1. design/spec only
-2. frontend scaffold + tooling + tokens
-3. shared shell/navigation/match rail
-4. Overview + Auto
-5. Watchlist + Resultatloop + Historik
-6. Match detail + Team statistics
-7. Model + System status
-8. responsive/accessibility polish
-9. final verification/documentation
-
-At each commit:
-
-- inspect the diff against its parent
-- verify only intended paths changed
-- run the relevant frontend checks
-- inspect CI/status where available
-- stop and repair before the next commit if verification fails
+1. revise design contract and create provenance inventory
+2. create detailed implementation plan
+3. scaffold frontend/tooling/design tokens + isolated frontend CI
+4. build shell and complete Overview -> Match vertical slice
+5. verify the slice before expansion
+6. build Auto
+7. build Watchlist + Resultatloop + Historik
+8. build Team + Model + System Status
+9. responsive/accessibility polish and route/state coverage
+10. final frontend and backend-isolation verification
+11. update mandatory project work log
 
 ## Definition of done for Style-1
 
-Style-1 is complete when:
+Style-1 is complete only when:
 
 - all nine route families render and navigate correctly
-- the approved Deep Navy system is applied consistently everywhere
-- the legacy information hierarchy remains recognizable
+- the five primary navigation destinations remain simple and coherent
+- all visible data is provenance-backed or an explicitly allowed deterministic
+  display transform
+- no unsupported bookmaker or invented score/value appears
+- V6/OOD/historical/forward/closing evidence states remain semantically honest
+- Deep Navy styling is consistent across every route
 - nested-border clutter is removed across the product
-- desktop, laptop, tablet and mobile layouts are usable
-- loading, empty, failure and unproven states are styled
-- no unavailable bookmaker/data values are fabricated
-- frontend test/type/lint/build checks pass
-- existing backend files and logic are unchanged from the branch point
-- a final branch-vs-main diff proves frontend isolation
+- desktop, laptop, tablet and mobile are usable
+- loading, empty, failed and excluded/unproven states are designed
+- frontend type/lint/test/build gates pass
+- backend/model/workflow logic remains unchanged from the branch point
+- final branch review finds no fabricated production claims
 
-A read API implementation and production deployment are separate work items and
-are not part of this styling branch.
+The read API implementation and production deployment remain separate work
+items unless explicitly moved into a later branch.
