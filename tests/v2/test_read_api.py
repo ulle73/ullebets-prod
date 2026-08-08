@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import ullebets_v2.read_api.service as read_service
 from ullebets_v2.read_api.service import read_auto, read_dashboard, read_match_detail, read_results
 
 
@@ -52,11 +53,12 @@ class FakeDatabase(dict):
         return super().__getitem__(key)
 
 
-def fixture_row() -> dict:
+def fixture_row(*, source_date: str = "2026-08-09", start_time: datetime | None = None) -> dict:
     return {
         "match_key": "sofascore:123",
-        "source_date": "2026-08-09",
-        "start_time": datetime(2026, 8, 9, 18, 0, tzinfo=UTC),
+        "source_date": source_date,
+        "start_time": start_time or datetime(2026, 8, 9, 18, 0, tzinfo=UTC),
+        "league_key": "test-league",
         "league_name": "Test League",
         "home_team_key": "home",
         "away_team_key": "away",
@@ -66,11 +68,12 @@ def fixture_row() -> dict:
     }
 
 
-def matchup_row() -> dict:
+def matchup_row(*, snapshot_date: str = "2026-08-09") -> dict:
     return {
         "entry_key": "row-1",
-        "snapshot_date": "2026-08-09",
+        "snapshot_date": snapshot_date,
         "match_key": "sofascore:123",
+        "league_key": "test-league",
         "league_name": "Test League",
         "home_team_name": "Home FC",
         "away_team_name": "Away FC",
@@ -88,12 +91,33 @@ def matchup_row() -> dict:
     }
 
 
-def test_dashboard_reads_persisted_matchups_instead_of_frontend_fallbacks() -> None:
+def profile(team_key: str, match_type: str, profile_date: str, value: float) -> dict:
+    return {
+        "team_key": team_key,
+        "league_key": "test-league",
+        "match_type": match_type,
+        "profile_date": profile_date,
+        "generated_at": datetime(2026, 8, 9, 12, 0, tzinfo=UTC),
+        "games": [{"match_key": f"history-{team_key}"}] * 6,
+        "statistics": {
+            "for": {"fouls": {"ALL": {"value": value, "rank": 1}}},
+            "against": {"fouls": {"ALL": {"value": value - 1, "rank": 2}}},
+            "leagueAverage": {"for": {"fouls": {"ALL": {"value": 11.0}}}},
+        },
+        "specials": {},
+    }
+
+
+def test_dashboard_reads_persisted_matchups_instead_of_recomputing(monkeypatch) -> None:
     database = FakeDatabase(
         fixtures_canonical=FakeCollection([fixture_row()]),
         matchups_score=FakeCollection([matchup_row()]),
     )
 
+    def fail_if_called(**_kwargs):
+        raise AssertionError("persisted matchups must win over read-time computation")
+
+    monkeypatch.setattr(read_service, "build_matchups_score_docs", fail_if_called, raising=False)
     payload = read_dashboard(database, source_date="2026-08-09")
 
     assert payload["selectedDate"] == "2026-08-09"
@@ -101,18 +125,63 @@ def test_dashboard_reads_persisted_matchups_instead_of_frontend_fallbacks() -> N
     assert payload["matchups"][0]["score"] == 73.4
     assert payload["matchups"][0]["leagueBaseline"] == 12.6
     assert payload["matchups"][0]["condition"] == "OVER"
+    assert payload["matchupSource"] == "persisted"
 
 
-def test_dashboard_does_not_recompute_missing_persisted_matchups() -> None:
+def test_dashboard_can_compute_upcoming_matchups_read_only_from_current_profiles(monkeypatch) -> None:
+    future_date = "2099-01-01"
+    future_start = datetime(2099, 1, 1, 18, 0, tzinfo=UTC)
     database = FakeDatabase(
-        fixtures_canonical=FakeCollection([fixture_row()]),
+        fixtures_canonical=FakeCollection([fixture_row(source_date=future_date, start_time=future_start)]),
         matchups_score=FakeCollection([]),
+        teamprofiles=FakeCollection(
+            [
+                profile("home", "home", "current", 10.0),
+                profile("away", "away", "current", 12.0),
+            ]
+        ),
+    )
+    captured = {}
+
+    def fake_builder(*, target_matches, teamprofile_docs, snapshot_date, **_kwargs):
+        captured["target_matches"] = target_matches
+        captured["teamprofile_docs"] = teamprofile_docs
+        captured["snapshot_date"] = snapshot_date
+        return [matchup_row(snapshot_date=future_date)], []
+
+    monkeypatch.setattr(read_service, "build_matchups_score_docs", fake_builder, raising=False)
+    payload = read_dashboard(database, source_date=future_date)
+
+    assert payload["matchupSource"] == "computed_read_only"
+    assert payload["matchups"][0]["score"] == 73.4
+    assert captured["snapshot_date"] == future_date
+    assert [row["profile_date"] for row in captured["teamprofile_docs"]] == ["current", "current"]
+    assert captured["target_matches"][0]["match_key"] == "sofascore:123"
+
+
+def test_dashboard_never_recomputes_started_or_historical_matchups(monkeypatch) -> None:
+    historical_date = "2000-01-01"
+    database = FakeDatabase(
+        fixtures_canonical=FakeCollection(
+            [fixture_row(source_date=historical_date, start_time=datetime(2000, 1, 1, 18, 0, tzinfo=UTC))]
+        ),
+        matchups_score=FakeCollection([]),
+        teamprofiles=FakeCollection(
+            [
+                profile("home", "home", "current", 99.0),
+                profile("away", "away", "current", 88.0),
+            ]
+        ),
     )
 
-    payload = read_dashboard(database, source_date="2026-08-09")
+    def fail_if_called(**_kwargs):
+        raise AssertionError("historical matchups must never use today's profiles")
 
-    assert len(payload["matches"]) == 1
+    monkeypatch.setattr(read_service, "build_matchups_score_docs", fail_if_called, raising=False)
+    payload = read_dashboard(database, source_date=historical_date)
+
     assert payload["matchups"] == []
+    assert payload["matchupSource"] == "missing"
 
 
 def test_dashboard_has_no_synthetic_fallback_when_date_has_no_rows() -> None:
@@ -123,19 +192,11 @@ def test_dashboard_has_no_synthetic_fallback_when_date_has_no_rows() -> None:
 
     payload = read_dashboard(database, source_date="2099-01-01")
 
-    assert payload == {"selectedDate": "2099-01-01", "matches": [], "matchups": []}
-
-
-def profile(team_key: str, match_type: str, profile_date: str, value: float) -> dict:
-    return {
-        "team_key": team_key,
-        "match_type": match_type,
-        "profile_date": profile_date,
-        "generated_at": datetime(2026, 8, 9, 12, 0, tzinfo=UTC),
-        "statistics": {
-            "for": {"fouls": {"ALL": {"value": value, "rank": 1}}},
-            "leagueAverage": {"for": {"fouls": {"ALL": {"value": 11.0}}}},
-        },
+    assert payload == {
+        "selectedDate": "2099-01-01",
+        "matches": [],
+        "matchups": [],
+        "matchupSource": "missing",
     }
 
 
