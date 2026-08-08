@@ -1,10 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchAuto, fetchDashboard, fetchMatchDetail, fetchModel, fetchResults, fetchSystem, fetchTeam } from './api';
 
+export function localDateKey(now = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function useDashboard(date?: string) {
+  const selectedDate = date || localDateKey();
   return useQuery({
-    queryKey: ['dashboard', date ?? 'latest'],
-    queryFn: ({ signal }) => fetchDashboard(date, signal),
+    queryKey: ['dashboard', selectedDate],
+    queryFn: ({ signal }) => fetchDashboard(selectedDate, signal),
     staleTime: 15_000,
   });
 }
