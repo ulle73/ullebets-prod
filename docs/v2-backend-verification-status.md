@@ -1,11 +1,76 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-04
+Last updated: 2026-08-08
 Branch: `main`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Closing Runner Repair On 2026-08-08
+
+The closing runner defect identified earlier on 8 August was repaired in
+`main@030a401`. The reusable `v2-python-job.yml` runner now exports the
+repository `src/` directory through `PYTHONPATH` before rendering any command.
+This keeps the lean dependency profile while making its own V2 package
+available.
+
+Verification evidence:
+
+- targeted workflow tests: `21/21` passed
+- full V2 suite: `409/409` passed
+- hosted smoke run
+  [`31273361050`](https://github.com/ulle73/ullebets-prod/actions/runs/31273361050)
+  completed successfully on `main@030a401`
+- the hosted run reached `capture_closing_snapshots.py`, reported zero errors,
+  and showed the deployed `PYTHONPATH` value in its environment
+
+The smoke run intentionally used `dry_run=true`. It ran at
+`2026-08-08T19:01Z`, after Grêmio - São Paulo kickoff; the next fixture was
+at `21:30Z` and not yet in a T-30/T-10 window, so it correctly returned zero
+due targets and made no writes. The repair proves the runner is no longer
+blocking capture; it does not prove T-30, T-10, closing lines, or CLV.
+
+## Live Checkpoint And Closing Audit On 2026-08-08
+
+A read-only audit at `2026-08-08T18:51:10Z` confirmed that the ordinary
+production checkpoint chain is now live and writing valid prematch data:
+
+- T-3D: `678` valid rows across 10 matches, first/last capture
+  `2026-08-05T10:00:18Z` / `2026-08-06T12:22:00Z`
+- T-2D: `799` valid rows across 10 matches, first/last capture
+  `2026-08-06T07:06:52Z` / `2026-08-07T11:11:14Z`
+- T-1D: `817` valid rows across 10 matches, first/last capture
+  `2026-08-07T07:47:04Z` / `2026-08-08T10:54:33Z`
+- T-2H: `242` valid rows across three matches, first/last capture
+  `2026-08-08T13:16:09Z` / `2026-08-08T17:49:58Z`
+
+The latest successful T-2H run was `f78ab0b86429406e998a9eb4226e7247` at
+`2026-08-08T17:50Z`: one due match, two raw Kambi documents, 85 snapshots,
+and zero errors. The current-cycle valid snapshot-key duplicate audit returned
+zero groups. The latest raw Kambi payload is timestamped
+`2026-08-08T17:49:58Z`.
+
+The separate closing path is currently failed. The hosted active workflow run
+[`31271905639`](https://github.com/ulle73/ullebets-prod/actions/runs/31271905639)
+started at `2026-08-08T18:25Z` during the first fixture's T-30 window, but
+exited before the capture command with:
+
+```text
+ModuleNotFoundError: No module named 'ullebets_v2'
+```
+
+`v2-python-job.yml` installs only `pymongo` for its `lean` profile, then
+imports `ullebets_v2.automation` to render the command. It neither installs
+the project package nor exposes `src` on `PYTHONPATH`. The bug is therefore
+in reusable runner setup, not the Kambi source, the odds normalizer, or
+prematch timing validation.
+
+At the audit point, eight minutes before Grêmio - São Paulo kickoff,
+`closing_lines = 0`; CLV consisted of `860` `missing_closing_line` rows and
+three `invalid_snapshot_timing` rows. No T-30/T-10, valid closing line, or
+closing-based CLV claim is accepted until the runner is repaired and a future
+live window persists it.
 
 ## Current Checkpoint Evidence On 2026-08-04
 

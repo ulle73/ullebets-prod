@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-04
+Last updated: 2026-08-08
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `402/402`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `409/409`.
 
 ### Backend
 
@@ -77,9 +77,20 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: a current read-only Kambi dry-run linked 10/10 upcoming
   fixtures, returned 11 raw payload documents and 607 normalized offers, with
   zero source or mapping errors.
-- `UNPROVEN`: T-3D, T-2H, T-30, T-10, closing-line materialization, and valid
-  closing-based CLV still have no persisted live evidence. The first current
-  T-3D window opens on 5 August at 07:00 UTC.
+- `UNPROVEN`: T-30, T-10, closing-line materialization, and valid
+  closing-based CLV still have no persisted live evidence.
+- `VERIFIED`: the 5-8 August production window persisted valid T-3D `678`,
+  T-2D `799`, T-1D `817`, and T-2H `242` odds rows. All rows are before
+  kickoff, and the current-cycle duplicate-snapshot-key audit found `0` groups.
+- `FAILED`: hosted closing workflow run `31271905639` failed before its capture
+  command. Its lean runner installs only `pymongo`, but then imports
+  `ullebets_v2.automation`; the source package is neither installed nor on
+  `PYTHONPATH`. At `2026-08-08T18:51Z`, eight minutes before Grêmio - São
+  Paulo, no T-30/T-10 row or closing line had been stored.
+- `VERIFIED`: commit `030a401` adds the repository's `src/` directory to the
+  shared runner `PYTHONPATH`. Hosted dry-run `31273361050` completed the
+  formerly failing import and closing command with zero errors. It had zero
+  due targets because the next fixture was still outside its closing window.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -159,6 +170,115 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-08 - Closing runner import repair deployed
+
+Status: `PARTIAL`
+
+Objective:
+Repair the production runner failure that prevented T-30/T-10 capture before
+the closing command could start.
+
+Changes:
+
+- Added `PYTHONPATH=${{ github.workspace }}/src` to the reusable V2 Python
+  runner used by lean workflows.
+- Added a regression test that executes the same internal package import from
+  a stripped Python process with only the V2 source path available.
+
+Tests:
+
+```text
+python -m pytest tests/v2/test_automation_contract.py tests/v2/test_workflow_runner.py -q
+python -m pytest -q
+Hosted workflow_dispatch: run-unibet-closing.yml, dry_run=true
+Hosted run: 31273361050
+```
+
+Results:
+
+- Regression test first failed because the reusable workflow did not expose
+  the source package.
+- Targeted tests passed `21/21`; full suite passed `409/409`.
+- Commit `030a401` was pushed to `main`.
+- Hosted dry-run `31273361050` ran on that commit, imported
+  `ullebets_v2.automation`, reached `capture_closing_snapshots.py`, and
+  completed successfully with zero errors.
+- It correctly reported zero due targets because the next fixture was
+  Remo - Atlético Mineiro at `2026-08-08T21:30:00Z`, outside T-30/T-10.
+- Dry-run made no database writes, so it is runner proof only, not closing or
+  CLV evidence.
+
+Insight:
+The ordinary checkpoint scheduler works because it runs its capture script
+directly. The closing workflow uses the reusable runner, so its lean profile
+needed an explicit V2 source import path before command rendering.
+
+Remaining:
+
+- A successful scheduled production T-30/T-10 capture, closing-line
+  materialization, and CLV refresh.
+
+Next:
+
+- Inspect the next live T-30/T-10 window after the deployed fix; do not mark
+  closing or CLV complete from the manual dry-run.
+
+### 2026-08-08 - Live checkpoint pass and closing-runner failure
+
+Status: `PARTIAL`
+
+Objective:
+Verify the currently due Brazil odds checkpoints and determine whether the
+closing chain works during a real T-30/T-10 window.
+
+Changes:
+
+- Updated verification documentation only; no code, workflow, or database
+  write was made by this audit.
+
+Tests:
+
+```text
+Read-only MongoDB audit of current-cycle fixtures, raw_odds_kambi,
+market_snapshots, closing_lines, clv_tracking, and job_runs
+gh run list --repo ulle73/ullebets-prod --workflow run-unibet-closing.yml ...
+gh run view 31271905639 --repo ulle73/ullebets-prod --log-failed
+```
+
+Results:
+
+- Valid current-cycle snapshots: T-3D `678` over 10 matches, T-2D `799` over
+  10 matches, T-1D `817` over 10 matches, and T-2H `242` over three matches.
+- The latest T-2H job succeeded at `2026-08-08T17:50Z`, wrote two raw Kambi
+  payloads and `85` snapshots, with zero errors.
+- The latest raw odds payload was stored at `2026-08-08T17:49:58Z`.
+- All current-cycle snapshot rows are valid prematch rows; duplicate valid
+  snapshot-key groups are `0`.
+- `closing_lines = 0`; CLV remains `860` missing closing line and `3` invalid
+  snapshot timing rows.
+- Closing workflow run `31271905639` failed at `2026-08-08T18:26Z` with
+  `ModuleNotFoundError: No module named 'ullebets_v2'`, before it could fetch
+  or persist any closing odds.
+- The workflow is active, but no succeeding 5-minute closing run was recorded
+  through `2026-08-08T18:53:50Z`.
+
+Insight:
+The normal checkpoint pipeline is operational in production. The separate
+closing workflow is blocked by a reusable-runner dependency setup defect, not
+by Kambi data, timing validation, or database persistence.
+
+Remaining:
+
+- Repair and deploy the lean shared runner, then capture a real T-30/T-10,
+  materialize closing lines, and refresh CLV.
+- Observe in-domain V6 selections and untouched settlement.
+
+Next:
+
+- Change the reusable lean runner so `ullebets_v2` is importable without
+  installing the full ML dependency profile, then run targeted workflow tests
+  and verify the next real closing window.
 
 ### 2026-08-04 - Current production checkpoint audit
 

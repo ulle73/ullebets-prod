@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-04
+Last updated: 2026-08-08
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -16,11 +16,11 @@ Status details and evidence:
 
 ## Critical blockers
 
-- [ ] `UNPROVEN` Capture a real T-10 odds window before kickoff with the active
-  match-aware production scheduler; the previous six Brazil windows were
-  missed before that scheduler contract was deployed.
-- [ ] `UNPROVEN` Capture the new real T-30 fallback and prove that a later
-  T-10 upgrades it without mixing fallback CLV into official model evidence.
+- [ ] `UNPROVEN` Capture a real T-10 odds window before kickoff. The lean
+  runner import defect is repaired and hosted smoke-tested, but no post-fix
+  production capture has yet persisted.
+- [ ] `UNPROVEN` Capture the new real T-30 fallback and prove that a later T-10
+  upgrades it without mixing fallback CLV into official model evidence.
 - [ ] `UNPROVEN` Materialize a valid closing line from that live capture.
 - [ ] `UNPROVEN` Calculate CLV from a valid live closing line.
 - [ ] `BLOCKED` Accumulate in-domain V6 forward predictions and settlements.
@@ -99,27 +99,30 @@ Status details and evidence:
 - [x] Market offers are normalized without mutating raw payloads.
 - [x] Odds rows carry source and snapshot metadata.
 - [x] Odds at or after kickoff are excluded from model, ROI, and CLV.
-- [x] Real T-1D capture has 244 valid prematch rows across three matches.
-- [ ] `UNPROVEN` Prove a real T-3D capture.
-- [x] Real T-2D capture has 161 valid prematch rows across two matches.
-- [ ] `UNPROVEN` Prove a real production T-2H capture.
-- [ ] `UNPROVEN` Prove a real T-30M fallback capture.
-- [ ] `UNPROVEN` Prove a real T-10M capture.
+- [x] Real T-3D capture has 678 valid prematch rows across 10 matches.
+- [x] Real T-2D capture has 799 valid prematch rows across 10 matches.
+- [x] Real T-1D capture has 817 valid prematch rows across 10 matches.
+- [x] Real production T-2H capture has 242 valid prematch rows across three
+  matches.
+- [ ] `UNPROVEN` Prove a real T-30M fallback capture after the lean-runner
+  import repair.
+- [ ] `UNPROVEN` Prove a real T-10M capture after the lean-runner import
+  repair.
 - [ ] `UNPROVEN` Build closing lines from the final valid prematch snapshot.
 - [ ] `UNPROVEN` Refresh CLV from valid live closing lines.
 
 Current acceptance window:
 
-- Ten future Brazil fixtures are present for 8-9 August. The first is Grêmio -
-  São Paulo at `2026-08-08T19:00:00Z`.
-- Scheduled run `30949327663` succeeded on 4 August with all 10 fixtures in
-  scope, zero due checkpoints, zero errors, and audit/health status `ok`.
-- A current Kambi dry-run linked 10/10 matches and produced 11 raw payloads
-  plus 607 normalized offers without writing data.
-- The first current T-3D window opens at `2026-08-05T07:00:00Z`; no current
-  fixture was due when the latest scheduler run executed.
-- No live checkbox for T-3D/T-2H/T-30/T-10, closing, or CLV may be checked
-  before valid persisted production evidence exists.
+- The 5-8 August Brazil window has persisted valid T-3D/T-2D/T-1D/T-2H data.
+- At `2026-08-08T18:51Z`, Grêmio - São Paulo was eight minutes from kickoff,
+  but `closing_lines` remained empty.
+- Hosted closing run `31271905639` failed at startup with
+  `ModuleNotFoundError: ullebets_v2`; it made no odds capture or derived write.
+- Commit `030a401` repaired the reusable lean runner. Hosted dry-run
+  `31273361050` completed the closing command with zero errors and zero due
+  targets; it made no writes.
+- No T-30/T-10, closing, or CLV checkbox may be checked until a valid
+  persisted production capture exists.
 
 ## 6. Model snapshots, analysis, and predictions
 
@@ -186,6 +189,9 @@ Current acceptance window:
   to the closing watcher, with T-30 excluded from official model CLV. Hosted
   write-mode scheduler run `30674861895` passed this deployed contract with a
   valid empty source horizon.
+- [ ] `PARTIAL` Closing watcher import repair is deployed and hosted dry-run
+  `31273361050` passed, but a scheduled write-mode T-30/T-10 lifecycle remains
+  unproven.
 - [x] EV shadow runtime versions are pinned to the frozen manifests; hosted
   production write-mode run `30672830616` passed all four scorers. It produced
   zero rows because no upcoming canonical model markets existed.
