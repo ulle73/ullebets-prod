@@ -1,31 +1,34 @@
-import { Ban, BrainCircuit, ShieldCheck } from 'lucide-react';
+import { BrainCircuit, ShieldCheck } from 'lucide-react';
 import { MetricTile } from '../components/MetricTile';
 import { PageHeader } from '../components/PageHeader';
-import { SignalCard } from '../components/SignalCard';
 import { StateNotice } from '../components/StateNotice';
-import { StatusBadge } from '../components/StatusBadge';
-import { autoEvidenceSnapshot } from '../data/product-snapshots';
-import { previewMatches, previewSignals } from '../data/preview-data';
+import { useAuto } from '../data/queries';
+import { formatExpectedRoi, formatOdds, formatProbability } from '../domain/formatters';
 
 export function AutoPage() {
-  const match = previewMatches[0]!;
+  const query = useAuto();
+  if (query.isLoading) return <StateNotice state="loading" title="Läser Auto" detail="Hämtar registrerade forward_bets från V2." />;
+  if (query.isError || !query.data) return <StateNotice state="failed" title="Auto kunde inte läsas" detail="Ingen fallbacklista visas." />;
+
+  const valid = query.data.selections.filter((row) => row.validForForwardEvaluation === true && !row.invalidForModel);
   return (
     <div className="page-stack">
-      <PageHeader eyebrow="V6 · registrerad policy" title="Auto" subtitle="Endast persistenta, in-domain forward-test-val får hamna i den spelbara listan." aside={<StatusBadge status={autoEvidenceSnapshot.status} />} />
+      <PageHeader eyebrow="Registrerade forward-val" title="Auto" subtitle="Listan kommer direkt från V2 forward_bets. Frontend reproducerar inte urvalspolicyn." />
       <div className="metric-tile-grid metric-tile-grid--3">
-        <MetricTile label="Spelbara nu" value={`${autoEvidenceSnapshot.actionableSelections} spelbara V6-val`} detail="Sparad evidenssnapshot" tone="brand" icon={<ShieldCheck size={14} />} />
-        <MetricTile label="In-domain scores" value={autoEvidenceSnapshot.inDomainScores} detail="Krävs före selection" icon={<BrainCircuit size={14} />} />
-        <MetricTile label="OOD-diagnostik" value={autoEvidenceSnapshot.outOfDomainScores} detail="Får inte rankas som spel" tone="warn" icon={<Ban size={14} />} />
+        <MetricTile label="Persistenta val" value={query.data.count} detail="forward_bets" tone="brand" icon={<ShieldCheck size={14} />} />
+        <MetricTile label="Giltiga forward" value={valid.length} detail="valid_for_forward_evaluation" icon={<BrainCircuit size={14} />} />
+        <MetricTile label="Exkluderade" value={query.data.selections.length - valid.length} detail="Ogiltig/utanför modell" tone="warn" />
       </div>
-      <StateNotice state="empty" title="Inga registrerade Forward-test-val i den sparade snapshoten" detail="Auto fylls först när V6 skapar en in-domain selection som redan passerat backendens registrerade policy. Frontend räknar inte ut eligibility själv." />
-      <section className="product-section">
-        <div className="section-heading"><div><p className="eyebrow">Diagnostik</p><h2>Exkluderade Brazil-rader</h2></div><span className="muted-label">Utanför träningsdomän</span></div>
-        <div className="detail-signal-grid">{previewSignals.map((signal) => <SignalCard key={signal.id} signal={signal} homeTeamName={match.homeTeamName} awayTeamName={match.awayTeamName} />)}</div>
-      </section>
-      <section className="product-section">
-        <div className="section-heading"><div><p className="eyebrow">Träningsdomän</p><h2>V6-stödda ligor</h2></div></div>
-        <div className="league-chip-grid">{autoEvidenceSnapshot.supportedLeagues.map((league) => <span key={league}>{league}</span>)}</div>
-      </section>
+      {query.data.selections.length === 0 ? <StateNotice state="empty" title="Inga registrerade forward-val" detail="V2 returnerade inga forward_bets. Frontend skapar inga egna kandidater." /> : (
+        <section className="product-section auto-list">
+          {query.data.selections.map((row, index) => (
+            <article className="auto-row" key={row.selectionKey ?? `${row.matchKey ?? 'selection'}:${index}`}>
+              <div><span className="eyebrow">{row.leagueName ?? row.modelId ?? 'Forward'}</span><h3>{row.homeTeamName && row.awayTeamName ? `${row.homeTeamName} – ${row.awayTeamName}` : row.matchKey ?? 'Match saknas'}</h3><p>{[row.direction, row.statKey, row.scope, row.period].filter(Boolean).join(' · ')}</p></div>
+              <div className="auto-row__metrics"><span><small>Line</small><strong>{row.lineValue ?? '—'}</strong></span><span><small>Odds</small><strong>{formatOdds(row.selectedOdds)}</strong></span><span><small>Modell P</small><strong>{formatProbability(row.predictedWinProbability)}</strong></span><span><small>EV</small><strong>{formatExpectedRoi(row.expectedRoiUnits)}</strong></span></div>
+            </article>
+          ))}
+        </section>
+      )}
     </div>
   );
 }

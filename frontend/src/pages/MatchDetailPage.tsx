@@ -1,51 +1,60 @@
-import { ArrowLeft, Clock3, DatabaseZap } from 'lucide-react';
+import { ArrowLeft, Clock3 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { CheckpointTimeline } from '../components/CheckpointTimeline';
 import { SignalCard } from '../components/SignalCard';
 import { StateNotice } from '../components/StateNotice';
-import { previewMatchDetails } from '../data/preview-data';
+import { useMatchDetail } from '../data/queries';
 import { formatKickoff } from '../domain/formatters';
+
+function initials(name: string | null): string {
+  if (!name) return '—';
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase('sv-SE') ?? '').join('');
+}
 
 export function MatchDetailPage() {
   const { matchId } = useParams();
-  const detail = matchId ? previewMatchDetails[matchId] : undefined;
+  const detail = useMatchDetail(matchId);
 
-  if (!detail) {
-    return <StateNotice state="empty" title="Matchen finns inte i förhandsdatan" detail="När read-API:t kopplas in används den kanoniska matchnyckeln här." />;
-  }
+  if (detail.isLoading) return <StateNotice state="loading" title="Läser match" detail="Hämtar kanonisk match, matchups, checkpoints och teamprofiles från V2." />;
+  if (detail.isError || !detail.data) return <StateNotice state="failed" title="Matchen kunde inte läsas" detail="Ingen preview- eller fallbackmatch visas." />;
 
+  const data = detail.data;
+  const match = data.match;
   return (
     <div className="page-stack">
       <Link to="/oversikt" className="back-link"><ArrowLeft size={15} />Till översikt</Link>
       <section className="match-hero">
-        <div className="match-hero__meta"><span>{detail.match.leagueName}</span><span><Clock3 size={14} />{formatKickoff(detail.match.startTime)}</span><span><DatabaseZap size={14} />{detail.freshnessLabel}</span></div>
+        <div className="match-hero__meta"><span>{match.leagueName ?? 'Liga saknas'}</span>{match.startTime ? <span><Clock3 size={14} />{formatKickoff(match.startTime)}</span> : null}</div>
         <div className="team-versus">
-          <div className="team-block"><span className="team-monogram">GR</span><strong>{detail.match.homeTeamName}</strong></div>
+          <Link className="team-block" to={match.homeTeamKey ? `/lag/${encodeURIComponent(match.homeTeamKey)}` : '#'}><span className="team-monogram">{initials(match.homeTeamName)}</span><strong>{match.homeTeamName ?? 'Okänt lag'}</strong></Link>
           <span className="versus-badge">VS</span>
-          <div className="team-block team-block--right"><span className="team-monogram">SP</span><strong>{detail.match.awayTeamName}</strong></div>
+          <Link className="team-block team-block--right" to={match.awayTeamKey ? `/lag/${encodeURIComponent(match.awayTeamKey)}` : '#'}><span className="team-monogram">{initials(match.awayTeamName)}</span><strong>{match.awayTeamName ?? 'Okänt lag'}</strong></Link>
         </div>
       </section>
 
-      <StateNotice state={detail.dataState} title="Utanför V6-domän" detail="Modellrader får granskas diagnostiskt men får inte rankas som Auto-val eller användas som forward-proof." />
-
       <section className="content-section">
-        <div className="section-heading"><div><p className="eyebrow">Oddsflöde</p><h2>Checkpoint-tidslinje</h2></div><span className="muted-label">T-30/T-10 saknas i denna snapshot</span></div>
-        <CheckpointTimeline checkpoints={detail.checkpoints} />
+        <div className="section-heading"><div><p className="eyebrow">Oddsflöde</p><h2>Checkpoint-tidslinje</h2></div></div>
+        {data.checkpoints.length ? <CheckpointTimeline checkpoints={data.checkpoints} /> : <StateNotice state="empty" title="Inga checkpoints för matchen" detail="Frontend fyller inte i saknade snapshots." />}
       </section>
 
       <section className="content-section">
-        <div className="section-heading"><div><p className="eyebrow">Analys</p><h2>Signaler</h2></div><span className="muted-label">Unibet/Kambi</span></div>
-        <div className="detail-signal-grid">{detail.signals.map((signal) => <SignalCard key={signal.id} signal={signal} homeTeamName={detail.match.homeTeamName} awayTeamName={detail.match.awayTeamName} />)}</div>
+        <div className="section-heading"><div><p className="eyebrow">Matchups</p><h2>Ranking för matchen</h2></div></div>
+        {data.matchups.length ? <div className="detail-signal-grid">{data.matchups.map((row) => <SignalCard key={row.entryKey} signal={row} />)}</div> : <StateNotice state="empty" title="Ingen matchup-ranking" detail="V2 returnerade inga matchup-rader för matchen." />}
       </section>
 
       <section className="content-section">
-        <div className="section-heading"><div><p className="eyebrow">Teamprofiles</p><h2>Lagjämförelse</h2></div><Link className="quiet-link" to="/lag/gremio">Öppna lagprofil</Link></div>
-        {detail.teamStats.length === 0 ? (
-          <StateNotice state="empty" title="Verifierade teamprofile-värden saknas i denna preview" detail="Sidan visar inte uppskattade snitt. När read-modellen levererar teamprofiles visas for/against, ligasnitt och rank här." />
-        ) : (
+        <div className="section-heading"><div><p className="eyebrow">Teamprofiles</p><h2>Lagjämförelse</h2></div></div>
+        {data.teamStats.length === 0 ? <StateNotice state="empty" title="Teamprofile-data saknas" detail="Inga värden uppskattas i frontend." /> : (
           <div className="stats-table" role="table" aria-label="Lagstatistik">
-            <div className="stats-row stats-row--head" role="row"><span>Stat</span><span>{detail.match.homeTeamName}</span><span>{detail.match.awayTeamName}</span><span>Ligasnitt</span></div>
-            {detail.teamStats.map((row) => <div className="stats-row" role="row" key={row.label}><strong>{row.label}</strong><span>{row.homeValue?.toLocaleString('sv-SE') ?? 'Saknas'}</span><span>{row.awayValue?.toLocaleString('sv-SE') ?? 'Saknas'}</span><span>{row.leagueAverage?.toLocaleString('sv-SE') ?? 'Saknas'}</span></div>)}
+            <div className="stats-row stats-row--head" role="row"><span>Stat / period</span><span>{match.homeTeamName}</span><span>{match.awayTeamName}</span><span>Ligasnitt H / B</span></div>
+            {data.teamStats.map((row) => (
+              <div className="stats-row" role="row" key={`${row.statKey}:${row.period}`}>
+                <strong>{row.statKey} · {row.period}</strong>
+                <span>{row.homeValue?.toLocaleString('sv-SE') ?? '—'}{row.homeRank !== null ? ` (#${row.homeRank})` : ''}</span>
+                <span>{row.awayValue?.toLocaleString('sv-SE') ?? '—'}{row.awayRank !== null ? ` (#${row.awayRank})` : ''}</span>
+                <span>{row.homeLeagueAverage?.toLocaleString('sv-SE') ?? '—'} / {row.awayLeagueAverage?.toLocaleString('sv-SE') ?? '—'}</span>
+              </div>
+            ))}
           </div>
         )}
       </section>

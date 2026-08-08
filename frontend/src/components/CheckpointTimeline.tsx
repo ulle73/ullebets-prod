@@ -1,23 +1,16 @@
-import { Check, Clock, Minus, TriangleAlert } from 'lucide-react';
-import type { Checkpoint } from '../domain/types';
+import { Check, TriangleAlert } from 'lucide-react';
+import type { CheckpointReadModel } from '../domain/types';
 
-const stateLabels: Record<Checkpoint['state'], string> = {
-  captured: 'Fångad',
-  'not-yet': 'Inte aktuell ännu',
-  fallback: 'Fallback',
-  missing: 'Saknas',
-};
-
-export function CheckpointTimeline({ checkpoints }: { checkpoints: Checkpoint[] }) {
+export function CheckpointTimeline({ checkpoints }: { checkpoints: CheckpointReadModel[] }) {
   return (
     <ol className="checkpoint-timeline" aria-label="Odds-checkpoints">
       {checkpoints.map((checkpoint) => {
-        const Icon = checkpoint.state === 'captured' ? Check : checkpoint.state === 'missing' ? TriangleAlert : checkpoint.state === 'fallback' ? Clock : Minus;
+        const Icon = checkpoint.invalidForModel ? TriangleAlert : Check;
         return (
-          <li key={checkpoint.label} className={`checkpoint checkpoint--${checkpoint.state}`}>
+          <li key={`${checkpoint.label}:${checkpoint.capturedAt ?? ''}`} className={`checkpoint checkpoint--${checkpoint.invalidForModel ? 'missing' : 'captured'}`}>
             <span className="checkpoint__icon"><Icon size={15} aria-hidden="true" /></span>
             <strong>{checkpoint.label}</strong>
-            <span>{stateLabels[checkpoint.state]}</span>
+            <span>{checkpoint.capturedAt ? new Date(checkpoint.capturedAt).toLocaleString('sv-SE') : 'Tid saknas'}</span>
           </li>
         );
       })}
