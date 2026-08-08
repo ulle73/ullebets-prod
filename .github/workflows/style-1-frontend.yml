@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   frontend:
@@ -28,27 +28,11 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        id: install
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-            echo "generated_lock=false" >> "$GITHUB_OUTPUT"
-          else
-            npm install
-            echo "generated_lock=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Persist generated dependency lock
-        if: ${{ steps.install.outputs.generated_lock == 'true' && github.ref_name == 'style-1' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/package-lock.json
-          git commit -m "chore(frontend): lock npm dependencies"
-          git push origin HEAD:style-1
-        working-directory: .
+        run: npm ci
 
       - name: Verify implemented frontend
         run: |
