@@ -213,6 +213,8 @@ python -c "import yaml; ..."
 yaml-ok
 git diff --check
 passed
+Hosted workflow_dispatch: v2-odds-scheduler.yml, dry_run=true
+run 31274563877 passed on main@4c19ea7
 ```
 
 Results:
@@ -220,6 +222,10 @@ Results:
 - No new V6 score job starts on an empty, duplicate, or dry-run capture.
 - A successfully persisted odds snapshot starts the frozen V6 scorer in the
   same GitHub Actions job, before that job completes.
+- Hosted scheduler smoke run `31274563877` passed on `main@4c19ea7`: it
+  inspected nine due targets, built `744` dry-run snapshots with zero source
+  errors, parsed the new persisted-upsert field safely, and correctly skipped
+  V6 because a dry-run never persists snapshots.
 - V6 score and forward-bet immutability remain unchanged: later snapshots add
   immutable score evidence and never rewrite an existing forward prediction.
 

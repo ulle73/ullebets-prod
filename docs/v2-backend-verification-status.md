@@ -37,6 +37,10 @@ Local verification:
   persistence guard: `55/55` passed;
 - full V2 suite: `413/413` passed;
 - all three changed workflows parsed as YAML and `git diff --check` passed.
+- hosted scheduler smoke
+  [`31274563877`](https://github.com/ulle73/ullebets-prod/actions/runs/31274563877)
+  passed on `main@4c19ea7`, built `744` dry-run snapshot rows for nine due
+  targets with zero source errors, and correctly skipped V6 without writes.
 
 This is `PARTIAL`, not live proof. The next hosted write-mode due checkpoint
 must show a successful capture followed by a successful V6 score job before
