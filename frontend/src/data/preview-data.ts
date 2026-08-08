@@ -1,0 +1,101 @@
+import type { MatchDetail, MatchSummary, Signal } from '../domain/types';
+
+export const previewMatches: MatchSummary[] = [
+  {
+    matchKey: 'gremio-sao-paulo',
+    startTime: '2026-08-08T19:00:00Z',
+    leagueName: 'Brasileirão Betano',
+    homeTeamName: 'Grêmio',
+    awayTeamName: 'São Paulo',
+    status: 'finished',
+  },
+  {
+    matchKey: 'remo-atletico-mineiro',
+    startTime: '2026-08-08T21:30:00Z',
+    leagueName: 'Brasileirão Betano',
+    homeTeamName: 'Remo',
+    awayTeamName: 'Atlético Mineiro',
+    status: 'scheduled',
+  },
+  {
+    matchKey: 'coritiba-chapecoense',
+    startTime: '2026-08-09T00:30:00Z',
+    leagueName: 'Brasileirão Betano',
+    homeTeamName: 'Coritiba',
+    awayTeamName: 'Chapecoense',
+    status: 'scheduled',
+  },
+];
+
+export const previewSignals: Signal[] = [
+  {
+    id: 'gsp-over-fouls-away-2nd',
+    matchKey: 'gremio-sao-paulo',
+    direction: 'OVER',
+    statKey: 'fouls',
+    scope: 'away',
+    period: '2ND',
+    line: 7.5,
+    predictedWinProbability: 0.614,
+    expectedRoiUnits: 0.112,
+    offeredOdds: 1.86,
+    sourceProvider: 'Unibet/Kambi',
+    snapshotLabel: 'T-2H',
+    evidence: 'excluded',
+    evidenceReason: 'Utanför V6:s träningsdomän',
+  },
+  {
+    id: 'gsp-under-offsides-home-all',
+    matchKey: 'gremio-sao-paulo',
+    direction: 'UNDER',
+    statKey: 'offsides',
+    scope: 'home',
+    period: 'ALL',
+    line: 1.5,
+    predictedWinProbability: 0.672,
+    expectedRoiUnits: 0.096,
+    offeredOdds: 1.72,
+    sourceProvider: 'Unibet/Kambi',
+    snapshotLabel: 'T-2H',
+    evidence: 'excluded',
+    evidenceReason: 'Utanför V6:s träningsdomän',
+  },
+  {
+    id: 'gsp-under-freekicks-away-all',
+    matchKey: 'gremio-sao-paulo',
+    direction: 'UNDER',
+    statKey: 'freeKicks',
+    scope: 'away',
+    period: 'ALL',
+    line: 14.5,
+    predictedWinProbability: 0.582,
+    expectedRoiUnits: 0.081,
+    offeredOdds: 1.91,
+    sourceProvider: 'Unibet/Kambi',
+    snapshotLabel: 'T-2H',
+    evidence: 'excluded',
+    evidenceReason: 'Utanför V6:s träningsdomän',
+  },
+];
+
+export const previewMatchDetails: Record<string, MatchDetail> = {
+  'gremio-sao-paulo': {
+    match: previewMatches[0]!,
+    signals: previewSignals,
+    checkpoints: [
+      { label: 'T-3D', state: 'captured', capturedAt: '2026-08-05T10:00:18Z' },
+      { label: 'T-2D', state: 'captured', capturedAt: '2026-08-06T07:06:52Z' },
+      { label: 'T-1D', state: 'captured', capturedAt: '2026-08-07T07:47:04Z' },
+      { label: 'T-2H', state: 'captured', capturedAt: '2026-08-08T17:49:58Z' },
+      { label: 'T-30', state: 'missing', capturedAt: null },
+      { label: 'T-10', state: 'missing', capturedAt: null },
+    ],
+    teamStats: [
+      { label: 'Hörnor · Match', homeValue: 5.3, awayValue: 4.7, leagueAverage: 4.9 },
+      { label: 'Skott · Match', homeValue: 12.8, awayValue: 11.4, leagueAverage: 11.9 },
+      { label: 'Skott på mål · Match', homeValue: 4.6, awayValue: 4.1, leagueAverage: 4.2 },
+    ],
+    dataState: 'excluded',
+    freshnessLabel: 'Förhandsvisning · backend-format',
+  },
+};
