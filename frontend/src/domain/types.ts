@@ -1,6 +1,7 @@
 export type ReadState = 'ready' | 'loading' | 'empty' | 'failed' | 'excluded';
 export type EvidenceState = 'analysis' | 'forward-test' | 'historical' | 'excluded';
 export type MatchupCondition = 'OVER' | 'UNDER';
+export type MatchupSource = 'persisted' | 'computed_read_only' | 'missing';
 
 export interface MatchSummary {
   matchKey: string;
@@ -41,6 +42,7 @@ export interface DashboardResponse {
   selectedDate: string | null;
   matches: MatchSummary[];
   matchups: MatchupEntry[];
+  matchupSource: MatchupSource;
 }
 
 export interface CheckpointReadModel {
@@ -65,6 +67,7 @@ export interface TeamStatRow {
 export interface MatchDetailResponse {
   match: MatchSummary;
   matchups: MatchupEntry[];
+  matchupSource: MatchupSource;
   leagueAverageMatchups: Record<string, unknown>[];
   checkpoints: CheckpointReadModel[];
   teamStats: TeamStatRow[];
