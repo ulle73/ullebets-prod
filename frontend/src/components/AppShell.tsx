@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Activity, BrainCircuit, Menu, X } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useDashboard } from '../data/queries';
+import { localDateKey, useDashboard } from '../data/queries';
 import { MatchRail } from './MatchRail';
 import { TopNav } from './TopNav';
 
@@ -11,7 +11,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const requestedDate = searchParams.get('date') || undefined;
   const dashboard = useDashboard(requestedDate);
   const matches = dashboard.data?.matches ?? [];
-  const selectedDate = dashboard.data?.selectedDate ?? requestedDate ?? null;
+  const selectedDate = dashboard.data?.selectedDate ?? requestedDate ?? localDateKey();
 
   const changeDate = (date: string) => {
     const next = new URLSearchParams(searchParams);
