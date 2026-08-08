@@ -201,17 +201,20 @@ def test_dashboard_has_no_synthetic_fallback_when_date_has_no_rows() -> None:
 
 
 def test_historical_match_detail_uses_profile_as_of_match_date_not_current_profile() -> None:
+    historical_date = "2000-01-01"
     database = FakeDatabase(
-        fixtures_canonical=FakeCollection([fixture_row()]),
-        matchups_score=FakeCollection([matchup_row()]),
+        fixtures_canonical=FakeCollection(
+            [fixture_row(source_date=historical_date, start_time=datetime(2000, 1, 1, 18, 0, tzinfo=UTC))]
+        ),
+        matchups_score=FakeCollection([]),
         matchups_league_avg=FakeCollection([]),
         market_snapshots=FakeCollection([]),
         teamprofiles=FakeCollection(
             [
                 profile("home", "home", "current", 99.0),
-                profile("home", "home", "2026-08-09", 10.0),
+                profile("home", "home", historical_date, 10.0),
                 profile("away", "away", "current", 88.0),
-                profile("away", "away", "2026-08-09", 12.0),
+                profile("away", "away", historical_date, 12.0),
             ]
         ),
     )
