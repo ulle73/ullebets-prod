@@ -1,41 +1,32 @@
-import { BadgeCheck, FlaskConical, LockKeyhole } from 'lucide-react';
+import { Database, GitBranch, ShieldCheck } from 'lucide-react';
 import { MetricTile } from '../components/MetricTile';
 import { PageHeader } from '../components/PageHeader';
 import { StateNotice } from '../components/StateNotice';
-import { StatusBadge } from '../components/StatusBadge';
-import { modelEvidenceSnapshot } from '../data/product-snapshots';
+import { useModel } from '../data/queries';
 
 export function ModelPage() {
-  const snapshot = modelEvidenceSnapshot;
+  const query = useModel();
+  if (query.isLoading) return <StateNotice state="loading" title="Läser modellstatus" detail="Hämtar modell- och forwardräknare från V2." />;
+  if (query.isError || !query.data) return <StateNotice state="failed" title="Modellstatus kunde inte läsas" detail="Frontend använder inga sparade proof-tal." />;
+
+  const data = query.data;
   return (
     <div className="page-stack">
-      <PageHeader eyebrow={`${snapshot.model} · ${snapshot.forwardPolicy}`} title="Modell & proof" subtitle="Sidan separerar historisk modellselektion från untouched forward evidence. Historisk ROI marknadsförs aldrig som framtida edge." aside={<StatusBadge status={snapshot.forward.status} />} />
-      <section className="model-evidence-grid">
-        <article className="model-evidence-card model-evidence-card--historical">
-          <div className="model-evidence-card__icon"><FlaskConical size={18} /></div>
-          <span className="evidence-lane__label">Historisk backtest</span>
-          <strong className="hero-number">+28,65 %</strong>
-          <p>{snapshot.historical.bets} bets · {snapshot.historical.matches} matcher · +{snapshot.historical.pnlUnits.toLocaleString('sv-SE', { minimumFractionDigits: 2 })} units</p>
-          <small>Match-clustrat 95 %-intervall: +{snapshot.historical.intervalLowPct.toLocaleString('sv-SE')} % till +{snapshot.historical.intervalHighPct.toLocaleString('sv-SE')} %.</small>
-        </article>
-        <article className="model-evidence-card model-evidence-card--forward">
-          <div className="model-evidence-card__icon"><LockKeyhole size={18} /></div>
-          <span className="evidence-lane__label evidence-lane__label--forward">Untouched forward</span>
-          <strong className="hero-number">0 in-domain</strong>
-          <p>scores / selections / settlements / ROI / CLV i den sparade V6-auditen.</p>
-          <StatusBadge status={snapshot.forward.status} />
-        </article>
-      </section>
-      <StateNotice state="excluded" title="Promotion är BLOCKED — inte misslyckad" detail="Nästa giltiga modellbevis kräver framtida matcher från V6:s träningsdomän. Mer filtrering av samma historik skulle vara data mining." />
-      <section className="product-section">
-        <div className="section-heading"><div><p className="eyebrow">Training domain</p><h2>Stödda ligor</h2></div><BadgeCheck size={17} className="brand-icon" /></div>
-        <div className="league-chip-grid">{snapshot.supportedLeagues.map((league) => <span key={league}>{league}</span>)}</div>
-      </section>
-      <div className="metric-tile-grid metric-tile-grid--3">
-        <MetricTile label="Forward selections" value={snapshot.forward.selections} detail="In-domain" />
-        <MetricTile label="Settlements" value={snapshot.forward.settlements} detail="Untouched V6" />
-        <MetricTile label="CLV-rader" value={snapshot.forward.clvRows} detail="Official closing" />
+      <PageHeader eyebrow="V2 live read" title="Modell & proof" subtitle="Modell-ID, policy-ID och evidensräknare kommer från persistenta V2-collections." />
+      <div className="metric-tile-grid metric-tile-grid--4">
+        <MetricTile label="Model scores" value={data.scoreCount} detail="ev_model_scores" icon={<Database size={14} />} />
+        <MetricTile label="Forward selections" value={data.forwardSelectionCount} detail="forward_bets" tone="brand" icon={<GitBranch size={14} />} />
+        <MetricTile label="Settled forward" value={data.settledForwardCount} detail="valid_for_performance" />
+        <MetricTile label="Official CLV" value={data.officialClvCount} detail="closing_quality=t10" tone="good" icon={<ShieldCheck size={14} />} />
       </div>
+      <section className="product-section">
+        <div className="section-heading"><div><p className="eyebrow">Persistenta identiteter</p><h2>Modeller</h2></div></div>
+        {data.modelIds.length ? <div className="league-chip-grid">{data.modelIds.map((id) => <span key={id}>{id}</span>)}</div> : <StateNotice state="empty" title="Inga model_id i ev_model_scores" detail="Ingen modellidentitet fylls i från frontend." />}
+      </section>
+      <section className="product-section">
+        <div className="section-heading"><div><p className="eyebrow">Registrerade urval</p><h2>Policy-ID</h2></div></div>
+        {data.policyIds.length ? <div className="league-chip-grid">{data.policyIds.map((id) => <span key={id}>{id}</span>)}</div> : <StateNotice state="empty" title="Inga policy-ID i forward_bets" detail="Frontend gissar inte vilken policy som är aktiv." />}
+      </section>
     </div>
   );
 }

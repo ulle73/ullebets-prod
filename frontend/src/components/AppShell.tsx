@@ -1,20 +1,43 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Activity, BrainCircuit, Menu, X } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
-import { Link } from 'react-router-dom';
-import { previewMatches } from '../data/preview-data';
+import { Link, useSearchParams } from 'react-router-dom';
+import { localDateKey, useDashboard } from '../data/queries';
 import { MatchRail } from './MatchRail';
 import { TopNav } from './TopNav';
 
 export function AppShell({ children }: PropsWithChildren) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedDate = searchParams.get('date') || undefined;
+  const dashboard = useDashboard(requestedDate);
+  const matches = dashboard.data?.matches ?? [];
+  const selectedDate = dashboard.data?.selectedDate ?? requestedDate ?? localDateKey();
+
+  const changeDate = (date: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (date) next.set('date', date);
+    else next.delete('date');
+    setSearchParams(next, { replace: false });
+  };
+
+  const rail = (
+    <MatchRail
+      matches={matches}
+      selectedDate={selectedDate}
+      onDateChange={changeDate}
+      loading={dashboard.isLoading}
+      failed={dashboard.isError}
+    />
+  );
+
   return (
     <div className="app-shell">
-      <aside className="desktop-rail"><MatchRail matches={previewMatches} /></aside>
+      <aside className="desktop-rail">{rail}</aside>
       <section className="workspace-shell">
         <header className="workspace-header">
           <div className="brand-row">
             <Link className="brand" to="/oversikt" aria-label="Ullebets översikt"><span className="brand__mark">U</span><span>ULLEBETS</span></Link>
-            <span className="preview-badge">Förhandsvisning</span>
+            <span className="preview-badge">V2 live read</span>
           </div>
           <div className="workspace-header__actions">
             <nav className="utility-nav" aria-label="Verktyg">
@@ -29,7 +52,7 @@ export function AppShell({ children }: PropsWithChildren) {
                   <Dialog.Content className="drawer-content" aria-describedby={undefined}>
                     <Dialog.Title className="sr-only">Dagens matcher</Dialog.Title>
                     <Dialog.Close asChild><button type="button" className="drawer-close" aria-label="Stäng matcher"><X size={20} /></button></Dialog.Close>
-                    <MatchRail matches={previewMatches} compact />
+                    {rail}
                   </Dialog.Content>
                 </Dialog.Portal>
               </Dialog.Root>

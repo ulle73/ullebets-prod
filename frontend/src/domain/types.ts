@@ -1,54 +1,126 @@
-import type { PeriodKey, ScopeKey, StatKey } from './formatters';
-
-export type MatchStatus = 'scheduled' | 'finished';
-export type Direction = 'OVER' | 'UNDER';
-export type EvidenceState = 'analysis' | 'forward-test' | 'historical' | 'excluded';
 export type ReadState = 'ready' | 'loading' | 'empty' | 'failed' | 'excluded';
+export type EvidenceState = 'analysis' | 'forward-test' | 'historical' | 'excluded';
+export type MatchupCondition = 'OVER' | 'UNDER';
+export type MatchupSource = 'persisted' | 'computed_read_only' | 'missing';
 
 export interface MatchSummary {
   matchKey: string;
-  startTime: string;
-  leagueName: string;
-  homeTeamName: string;
-  awayTeamName: string;
-  status: MatchStatus;
+  sourceMatchId: string | number | null;
+  sourceDate: string | null;
+  startTime: string | null;
+  leagueKey: string | null;
+  leagueName: string | null;
+  homeTeamKey: string | null;
+  awayTeamKey: string | null;
+  homeTeamName: string | null;
+  awayTeamName: string | null;
+  statusType: string | null;
 }
 
-export interface Signal {
-  id: string;
+export interface MatchupEntry {
+  entryKey: string;
+  snapshotDate: string | null;
   matchKey: string;
-  direction: Direction;
-  statKey: StatKey;
-  scope: ScopeKey;
-  period: PeriodKey;
-  line: number;
-  predictedWinProbability: number | null;
-  expectedRoiUnits: number | null;
-  offeredOdds: number | null;
-  sourceProvider: 'Unibet/Kambi';
-  snapshotLabel: string;
-  evidence: EvidenceState;
-  evidenceReason: string;
+  leagueKey: string | null;
+  leagueName: string | null;
+  homeTeamName: string | null;
+  awayTeamName: string | null;
+  statKey: string | null;
+  statLabel: string | null;
+  period: string | null;
+  periodLabel: string | null;
+  scope: string | null;
+  condition: MatchupCondition;
+  score: number | null;
+  rankPosition: number | null;
+  isTop50: boolean;
+  marketBias: unknown;
+  leagueBaseline: number | null;
 }
 
-export interface Checkpoint {
+export interface DashboardResponse {
+  selectedDate: string | null;
+  matches: MatchSummary[];
+  matchups: MatchupEntry[];
+  matchupSource: MatchupSource;
+}
+
+export interface CheckpointReadModel {
   label: string;
-  state: 'captured' | 'not-yet' | 'fallback' | 'missing';
+  snapshotType: string | null;
   capturedAt: string | null;
+  minutesToKickoff: number | null;
+  invalidForModel: boolean;
 }
 
-export interface TeamStatComparison {
-  label: string;
+export interface TeamStatRow {
+  statKey: string;
+  period: string;
   homeValue: number | null;
   awayValue: number | null;
-  leagueAverage: number | null;
+  homeRank: number | null;
+  awayRank: number | null;
+  homeLeagueAverage: number | null;
+  awayLeagueAverage: number | null;
 }
 
-export interface MatchDetail {
+export interface MatchDetailResponse {
   match: MatchSummary;
-  signals: Signal[];
-  checkpoints: Checkpoint[];
-  teamStats: TeamStatComparison[];
-  dataState: ReadState;
-  freshnessLabel: string;
+  matchups: MatchupEntry[];
+  matchupSource: MatchupSource;
+  leagueAverageMatchups: Record<string, unknown>[];
+  checkpoints: CheckpointReadModel[];
+  teamStats: TeamStatRow[];
+}
+
+export interface AutoSelection {
+  selectionKey: string | null;
+  matchKey: string | null;
+  homeTeamName: string | null;
+  awayTeamName: string | null;
+  leagueName: string | null;
+  statKey: string | null;
+  period: string | null;
+  scope: string | null;
+  direction: string | null;
+  lineValue: number | null;
+  selectedOdds: number | null;
+  predictedWinProbability: number | null;
+  expectedRoiUnits: number | null;
+  modelId: string | null;
+  modelStatus: string | null;
+  policyId: string | null;
+  matchStartTime: string | null;
+  validForForwardEvaluation: boolean | null;
+  invalidForModel: boolean;
+}
+
+export interface AutoResponse {
+  count: number;
+  selections: AutoSelection[];
+}
+
+export interface ResultsResponse {
+  summary: { rows: number; settled: number; wins: number; losses: number; excluded: number };
+  rows: Record<string, unknown>[];
+}
+
+export interface TeamResponse {
+  teamKey: string;
+  profiles: Record<string, unknown>[];
+}
+
+export interface ModelResponse {
+  modelIds: string[];
+  policyIds: string[];
+  scoreCount: number;
+  forwardSelectionCount: number;
+  settledForwardCount: number;
+  officialClvCount: number;
+}
+
+export interface SystemResponse {
+  jobs: Record<string, unknown>[];
+  health: Record<string, unknown>[];
+  audits: Record<string, unknown>[];
 }

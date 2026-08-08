@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 
 const primaryRoutes = [
   { to: '/oversikt', label: 'Översikt' },
@@ -9,10 +9,11 @@ const primaryRoutes = [
 ] as const;
 
 export function TopNav() {
+  const location = useLocation();
   return (
     <nav className="top-nav" aria-label="Huvudnavigation">
       {primaryRoutes.map((route) => (
-        <NavLink key={route.to} to={route.to} className={({ isActive }) => `top-nav__link${isActive ? ' is-active' : ''}`}>
+        <NavLink key={route.to} to={`${route.to}${location.search}`} className={({ isActive }) => `top-nav__link${isActive ? ' is-active' : ''}`}>
           {route.label}
         </NavLink>
       ))}

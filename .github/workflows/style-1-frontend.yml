@@ -39,6 +39,17 @@ jobs:
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=high
 
+      - name: Reject runtime product fixtures and known preview data
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e src/data/preview-data.ts
+          test ! -e src/data/product-snapshots.ts
+          if grep -RInE 'previewMatches|previewSignals|productSnapshot|Grêmio|São Paulo|Atlético Mineiro|Coritiba|Chapecoense|72\.3|83\.5|85\.4' src --exclude='*.test.*'; then
+            echo "Hardcoded/preview product data found in runtime frontend source."
+            exit 1
+          fi
+
       - name: Verify implemented frontend
         run: |
           npm run typecheck

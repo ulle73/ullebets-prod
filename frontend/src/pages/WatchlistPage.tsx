@@ -2,48 +2,52 @@ import { Bookmark, BookmarkPlus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { StateNotice } from '../components/StateNotice';
-import { previewMatches } from '../data/preview-data';
+import { useDashboard } from '../data/queries';
 import { readWatchlist, writeWatchlist, type WatchReference } from '../data/watchlist-storage';
 import { formatKickoff } from '../domain/formatters';
 
 export function WatchlistPage() {
   const [items, setItems] = useState<WatchReference[]>(() => readWatchlist());
-  const previewMatch = previewMatches[0]!;
+  const dashboard = useDashboard();
 
   const update = (next: WatchReference[]) => {
     writeWatchlist(next);
     setItems(next);
   };
-
-  const addPreviewMatch = () => {
-    if (items.some((item) => item.kind === 'match' && item.id === previewMatch.matchKey)) return;
-    update([...items, { kind: 'match', id: previewMatch.matchKey }]);
+  const addMatch = (id: string) => {
+    if (items.some((item) => item.kind === 'match' && item.id === id)) return;
+    update([...items, { kind: 'match', id }]);
   };
 
+  const availableMatches = dashboard.data?.matches ?? [];
   return (
     <div className="page-stack">
-      <PageHeader eyebrow="Personlig vy" title="Watchlist" subtitle="Bevakning i Style-1 sparar bara identifierare och UI-preferenser lokalt — aldrig odds, resultat eller modellvärden." aside={<span className="watch-count"><Bookmark size={14} />{items.length}</span>} />
-      <StateNotice state="ready" title="Local-only i denna branch" detail="Watchlist lagrar bara identifierare. All kanonisk match-, odds- och modelldata ska alltid läsas på nytt från read-modellen." />
-      {items.length === 0 ? (
-        <section className="empty-product-card">
-          <Bookmark size={26} aria-hidden="true" />
-          <h2>Ingen bevakning ännu</h2>
-          <p>Lägg till previewmatchen för att testa layout och lokal persistens utan att skapa en backend-write.</p>
-          <button className="primary-button" type="button" onClick={addPreviewMatch}><BookmarkPlus size={15} />Bevaka Grêmio – São Paulo</button>
-        </section>
-      ) : (
+      <PageHeader eyebrow="Personlig vy" title="Watchlist" subtitle="Endast identifierare sparas lokalt. Matchdata läses alltid från V2." aside={<span className="watch-count"><Bookmark size={14} />{items.length}</span>} />
+      {dashboard.isError ? <StateNotice state="failed" title="V2 kunde inte läsas" detail="Watchlist-ID finns kvar lokalt men frontend visar ingen gammal matchdata." /> : null}
+      {items.length === 0 ? <StateNotice state="empty" title="Ingen bevakning ännu" detail="Välj en aktuell V2-match nedan." /> : (
         <section className="watch-list">
           {items.map((item) => {
-            const match = item.kind === 'match' ? previewMatches.find((candidate) => candidate.matchKey === item.id) : undefined;
+            const match = item.kind === 'match' ? availableMatches.find((candidate) => candidate.matchKey === item.id) : undefined;
             return (
               <article className="watch-row" key={`${item.kind}:${item.id}`}>
-                <div><span className="watch-row__kind">{item.kind === 'match' ? 'Match' : 'Signal'}</span><strong>{match ? `${match.homeTeamName} – ${match.awayTeamName}` : item.id}</strong>{match ? <small>{match.leagueName} · {formatKickoff(match.startTime)}</small> : null}</div>
+                <div><span className="watch-row__kind">{item.kind === 'match' ? 'Match' : 'Signal'}</span><strong>{match ? `${match.homeTeamName ?? 'Okänt lag'} – ${match.awayTeamName ?? 'Okänt lag'}` : item.id}</strong>{match ? <small>{match.leagueName ?? 'Liga saknas'} · {match.startTime ? formatKickoff(match.startTime) : 'Tid saknas'}</small> : <small>Inte i aktuell dashboard-response</small>}</div>
                 <button className="icon-button" type="button" aria-label={`Ta bort ${item.id}`} onClick={() => update(items.filter((candidate) => !(candidate.kind === item.kind && candidate.id === item.id)))}><Trash2 size={16} /></button>
               </article>
             );
           })}
         </section>
       )}
+      {availableMatches.length ? (
+        <section className="product-section">
+          <div className="section-heading"><div><p className="eyebrow">Matcher från V2</p><h2>Lägg till bevakning</h2></div></div>
+          <div className="watch-list">{availableMatches.map((match) => (
+            <article className="watch-row" key={match.matchKey}>
+              <div><strong>{match.homeTeamName ?? 'Okänt lag'} – {match.awayTeamName ?? 'Okänt lag'}</strong><small>{match.leagueName ?? 'Liga saknas'}</small></div>
+              <button className="primary-button" type="button" onClick={() => addMatch(match.matchKey)}><BookmarkPlus size={15} />Bevaka</button>
+            </article>
+          ))}</div>
+        </section>
+      ) : null}
     </div>
   );
 }

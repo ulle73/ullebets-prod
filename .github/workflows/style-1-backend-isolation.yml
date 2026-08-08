@@ -7,6 +7,9 @@ on:
       - style-1-tdd
     paths:
       - "frontend/**"
+      - "src/ullebets_v2/read_api/**"
+      - "scripts/forward_v2/serve_read_api.py"
+      - "tests/v2/test_read_api.py"
       - "docs/superpowers/**"
       - ".github/workflows/style-1-*.yml"
   workflow_dispatch:
