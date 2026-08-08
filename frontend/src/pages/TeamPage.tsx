@@ -9,7 +9,7 @@ function object(value: unknown): Record<string, unknown> {
 
 function value(node: Record<string, unknown>, key: string): string {
   const item = node[key];
-  return item === null || item === undefined ? '—' : String(item);
+  return typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean' ? String(item) : '—';
 }
 
 export function TeamPage() {

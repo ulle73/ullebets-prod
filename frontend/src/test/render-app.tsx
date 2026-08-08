@@ -11,12 +11,11 @@ export function jsonResponse(payload: unknown, status = 200): Response {
 
 export function renderApp(route: string, responses: Record<string, unknown> = {}) {
   const dashboardFallback = { selectedDate: null, matches: [], matchups: [] };
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const raw = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const path = raw.startsWith('http') ? new URL(raw).pathname : raw.split('?')[0]!;
     const payload = path === '/api/v1/dashboard' ? (responses[path] ?? dashboardFallback) : responses[path];
-    if (payload === undefined) return jsonResponse({ error: 'not_found' }, 404);
-    return jsonResponse(payload);
+    return Promise.resolve(payload === undefined ? jsonResponse({ error: 'not_found' }, 404) : jsonResponse(payload));
   });
   vi.stubGlobal('fetch', fetchMock);
 

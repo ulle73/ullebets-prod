@@ -28,7 +28,7 @@ export interface MatchupEntry {
   statLabel: string | null;
   period: string | null;
   periodLabel: string | null;
-  scope: 'home' | 'away' | 'total' | string | null;
+  scope: string | null;
   condition: MatchupCondition;
   score: number | null;
   rankPosition: number | null;

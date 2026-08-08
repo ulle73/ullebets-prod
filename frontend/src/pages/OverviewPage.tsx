@@ -12,7 +12,7 @@ export function OverviewPage() {
   const [league, setLeague] = useState('all');
   const [stat, setStat] = useState('all');
 
-  const matchups = dashboard.data?.matchups ?? [];
+  const matchups = useMemo(() => dashboard.data?.matchups ?? [], [dashboard.data?.matchups]);
   const leagues = useMemo(() => Array.from(new Set(matchups.map((row) => row.leagueName).filter((value): value is string => Boolean(value)))).sort(), [matchups]);
   const stats = useMemo(() => Array.from(new Map(matchups.filter((row) => row.statKey).map((row) => [row.statKey!, row.statLabel ?? row.statKey!])).entries()).sort((a, b) => a[1].localeCompare(b[1], 'sv')), [matchups]);
   const filtered = matchups.filter((row) => (league === 'all' || row.leagueName === league) && (stat === 'all' || row.statKey === stat));

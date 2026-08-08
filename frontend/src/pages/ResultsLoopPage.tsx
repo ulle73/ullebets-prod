@@ -6,7 +6,7 @@ import { useResults } from '../data/queries';
 
 function text(row: Record<string, unknown>, key: string): string {
   const value = row[key];
-  return value === null || value === undefined || value === '' ? '—' : String(value);
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : '—';
 }
 
 export function ResultsLoopPage() {
