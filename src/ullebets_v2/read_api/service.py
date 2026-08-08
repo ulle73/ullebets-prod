@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
+from ullebets_v2.matchups.service import build_matchups_score_docs
 from ullebets_v2.storage.collections import (
     AUDIT_REPORTS,
     EV_MODEL_SCORES,
@@ -29,6 +30,10 @@ SENSITIVE_KEY_PARTS = (
     "connection_string",
     "mongodb_uri",
 )
+
+
+def utc_now() -> datetime:
+    return datetime.now(tz=UTC)
 
 
 def _is_sensitive_key(key: str) -> bool:
@@ -119,15 +124,138 @@ def _matchup_summary(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _load_matchups(database: Any, fixtures: list[dict[str, Any]], source_date: str) -> list[dict[str, Any]]:
+def _as_utc(value: Any) -> datetime | None:
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _is_upcoming_fixture(row: dict[str, Any], now: datetime) -> bool:
+    start_time = _as_utc(row.get("start_time"))
+    return start_time is not None and start_time > now
+
+
+def _profile_order_key(row: dict[str, Any]) -> tuple[str, str]:
+    generated = _iso(row.get("generated_at"))
+    return str(row.get("profile_date") or ""), str(generated or "")
+
+
+def _current_profile_for_team(
+    database: Any,
+    *,
+    team_key: str,
+    match_type: str,
+    now: datetime,
+) -> dict[str, Any] | None:
+    rows = _find_rows(
+        database,
+        TEAMPROFILES,
+        {"team_key": team_key, "match_type": match_type},
+    )
+    if not rows:
+        return None
+
+    current_rows = [row for row in rows if str(row.get("profile_date") or "") == "current"]
+    if current_rows:
+        return max(current_rows, key=_profile_order_key)
+
+    today = now.date().isoformat()
+    dated_rows = [
+        row
+        for row in rows
+        if str(row.get("profile_date") or "") != "current"
+        and str(row.get("profile_date") or "") <= today
+    ]
+    return max(dated_rows, key=_profile_order_key) if dated_rows else None
+
+
+def _profiles_for_upcoming_matchups(
+    database: Any,
+    fixtures: list[dict[str, Any]],
+    *,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    requested: set[tuple[str, str]] = set()
+    for fixture in fixtures:
+        home_key = str(fixture.get("home_team_key") or "")
+        away_key = str(fixture.get("away_team_key") or "")
+        if home_key:
+            requested.add((home_key, "home"))
+        if away_key:
+            requested.add((away_key, "away"))
+
+    profiles: list[dict[str, Any]] = []
+    for team_key, match_type in sorted(requested):
+        profile = _current_profile_for_team(
+            database,
+            team_key=team_key,
+            match_type=match_type,
+            now=now,
+        )
+        if profile is not None:
+            profiles.append(profile)
+    return profiles
+
+
+def _load_matchups(
+    database: Any,
+    fixtures: list[dict[str, Any]],
+    source_date: str,
+    *,
+    now: datetime | None = None,
+) -> tuple[list[dict[str, Any]], str]:
     match_keys = [str(row.get("match_key")) for row in fixtures if row.get("match_key")]
     if not match_keys:
-        return []
-    return _find_rows(
+        return [], "missing"
+
+    persisted = _find_rows(
         database,
         MATCHUPS_SCORE,
         {"snapshot_date": source_date, "match_key": {"$in": match_keys}},
     )
+    if persisted:
+        return persisted, "persisted"
+
+    captured_at = now or utc_now()
+    upcoming_fixtures = [row for row in fixtures if _is_upcoming_fixture(row, captured_at)]
+    if not upcoming_fixtures:
+        return [], "missing"
+
+    profiles = _profiles_for_upcoming_matchups(database, upcoming_fixtures, now=captured_at)
+    if not profiles:
+        return [], "missing"
+
+    computed, _ = build_matchups_score_docs(
+        target_matches=upcoming_fixtures,
+        teamprofile_docs=profiles,
+        snapshot_date=source_date,
+    )
+    return computed, "computed_read_only" if computed else "missing"
+
+
+def _ranked_matchups(
+    matchup_rows: list[dict[str, Any]],
+    *,
+    limit_per_condition: int,
+) -> list[dict[str, Any]]:
+    rows = list(matchup_rows)
+    rows.sort(
+        key=lambda row: (
+            str(row.get("condition") or ""),
+            int(row.get("rank_position") or 10**9),
+            -float(row.get("score") or 0),
+        )
+    )
+    selected: list[dict[str, Any]] = []
+    for condition in ("over", "under"):
+        selected.extend(
+            [row for row in rows if str(row.get("condition") or "").lower() == condition][
+                :limit_per_condition
+            ]
+        )
+    return selected
 
 
 def read_dashboard(
@@ -138,7 +266,12 @@ def read_dashboard(
 ) -> dict[str, Any]:
     selected_date = source_date or _latest_source_date(database)
     if selected_date is None:
-        return {"selectedDate": None, "matches": [], "matchups": []}
+        return {
+            "selectedDate": None,
+            "matches": [],
+            "matchups": [],
+            "matchupSource": "missing",
+        }
 
     fixtures = _find_rows(
         database,
@@ -146,27 +279,16 @@ def read_dashboard(
         {"source_date": selected_date},
         sort=[("start_time", 1)],
     )
-    matchup_rows = _load_matchups(database, fixtures, selected_date)
-    matchup_rows.sort(
-        key=lambda row: (
-            str(row.get("condition") or ""),
-            int(row.get("rank_position") or 10**9),
-            -float(row.get("score") or 0),
-        )
+    matchup_rows, matchup_source = _load_matchups(database, fixtures, selected_date)
+    selected_matchups = _ranked_matchups(
+        matchup_rows,
+        limit_per_condition=limit_per_condition,
     )
-    selected_matchups: list[dict[str, Any]] = []
-    for condition in ("over", "under"):
-        condition_rows = [
-            row
-            for row in matchup_rows
-            if str(row.get("condition") or "").lower() == condition
-        ]
-        selected_matchups.extend(condition_rows[:limit_per_condition])
-
     return {
         "selectedDate": selected_date,
         "matches": [_match_summary(row) for row in fixtures],
         "matchups": [_matchup_summary(row) for row in selected_matchups],
+        "matchupSource": matchup_source,
     }
 
 
@@ -191,26 +313,12 @@ def _profile_as_of(
             if str(row.get("profile_date") or "") != "current"
             and str(row.get("profile_date") or "") <= source_date
         ]
-        if dated_rows:
-            return max(
-                dated_rows,
-                key=lambda row: (
-                    str(row.get("profile_date") or ""),
-                    row.get("generated_at") or datetime.min,
-                ),
-            )
-        return None
+        return max(dated_rows, key=_profile_order_key) if dated_rows else None
 
     current_rows = [row for row in rows if str(row.get("profile_date") or "") == "current"]
     if current_rows:
-        return max(current_rows, key=lambda row: row.get("generated_at") or datetime.min)
-    return max(
-        rows,
-        key=lambda row: (
-            str(row.get("profile_date") or ""),
-            row.get("generated_at") or datetime.min,
-        ),
-    )
+        return max(current_rows, key=_profile_order_key)
+    return max(rows, key=_profile_order_key)
 
 
 def _stat_rows(
@@ -268,8 +376,25 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
     )
     if fixture is None:
         return None
+
     source_date = str(fixture.get("source_date") or "")
-    matchup_rows = _load_matchups(database, [fixture], source_date) if source_date else []
+    date_fixtures = (
+        _find_rows(
+            database,
+            FIXTURES_CANONICAL,
+            {"source_date": source_date},
+            sort=[("start_time", 1)],
+        )
+        if source_date
+        else [fixture]
+    )
+    date_matchups, matchup_source = (
+        _load_matchups(database, date_fixtures, source_date)
+        if source_date
+        else ([], "missing")
+    )
+    matchup_rows = [row for row in date_matchups if str(row.get("match_key") or "") == match_key]
+
     league_avg_rows = (
         _find_rows(
             database,
@@ -298,10 +423,25 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
             "invalidForModel": bool(row.get("invalid_for_model")),
         }
 
+    now = utc_now()
+    is_upcoming = _is_upcoming_fixture(fixture, now)
     home_key = str(fixture.get("home_team_key") or "")
     away_key = str(fixture.get("away_team_key") or "")
-    home_profile = _profile_as_of(database, home_key, "home", source_date) if home_key else None
-    away_profile = _profile_as_of(database, away_key, "away", source_date) if away_key else None
+    if is_upcoming:
+        home_profile = (
+            _current_profile_for_team(database, team_key=home_key, match_type="home", now=now)
+            if home_key
+            else None
+        )
+        away_profile = (
+            _current_profile_for_team(database, team_key=away_key, match_type="away", now=now)
+            if away_key
+            else None
+        )
+    else:
+        home_profile = _profile_as_of(database, home_key, "home", source_date) if home_key else None
+        away_profile = _profile_as_of(database, away_key, "away", source_date) if away_key else None
+
     return {
         "match": _match_summary(fixture),
         "matchups": [
@@ -311,6 +451,7 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
                 key=lambda item: int(item.get("rank_position") or 10**9),
             )
         ],
+        "matchupSource": matchup_source,
         "leagueAverageMatchups": [_iso(row) for row in league_avg_rows],
         "checkpoints": list(checkpoints.values()),
         "teamStats": _stat_rows(home_profile, away_profile),
