@@ -1,382 +1,132 @@
-# Ullebets Style-1 Frontend Data Inventory
+# Ullebets Style-1 Frontend Data Contract
 
-Date: 2026-08-08
-Branch: `style-1`
-Status: provenance gate for frontend implementation
+Date: 2026-08-09  
+Branch: `style-1`  
+Status: required runtime provenance contract
 
-## Purpose
+## Non-negotiable rule
 
-This document is the data-truth contract between the existing Ullebets V2/V6
-backend and the Style-1 frontend. A visible production-looking UI value is
-allowed only when it is listed here (or later added here with an exact source),
-or when it is an explicitly documented deterministic presentation transform of
-a listed value.
+The production frontend must not contain hardcoded Ullebets product data.
 
-The frontend is not allowed to invent missing product semantics to make a mockup
-look complete.
+That means no runtime fixture containing real-looking matches, teams, scores,
+odds, ROI, CLV, model values, team statistics, result snapshots or system
+status. Missing backend data must render a loading, empty or error state; it must
+never be replaced by plausible example values.
 
-## Evidence vocabulary used by the UI
+Unit/integration tests may use synthetic values that exist only inside test
+files. Those values are not application fallbacks.
 
-- `analysis`: grounded analytical/model output, not necessarily selected by the
-  registered forward policy.
-- `forward-test`: a registered immutable forward selection; still under forward
-  validation and not proven profit.
-- `historical`: backtest/history evidence only.
-- `excluded`: present data that is invalid for performance or outside the model
-  domain.
-- `official-closing`: a valid official closing observation (`t10` under the
-  current closing contract).
-- `fallback-closing`: T-30 fallback (`t30_fallback`), never official CLV.
-- `unavailable`: the backend has no value for the requested concept.
+## Runtime architecture
 
-## 1. Match and league identity
+Style-1 uses a read-only V2 HTTP layer:
 
-Backend source: `fixtures_canonical`, built by
-`src/ullebets_v2/fixtures/replay.py` and live fixture ingest.
+- `src/ullebets_v2/read_api/`
+- `scripts/forward_v2/serve_read_api.py`
+- frontend client under `frontend/src/data/api.ts`
 
-| UI concept | Exact source field(s) | Allowed transform | Notes |
-|---|---|---|---|
-| Match id | `match_key` | route-safe string | Canonical key; do not manufacture numeric IDs. |
-| Source match id | `source_match_id` | string | Secondary/debug identity only. |
-| Kickoff | `start_time` | localized date/time | Never invent live minute. |
-| Date | `source_date` / date of `start_time` | localized date | Prefer canonical kickoff for display grouping. |
-| League | `league_name`, `league_key` | text | Grounded. |
-| Home team | `home_team_name`, `home_team_key` | text | Grounded. |
-| Away team | `away_team_name`, `away_team_key` | text | Grounded. |
-| Match status | `status_type` | translated label | Do not infer live minute from wall clock. |
-| Mapping confidence | `mapping_confidence` | optional diagnostic | System-status/detail only. |
-
-### Not currently approved
-
-- Team crest/logo URL: no stable frontend image field has been mapped.
-- Competition logo: no stable frontend image field has been mapped.
-- Live score/minute: do not infer beyond grounded result/status data.
-
-Use typographic initials/neutral team marks until a real crest source is mapped.
-
-## 2. Unibet/Kambi markets and odds
-
-Backend sources:
-
-- `market_offers`
-- `market_snapshots`
-- `src/ullebets_v2/odds/mapper.py`
-- `src/ullebets_v2/checkpoints/service.py`
-
-Grounded mapped stat keys currently include:
-
-- `shotsOnGoal`
-- `totalShots`
-- `cornerKicks`
-- `yellowCards`
-- `freeKicks`
-- `fouls`
-- `totalTackle`
-- `offsides`
-
-Grounded periods: `ALL`, `1ST`, `2ND`.
-Grounded scopes: `home`, `away`, `total`.
-
-| UI concept | Exact source field(s) | Allowed transform | Notes |
-|---|---|---|---|
-| Bookmaker/source | `source_provider` and Kambi ingest provenance | display `Unibet/Kambi` only when source contract matches | Never show Bet365 or another bookmaker without backend data. |
-| Market stat | `stat_key` | Swedish display-name map | UI label only; internal key remains unchanged. |
-| Scope | `scope` | home/away/total -> Swedish label | For team scope, combine with canonical team name. |
-| Period | `period` | ALL/1ST/2ND -> match/1:a/2:a | Deterministic. |
-| Line | `line` / normalized `line_value` | number formatting | No arbitrary rounding beyond display precision. |
-| Over odds | `over_odds` | decimal odds format | Grounded. |
-| Under odds | `under_odds` | decimal odds format | Grounded. |
-| Snapshot label | `snapshot_label` | T-3D/T-2D/etc label map | Grounded checkpoint. |
-| Snapshot time | `snapshot_time` | localized time | Grounded. |
-| Minutes to kickoff | `minutes_to_kickoff` | integer/minutes | Grounded when present. |
-| Snapshot validity | `invalid_for_model` | valid/excluded badge | Never silently hide timing invalidity in performance views. |
-
-### Product distinction
-
-A mapped market is not automatically a recommended V6 bet. Overview may show
-grounded analytical markets, but Auto/actionable ranking is governed by the
-registered forward selection output, not by the market mapper alone.
-
-## 3. Checkpoint timeline and freshness
-
-Backend sources:
-
-- `market_snapshots`
-- `src/ullebets_v2/checkpoints/policy.py`
-- `src/ullebets_v2/checkpoints/service.py`
-
-Current checkpoint keys:
-
-- `T_MINUS_3D` — forward, 60-84h
-- `T_MINUS_2D` — forward, 36-60h
-- `T_MINUS_1D` — forward, 18-36h
-- `T_MINUS_12H` — research, 6-18h
-- `T_MINUS_2H` — research, 1-6h
-- `T_MINUS_30M` — near-closing, 15-50m
-- `T_MINUS_10M` — closing, 5-15m
-
-Allowed display fields:
-
-- `snapshot_label`
-- `snapshot_type`
-- `snapshot_time`
-- `match_start_time`
-- `minutes_to_kickoff`
-- `horizon_days`
-- `invalid_for_model`
-- `source_workflow`
-- `capture_mode`
-- `captured_at`
-
-The UI may derive `latest checkpoint` by taking the most recent valid grounded
-snapshot for the selected match/market. It may not claim a missed checkpoint is
-a source failure unless health/job evidence says it failed; a window that has
-not occurred is an unproven/not-yet state.
-
-## 4. Model score rows
-
-Backend source: `ev_model_scores`, built by
-`src/ullebets_v2/ev_model/forward_scores.py`.
-
-Grounded fields include:
-
-- `score_key`
-- `score_type`
-- `model_id`
-- `model_status`
-- `match_key`
-- `sample_key`
-- `side_key`
-- `snapshot_key`
-- `offer_key`
-- `snapshot_label`
-- `snapshot_type`
-- `stat_key`
-- `period`
-- `scope`
-- `line_value`
-- `direction`
-- `offered_odds`
-- `market_side_probability`
-- `predicted_win_probability`
-- `expected_roi_units`
-- `odds_snapshot_time`
-- `match_start_time`
-- `score_created_at`
-- `valid_for_policy_evaluation`
-- `invalid_for_model`
-
-### Allowed headline metrics
-
-1. **Model probability**
-   - Source: `predicted_win_probability`.
-   - Display: percentage, e.g. `61.4%`.
-   - Label explicitly as model probability, not confidence/proof.
-
-2. **Expected value / expected ROI**
-   - Source: `expected_roi_units`.
-   - Display: percentage (`value * 100`) when the field uses unit fraction.
-   - Label `Modell-EV` or equivalent.
-
-3. **Offered odds**
-   - Source: `offered_odds`.
-   - Display as decimal odds.
-
-### Forbidden until separately specified
-
-- Legacy-style `72.3`, `83.5`, `85.4` generic score.
-- Any invented `confidence`, `strength`, `quality` or stars derived by arbitrary
-  thresholds.
-- A green/gold treatment that implies a model row is a registered selection
-  when it is only a candidate score.
-
-## 5. Training-domain status
-
-Backend source: `src/ullebets_v2/ev_model/domain.py` and model evaluation output.
-
-Grounded domain report fields:
-
-- `status`
-- `scores_total`
-- `scores_in_domain`
-- `scores_out_of_domain`
-- `missing_category_counts`
-- `unknown_category_counts`
-- `supported_categories`
-
-Current V6-supported leagues, from the frozen model/project evidence:
-
-- A-League Men
-- Bundesliga
-- La Liga
-- Ligue 1
-- Premier League
-- Italian Serie A / normalized Serie A domain label
-
-Brazilian V6 rows are diagnostic/OOD under the current fitted model domain.
-Frontend behavior:
-
-- may show the row in diagnostics or match detail
-- must label it excluded/outside model domain
-- must not rank it as a recommended Auto selection
-- must not include it in model ROI/CLV proof
-
-## 6. Registered V6 forward selections
-
-Backend source: `forward_bets` / registered-policy prediction docs built by
-`src/ullebets_v2/ev_model/forward_predictions.py`.
-
-Current registered forward policy source:
-`models/ev/forward_policy_registry_v1.json`.
-
-Current policy identity:
-
-- policy id: `v6_corners_away_total_forward_v1`
-- model status on registered selections: `forward_test_only`
-- stat: `cornerKicks`
-- scopes: `away`, `total`
-- minimum EV: strictly above `0.075`
-- maximum EV: strictly below `0.25`
-
-Important: the frontend consumes persisted/returned registered selections. It
-must not independently reproduce the policy and decide that a raw score is a
+The HTTP layer may read V2 collections and may call an existing pure V2
+calculation function in memory. It must not write to MongoDB, recreate betting
+policy logic in TypeScript, mutate model state or persist a newly calculated
 selection.
 
-Grounded selection fields include:
+HTTP mutations (`POST`, `PUT`, `PATCH`, `DELETE`) are rejected.
 
-- `prediction_key`
-- `selection_key`
-- `prediction_type`
-- `model_id`
-- `model_status`
-- `selection_policy_id`
-- `selection_policy_status`
-- `selection_policy_registry_id`
-- `selection_policy_filters`
-- `source_score_key`
-- `match_key`
-- `stat_key`
-- `period`
-- `scope`
-- `direction`
-- `line_value`
-- `selected_odds`
-- `saved_odds`
-- `predicted_win_probability`
-- `expected_roi_units`
-- `minimum_ev`
-- `maximum_ev`
-- `odds_snapshot_time`
-- `match_start_time`
-- `prediction_created_at`
-- `valid_for_forward_evaluation`
-- `invalid_for_model`
+## 1. Dagens matcher
 
-UI evidence label: **Forward-test**, not `Proof`, not `Verified edge`.
+Source: `fixtures_canonical`.
 
-## 7. Settlement and Resultatloop
+Approved fields:
 
-Backend source: `forward_results`, built by
-`src/ullebets_v2/forward_results/service.py`.
-
-This is the preferred UI read shape for Resultatloop/Historik because it already
-joins selection, CLV and settlement states while preserving exclusions.
-
-Grounded identity/market fields:
-
-- `result_loop_key`
-- `prediction_key`
-- `selection_key`
 - `match_key`
 - `source_match_id`
+- `source_date`
+- `start_time`
+- `league_key`
+- `league_name`
+- `home_team_key`
+- `away_team_key`
 - `home_team_name`
 - `away_team_name`
-- `league_name`
+- `status_type`
+
+The left-hand match rail is populated only from these rows. Search/filtering is
+presentation logic over returned rows and must not invent a match or status.
+
+The default date comes from runtime local time in the browser. There is no
+hardcoded default match date.
+
+## 2. Legacy-style matchup ranking on the homepage
+
+Primary source: persisted `matchups_score` rows produced by V2's existing
+matchup engine in `src/ullebets_v2/matchups/service.py`.
+
+Approved fields include:
+
+- `entry_key`
+- `snapshot_date`
+- `match_key`
+- league/home/away identities
 - `stat_key`
+- `stat_label`
 - `period`
+- `period_label`
 - `scope`
-- `direction`
-- `line_value`
-- `saved_odds`
-- `match_start_time`
+- `condition` (`over` / `under`)
+- `score`
+- `rank_position`
+- `is_top_50`
+- `market_bias`
+- `forecast.leagueBaseline`
 
-Grounded lifecycle fields:
+### The 0-100 matchup score is valid
 
-- `event_started`
-- `timing_status`
-- `invalid_for_model`
-- `valid_for_performance`
-- `settlement_status`
-- `actual_value`
-- `home_value`
-- `away_value`
-- `settlement_result`
-- `win`
-- `roi_units`
-- `pnl_units`
-- `stake_units`
-- `settled_at`
-- `result_loop_status`
-- `status_reason`
-- `refreshed_at`
+`matchups_score.score` is the legitimate legacy-style 0-100 matchup ranking and
+may be shown on the homepage as `Matchup-score` / `Score`.
 
-Known `result_loop_status` families include:
+It must not be relabelled as:
 
-- `open`
-- `pending`
-- `settled`
-- `unresolved`
-- `excluded`
+- odds
+- V6 model probability
+- confidence
+- proof
+- ROI / EV
+- forward edge
 
-The UI must preserve excluded rows and reasons instead of treating them as
-losses or silently removing them from all operational views.
+Arbitrary 0-100 values that do not come from the V2 matchup engine remain
+forbidden.
 
-## 8. Closing and CLV
+### Safe read-only fallback when `matchups_score` is not persisted
 
-Backend sources:
+The existing scheduled `dump-matchups.yml` currently executes the matchup dump
+in dry-run mode. Therefore a production-looking read surface cannot assume that
+`matchups_score` is always persisted.
 
-- `closing_lines`
-- `clv_tracking`
-- joined `forward_results`
-- `src/ullebets_v2/closing/service.py`
+If no persisted matchup rows exist for the selected date, the read API may call
+V2's existing `build_matchups_score_docs` **in memory only** provided all of the
+following are true:
 
-Grounded closing fields include:
+1. the target fixture has not started yet;
+2. inputs come from real `fixtures_canonical` and `teamprofiles` rows;
+3. current teamprofiles are preferred for upcoming fixtures, otherwise only the
+   latest dated profile that is no later than the current runtime date may be
+   used;
+4. the calculation is not persisted;
+5. the calculation function/thresholds are not copied or reimplemented in the
+   frontend/read layer;
+6. if V2 cannot produce a row, the UI shows missing data rather than inventing a
+   replacement.
 
-- opening/latest/closing snapshot labels and times
-- opening/latest/closing odds
-- `closing_quality`
-- `closing_is_official`
-- `closing_age_minutes`
-- `prematch_observation_count`
-- `invalid_snapshot_count`
-- `price_history`
+Historical or already-started matches must never be recomputed using today's
+teamprofiles. They require persisted matchup rows.
 
-Grounded Resultatloop CLV fields include:
+This fallback changes only read presentation availability. It does not modify
+V2's matchup algorithm or any production write workflow.
 
-- `closing_quality`
-- `official_clv`
-- `clv_basis`
-- `closing_odds`
-- `clv_pct`
-- `implied_edge_delta`
-- `beat_closing_line`
-- `clv_status`
-- `closing_line_available`
-- `prematch_observation_count`
+## 3. Match detail / teamprofiles
 
-### Required presentation rule
+Source: `teamprofiles`.
 
-- `t10` / backend official closing -> may contribute to official CLV display.
-- `t30_fallback` -> show as fallback/reference only.
-- missing closing line -> `CLV saknas` / unproven, not `0%`.
-- invalid timing -> excluded warning, not a numeric CLV.
-
-## 9. Team statistics
-
-Backend source: `teamprofiles`, built by
-`src/ullebets_v2/teamprofiles/service.py`.
-
-Grounded profile fields:
+Approved data:
 
 - `team_key`
 - `league_key`
@@ -384,169 +134,166 @@ Grounded profile fields:
 - `profile_date`
 - `generated_at`
 - `games`
-- `statistics`
-- `specials`
-- `meta`
+- `statistics.for`
+- `statistics.against`
+- `statistics.leagueAverage`
+- per-stat/per-period `value`, `rank`, `history`
+- `specials` only when its concrete meaning is understood
 
-`statistics` supports:
+For an upcoming fixture, current data is allowed. For a started/historical
+fixture, match detail must use a dated profile at or before that fixture's
+source date and must not silently substitute the `current` profile.
 
-- `for`
-- `against`
-- `leagueAverage`
+## 4. Odds / checkpoints
 
-per stat and period (`ALL`, `1ST`, `2ND`), including available:
+Sources:
 
-- `value`
-- `rank`
-- `history`
+- `market_offers`
+- `market_snapshots`
+- existing Kambi/Unibet V2 ingest
 
-History items include grounded opponent/date/match identity plus team `val` and
-opponent `oppVal`.
+Approved mapped stat families include V2's actual mapper keys such as:
+`shotsOnGoal`, `totalShots`, `cornerKicks`, `yellowCards`, `freeKicks`, `fouls`,
+`totalTackle`, `offsides`.
 
-### Approved team-page metrics
+Approved periods: `ALL`, `1ST`, `2ND`.  
+Approved scopes: `home`, `away`, `total`.
 
-- team average for/against
-- league average
-- league rank when present
-- recent history values
-- home/away profile context
+Never display Bet365 or any other bookmaker/provider unless V2 actually supplies
+that source.
 
-### Caution on `specials`
+Checkpoint timing/quality comes from `market_snapshots`; absent checkpoints are
+missing, not fabricated.
 
-The collection contains calculated specials, but each displayed frontend
-special must be mapped by name/meaning before use. Do not revive old `bias` or
-`tempo` UI labels simply because a numeric field appears somewhere in the
-specials object.
+## 5. V6 model scores
 
-## 10. Model and proof page
+Source: `ev_model_scores`.
 
-Grounded sources:
+Approved model fields include:
 
-- frozen V6 model manifest
-- registered forward-policy registry
-- model/domain evaluation output
-- promotion evaluator output
-- persisted forward results / CLV
+- `model_id`
+- `model_status`
+- `match_key`
+- `stat_key`
+- `period`
+- `scope`
+- `direction`
+- `line_value`
+- `offered_odds`
+- `predicted_win_probability`
+- `expected_roi_units`
+- `valid_for_policy_evaluation`
+- `invalid_for_model`
 
-The promotion evaluator can expose:
+Presentation transforms are allowed:
 
-- `eligible_for_promotion`
-- `status`
-- `multiple_comparison_family_size`
-- `multiple_comparison_adjusted_p`
-- `blocking_reasons`
+- probability fraction -> percentage
+- EV unit fraction -> percentage labelled model EV
+- decimal odds formatting
 
-The project readiness criteria also require enough settled bets/match clusters,
-CLV coverage, positive mean CLV, positive clustered lower bound and clean audit
-evidence. The frontend must show actual evaluator progress when a read model
-supplies it; it must not fabricate progress bars from static target constants.
+Do not turn these values into a fabricated 0-100 confidence score.
 
-Historical `+28.65%` from the strongest inspected V6 policy may be shown only in
-an explicitly **Historisk backtest** section, accompanied by the current
-forward-evidence status. It is not a current ROI figure.
+## 6. Auto / registered forward selections
 
-## 11. System status
+Source: `forward_bets`.
 
-Grounded sources:
+The frontend consumes persisted registered selections. It does not reproduce
+V6 selection thresholds or decide that a raw model score is a bet.
+
+Approved fields include selection identity, policy/model identity, market
+identity, line, saved/selected odds, model probability, expected ROI, start time
+and validity/exclusion flags.
+
+Evidence wording is `Forward-test` when that is what V2 says; never `proven
+edge` unless a separate promotion contract actually says so.
+
+## 7. Resultatloop and Historik
+
+Source: `forward_results`.
+
+Approved data includes persisted settlement, exclusion, ROI/PnL, closing and CLV
+states. Excluded rows remain visible as excluded and must not be counted as
+losses.
+
+Summary counters must count the complete collection, not merely the page of rows
+returned for display.
+
+Missing CLV is missing; it is never converted to `0%`.
+
+## 8. Modell & proof
+
+Sources:
+
+- `ev_model_scores`
+- `forward_bets`
+- `forward_results`
+- registered model/policy identities persisted in V2
+
+The Style-1 model page may show factual collection counts and persisted IDs. It
+must not contain static ROI, proof-progress or backtest figures as runtime
+product data.
+
+Historical research numbers belong in explicitly sourced research/documentation
+surfaces, not as a fake live dashboard metric.
+
+## 9. Systemstatus
+
+Sources:
 
 - `job_runs`
 - `health_reports`
 - `audit_reports`
-- `parity_reports`
-- source-connectivity audit output
-- checkpoint/closing coverage derived from grounded rows
 
-`job_runs` includes:
+The read API recursively strips keys whose names indicate credentials/secrets
+before returning operational documents. API keys, connection strings, passwords,
+tokens or secret material must never be rendered.
 
-- `run_id`
-- `job_name`
-- `source_workflow`
-- `target_window`
-- `job_args`
-- `status`
-- `started_at`
-- `finished_at`
-- `metrics`
-- `error`
+## 10. Watchlist
 
-Source-connectivity diagnostics expose endpoint health, but frontend adapters
-must strip operational secrets/credential metadata. Do not render API key tails,
-connection strings or secret-bearing payloads.
+Watchlist may persist only stable references/IDs in browser local storage. It may
+not cache a second copy of product data as a runtime fallback. Match names,
+league, kickoff and other content are resolved from the current V2 response.
 
-## 12. Status counters on the dashboard
+## 11. Allowed presentation logic
 
-Approved now:
+Allowed:
 
-- selected date
-- canonical match count
-- played/finished count when match/result status supports it
-- watchlist count (local UI state)
-- alert/warning count only if defined from grounded health/audit/read-model
-  warnings
+- filtering/searching returned data
+- Swedish labels for stat/scope/period/status
+- timestamp/date formatting
+- probability/EV/odds display formatting
+- responsive layout
+- sorting rows according to already returned rank/score
+- local watchlist references
 
-Not approved without a read-model definition:
+Not allowed:
 
-- `proof-ready` count
-- generic `strong` count
-- generic `confidence` count
+- hardcoded product rows
+- synthetic fallback matches/scores
+- recomputing V6 policy eligibility in TypeScript
+- changing matchup/model thresholds
+- treating missing values as zero
+- claiming a provider that V2 does not have
+- using current profiles to retroactively recompute historical matchups
 
-## 13. Allowed deterministic UI transforms
+## 12. CI gate
 
-The following are presentation, not business logic:
+Style-1 CI must fail if the removed runtime preview/snapshot data files return.
+Frontend verification also runs locked dependency installation, dependency
+audit, strict TypeScript, ESLint, tests and production build.
 
-- ISO/UTC timestamp -> localized Swedish date/time
-- decimal probability `0.614` -> `61.4%`
-- EV unit fraction `0.112` -> `+11.2% Modell-EV`
-- decimal odds -> fixed sensible decimal precision
-- stat keys -> Swedish display labels
-- scope + team identity -> `Hemmalaget`, `Bortalaget`, or team-name wording
-- period keys -> `Match`, `1:a halvlek`, `2:a halvlek`
-- checkpoint keys -> compact `T-3D`, `T-2D`, `T-1D`, `T-2H`, `T-30`, `T-10`
-- machine status strings -> Swedish human-readable labels while preserving the
-  underlying status semantics
+The backend isolation workflow runs the complete existing Python regression
+suite on the same Style-1 tree.
 
-Not allowed as presentation transforms:
+## Conclusion
 
-- recomputing policy eligibility
-- recomputing model scores
-- changing EV thresholds
-- deriving proprietary confidence tiers without an approved contract
-- treating missing as zero
-- turning fallback closing into official closing
+The homepage can preserve the original Ullebets product concept without
+hardcoding anything:
 
-## 14. Style-1 fixture rules
+`fixtures_canonical` supplies Dagens matcher and V2's existing matchup engine
+supplies the OVER/UNDER ranking, including the real legacy-style matchup score,
+stat/scope/period, bias payload and league baseline. Other pages read their own
+persisted V2 collections.
 
-Because the read API is not implemented on this branch, UI fixtures/adapters are
-allowed only for rendering and tests.
-
-Every fixture object must:
-
-- satisfy the TypeScript read model
-- use fields that exist in this inventory
-- avoid unsupported bookmakers/metrics
-- be clearly located under frontend fixture/mock infrastructure
-- avoid pretending that synthetic data is fresh production evidence
-
-Prefer examples derived from repository tests or already documented matches over
-inventing new product semantics.
-
-## Gate conclusion
-
-The backend already contains enough grounded structure to design the complete
-frontend without guessing core product semantics:
-
-- canonical fixtures
-- mapped Unibet/Kambi stat markets
-- checkpoint snapshots
-- V6 model probabilities and expected EV
-- registered forward-test selections
-- forward result/settlement states
-- closing/CLV quality states
-- team profiles and league averages
-- model-domain/promotion diagnostics
-- job/health/audit status
-
-The biggest UI correction versus the legacy mockup is deliberate: there is no
-approved generic 0-100 signal score. Style-1 should make the actual model
-probability, EV, odds and evidence state easier to understand instead of hiding
-them behind an invented score.
+When the source is absent, the UI says it is absent. It does not manufacture a
+more attractive answer.
