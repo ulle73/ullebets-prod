@@ -392,6 +392,8 @@ def run_closing_capture(
             audit_rows=audit_rows,
             health_rows=health_rows,
         )
+        summary.update(odds_metrics)
+        summary.update(closing_metrics)
         database["job_runs"].update_one(
             {"run_id": run_doc["run_id"]},
             build_job_run_finished_update(

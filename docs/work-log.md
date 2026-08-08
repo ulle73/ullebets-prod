@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `411/411`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `413/413`.
 
 ### Backend
 
@@ -91,9 +91,10 @@ Valid empty source responses are not failures when no matches or markets exist.
   shared runner `PYTHONPATH`. Hosted dry-run `31273361050` completed the
   formerly failing import and closing command with zero errors. It had zero
   due targets because the next fixture was still outside its closing window.
-- `PARTIAL`: V6 scoring is now downstream of each non-empty production
-  checkpoint or closing capture. The separate ten-minute scoring schedule is
-  removed; a hosted write-mode due window must still prove the complete chain.
+- `PARTIAL`: V6 scoring is now downstream of each production checkpoint or
+  closing capture that persists at least one new snapshot. The separate
+  ten-minute scoring schedule is removed; a hosted write-mode due window must
+  still prove the complete chain.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -184,13 +185,14 @@ checkpoint actually saves new odds snapshots.
 
 Changes:
 
-- `v2-odds-scheduler.yml` now runs V6 only after a non-empty T-3D/T-2D/T-1D/
-  T-2H checkpoint capture.
-- `run-unibet-closing.yml` now runs the same V6 command only after a non-empty
-  T-30/T-10 closing capture.
-- Both workflows parse the capture JSON and skip the full model dependency
-  install and V6 scorer when `market_snapshots` is zero or the run is a
-  manual dry-run.
+- `v2-odds-scheduler.yml` now runs V6 only after a T-3D/T-2D/T-1D/T-2H
+  checkpoint capture persists new snapshot rows.
+- `run-unibet-closing.yml` now runs the same V6 command only after a T-30/T-10
+  closing capture persists new snapshot rows.
+- Both capture services surface the actual `market_snapshot_upserts` count in
+  their CLI summary. The workflows use that persisted count, not the planned
+  snapshot list, and skip the full model dependency install and V6 scorer for
+  duplicates, empty windows, and manual dry-runs.
 - Removed the independent ten-minute schedule from `ev-shadow-forward.yml`;
   it remains available for manual recovery only.
 - Added workflow-contract regressions for the new capture-to-score chain and
@@ -204,9 +206,9 @@ RED: python -m pytest tests/v2/test_automation_contract.py -q
 GREEN: python -m pytest tests/v2/test_automation_contract.py -q
        20 passed
 python -m pytest tests/v2/test_checkpoint_capture.py tests/v2/test_closing_capture.py tests/v2/test_ev_forward_scores.py tests/v2/test_ev_forward_predictions.py tests/v2/test_automation_contract.py -q
-53 passed
+55 passed
 python -m pytest -q
-411 passed
+413 passed
 python -c "import yaml; ..."
 yaml-ok
 git diff --check
@@ -215,15 +217,15 @@ passed
 
 Results:
 
-- No new V6 score job starts on an empty capture window.
-- A successfully saved odds snapshot starts the frozen V6 scorer in the same
-  GitHub Actions job, before that job completes.
+- No new V6 score job starts on an empty, duplicate, or dry-run capture.
+- A successfully persisted odds snapshot starts the frozen V6 scorer in the
+  same GitHub Actions job, before that job completes.
 - V6 score and forward-bet immutability remain unchanged: later snapshots add
   immutable score evidence and never rewrite an existing forward prediction.
 
 Insight:
 The scheduler frequency is now only used to discover due capture windows. It
-does not imply repeated EV model execution while prices are unchanged.
+does not imply repeated EV model execution while no new snapshot is persisted.
 
 Remaining:
 

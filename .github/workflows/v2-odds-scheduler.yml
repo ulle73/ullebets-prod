@@ -98,7 +98,7 @@ jobs:
 
           with open(sys.argv[1], encoding="utf-8") as handle:
               summary = json.load(handle)
-          print(int(summary.get("market_snapshots") or 0))
+          print(int(summary.get("market_snapshot_upserts") or 0))
           PY
           )"
 

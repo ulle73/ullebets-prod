@@ -32,6 +32,13 @@ class FakeCollection:
         self.docs.append(new_doc)
         return FakeUpdateResult(upserted=True)
 
+    def insert_one(self, doc: dict) -> None:
+        self.docs.append(dict(doc))
+
+    def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
+        query = query or {}
+        return [doc for doc in self.docs if self._matches(doc, query)]
+
     def count_documents(self, query: dict | None = None) -> int:
         if not query:
             return len(self.docs)

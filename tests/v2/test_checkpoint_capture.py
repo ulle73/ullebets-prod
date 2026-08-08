@@ -6,6 +6,7 @@ from ullebets_v2.checkpoints.policy import build_snapshot_timing_fields, pick_du
 from ullebets_v2.checkpoints.service import run_checkpoint_capture, select_due_checkpoint_targets
 
 from tests.v2.test_odds_ingest import (
+    FakeDatabase,
     FakeHistoricalCollection,
     FakeHistoricalDatabase,
     FakeOracle,
@@ -177,6 +178,59 @@ def test_run_checkpoint_capture_dry_run_handles_empty_due_window() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_checkpoint_capture_reports_actual_snapshot_upserts() -> None:
+    now = datetime(2026, 6, 22, 10, 0, tzinfo=UTC)
+
+    def checkpoint_transport(url: str, headers: dict[str, str], timeout_seconds: int):  # noqa: ARG001
+        class Response:
+            def __init__(self, status: int, data: dict) -> None:
+                self.status = status
+                self.data = data
+                self.headers = {}
+
+        if "betoffer/event/" in url:
+            return fake_transport(url, headers, timeout_seconds)
+        return Response(
+            200,
+            {
+                "events": [
+                    {
+                        "event": {
+                            "id": "evt-1",
+                            "homeName": "Arsenal",
+                            "awayName": "Bournemouth",
+                            "start": (now + timedelta(hours=48)).isoformat().replace("+00:00", "Z"),
+                            "group": "Premier League",
+                        }
+                    }
+                ]
+            },
+        )
+
+    summary = run_checkpoint_capture(
+        targets=[
+            {
+                "match_key": "match-persisted",
+                "league_key": "premier-league",
+                "league_name": "Premier League",
+                "home_team_name": "Arsenal",
+                "away_team_name": "Bournemouth",
+                "start_time": now + timedelta(hours=48),
+            }
+        ],
+        support_docs=build_support_docs(),
+        source_workflow="run-unibet-odds-checkpoints.yml",
+        database=FakeDatabase(),
+        dry_run=False,
+        transport=checkpoint_transport,
+        oracle=FakeOracle(),
+        now=now,
+    )
+
+    assert summary["market_snapshots"] == 1
+    assert summary["market_snapshot_upserts"] == 1
 
 
 def test_run_checkpoint_capture_replays_historical_v2_windows_without_live_fetch() -> None:

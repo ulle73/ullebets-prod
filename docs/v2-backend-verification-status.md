@@ -11,11 +11,11 @@ Use it to avoid rerunning full end-to-end checks unless one of the remaining unv
 
 V6 scoring is now part of the two production capture workflows, not an
 independent ten-minute schedule. `v2-odds-scheduler.yml` parses the finished
-checkpoint capture JSON and runs the frozen V6 command only when
-`market_snapshots > 0`; it owns T-3D, T-2D, T-1D, and T-2H. The same guarded
-V6 command runs in `run-unibet-closing.yml` after a non-empty T-30/T-10
-capture. Empty windows and manual dry-runs skip the model dependency install
-and scorer.
+checkpoint capture JSON and runs the frozen V6 command only when the actual
+persisted count `market_snapshot_upserts > 0`; it owns T-3D, T-2D, T-1D, and
+T-2H. The same guarded V6 command runs in `run-unibet-closing.yml` after a
+T-30/T-10 capture. Empty windows, duplicate/retry writes, and manual dry-runs
+skip the model dependency install and scorer.
 
 `ev-shadow-forward.yml` is now a manual recovery workflow only. This removes
 the former scheduled cadence of minutes `5,15,25,35,45,55`, which was neither
@@ -32,7 +32,10 @@ Local verification:
 - automation contract suite: `20/20` passed;
 - checkpoint, closing, score, prediction, and automation subset: `53/53`
   passed;
-- full V2 suite: `411/411` passed;
+- persistence summaries expose actual snapshot upserts: `2/2` passed;
+- checkpoint, closing, score, prediction, and automation subset after the
+  persistence guard: `55/55` passed;
+- full V2 suite: `413/413` passed;
 - all three changed workflows parsed as YAML and `git diff --check` passed.
 
 This is `PARTIAL`, not live proof. The next hosted write-mode due checkpoint

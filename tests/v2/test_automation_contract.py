@@ -95,6 +95,7 @@ def test_checkpoint_capture_workflows_score_v6_only_after_new_snapshots() -> Non
 
         assert capture_command in workflow
         assert "CAPTURED_SNAPSHOTS=" in workflow
+        assert 'summary.get("market_snapshot_upserts")' in workflow
         assert 'if [ "$CAPTURED_SNAPSHOTS" -gt 0 ]; then' in workflow
         assert "python -m pip install -e ." in workflow
         assert "score_ev_shadow_model.py" in workflow
