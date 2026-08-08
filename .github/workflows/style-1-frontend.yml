@@ -31,16 +31,17 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
+      - name: Install locked frontend dependencies
         run: npm ci
+
+      - name: Audit dependency tree
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
 
       - name: Verify implemented frontend
         run: |
-          if [ -f src/main.tsx ]; then
-            npm run typecheck
-            npm run lint
-            npm run test -- --run
-            npm run build
-          else
-            echo "Tooling bootstrap only; feature verification starts when src/main.tsx exists."
-          fi
+          npm run typecheck
+          npm run lint
+          npm run test -- --run
+          npm run build
