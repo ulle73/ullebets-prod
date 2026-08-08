@@ -95,6 +95,37 @@ def test_shared_runner_uses_current_node24_actions() -> None:
     assert "actions/setup-node@v4" not in workflow
 
 
+def test_lean_shared_runner_makes_v2_package_importable_before_command_rendering() -> None:
+    """Prevent lean jobs from failing before their configured Python command runs."""
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "v2-python-job.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "PYTHONPATH: ${{ github.workspace }}/src" in workflow
+
+    environment = {"PYTHONPATH": str(repo_root() / "src")}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            "from ullebets_v2.automation import render_workflow_command; "
+            "print(render_workflow_command('python job.py --dry-run', dry_run=False), end='')",
+        ],
+        cwd=repo_root(),
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "python job.py\n"
+
+
 def test_full_runtime_pins_frozen_model_dependencies() -> None:
     project = (repo_root() / "pyproject.toml").read_text(encoding="utf-8")
 
