@@ -134,6 +134,9 @@ Current acceptance window:
 - [x] Registry V5 resolves to 20 immutable policies with a stable fingerprint.
 - [x] Production forward scoring is configured to use only the frozen V6
   artifact and a separate immutable V6 forward-policy registry.
+- [ ] `PARTIAL` V6 scoring is bound to each non-empty accepted odds checkpoint
+  and closing capture. Local workflow contracts pass; hosted write-mode
+  evidence from a real due checkpoint is still required.
 - [x] Training-domain filtering excludes unknown leagues from evidence.
 - [x] Historical experiments 000-077 are documented with negative results.
 - [x] The strongest historical V6 policy has leakage-safe walk-forward evidence.
@@ -197,6 +200,9 @@ Current acceptance window:
   zero rows because no upcoming canonical model markets existed.
 - [ ] `PARTIAL` Prove every scheduled workflow in real write mode through a
   complete prematch-to-postmatch lifecycle.
+- [ ] `PARTIAL` A valid T-30/T-10 snapshot now starts V6 in the same capture
+  workflow instead of waiting for an independent scorer schedule. A hosted
+  write-mode closing capture remains required evidence.
 - [ ] `PARTIAL` Attach persisted parity/health evidence to every workflow run.
 - [ ] `NOT STARTED` Add production alerting for stale jobs, failed sources,
   missing odds, mapping failures, and missed closing windows.

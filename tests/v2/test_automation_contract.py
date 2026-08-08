@@ -79,6 +79,29 @@ def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watc
     assert "--exclude-checkpoint T_MINUS_10M" in workflow
 
 
+def test_checkpoint_capture_workflows_score_v6_only_after_new_snapshots() -> None:
+    workflows = {
+        "v2-odds-scheduler.yml": "capture_odds_checkpoints.py",
+        "run-unibet-closing.yml": "capture_closing_snapshots.py",
+    }
+
+    for workflow_name, capture_command in workflows.items():
+        workflow = (
+            repo_root()
+            / ".github"
+            / "workflows"
+            / workflow_name
+        ).read_text(encoding="utf-8")
+
+        assert capture_command in workflow
+        assert "CAPTURED_SNAPSHOTS=" in workflow
+        assert 'if [ "$CAPTURED_SNAPSHOTS" -gt 0 ]; then' in workflow
+        assert "python -m pip install -e ." in workflow
+        assert "score_ev_shadow_model.py" in workflow
+        assert "ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib" in workflow
+        assert "v6_corners_away_total_forward_v1" in workflow
+
+
 def test_shared_runner_uses_current_node24_actions() -> None:
     workflow = (
         repo_root()
@@ -338,6 +361,18 @@ def test_ev_forward_workflow_uses_only_registered_v6_primary_policy() -> None:
     assert "ev_logistic_recency45_asof_capped_v3" not in workflow
     assert "ev_nested_logistic_recency45_asof_capped_v4_shadow" not in workflow
     assert "ev_ensemble_v3_75_v4_25_shadow" not in workflow
+
+
+def test_ev_forward_workflow_is_manual_recovery_only() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "ev-shadow-forward.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "schedule:" not in workflow
+    assert "workflow_dispatch:" in workflow
 
 
 def test_legacy_ev_backtest_is_manual_parity_only() -> None:

@@ -1,8 +1,6 @@
 name: V2 EV Shadow Forward
 
 on:
-  schedule:
-    - cron: "5,15,25,35,45,55 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:

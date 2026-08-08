@@ -7,6 +7,39 @@ Database: `ullebets_v2`
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
 
+## Capture-Triggered V6 Scoring On 2026-08-08
+
+V6 scoring is now part of the two production capture workflows, not an
+independent ten-minute schedule. `v2-odds-scheduler.yml` parses the finished
+checkpoint capture JSON and runs the frozen V6 command only when
+`market_snapshots > 0`; it owns T-3D, T-2D, T-1D, and T-2H. The same guarded
+V6 command runs in `run-unibet-closing.yml` after a non-empty T-30/T-10
+capture. Empty windows and manual dry-runs skip the model dependency install
+and scorer.
+
+`ev-shadow-forward.yml` is now a manual recovery workflow only. This removes
+the former scheduled cadence of minutes `5,15,25,35,45,55`, which was neither
+an exact runtime guarantee nor necessary when no new odds existed.
+
+The implementation does not change the V6 artifact, features, domain filter,
+selection policy, or immutable score/forward-bet contract. A later snapshot
+can add a new immutable score but cannot rewrite an existing prediction.
+
+Local verification:
+
+- capture-to-score contract test was observed failing before implementation
+  and passing after it;
+- automation contract suite: `20/20` passed;
+- checkpoint, closing, score, prediction, and automation subset: `53/53`
+  passed;
+- full V2 suite: `411/411` passed;
+- all three changed workflows parsed as YAML and `git diff --check` passed.
+
+This is `PARTIAL`, not live proof. The next hosted write-mode due checkpoint
+must show a successful capture followed by a successful V6 score job before
+kickoff. Until then, the real T-30/T-10 closing and CLV lifecycle remains
+unproven.
+
 ## Closing Runner Repair On 2026-08-08
 
 The closing runner defect identified earlier on 8 August was repaired in

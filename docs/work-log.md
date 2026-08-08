@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `409/409`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `411/411`.
 
 ### Backend
 
@@ -91,6 +91,9 @@ Valid empty source responses are not failures when no matches or markets exist.
   shared runner `PYTHONPATH`. Hosted dry-run `31273361050` completed the
   formerly failing import and closing command with zero errors. It had zero
   due targets because the next fixture was still outside its closing window.
+- `PARTIAL`: V6 scoring is now downstream of each non-empty production
+  checkpoint or closing capture. The separate ten-minute scoring schedule is
+  removed; a hosted write-mode due window must still prove the complete chain.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -170,6 +173,122 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-08 - Capture-triggered V6 scoring
+
+Status: `PARTIAL`
+
+Objective:
+Remove redundant ten-minute EV recalculation and score V6 immediately after a
+checkpoint actually saves new odds snapshots.
+
+Changes:
+
+- `v2-odds-scheduler.yml` now runs V6 only after a non-empty T-3D/T-2D/T-1D/
+  T-2H checkpoint capture.
+- `run-unibet-closing.yml` now runs the same V6 command only after a non-empty
+  T-30/T-10 closing capture.
+- Both workflows parse the capture JSON and skip the full model dependency
+  install and V6 scorer when `market_snapshots` is zero or the run is a
+  manual dry-run.
+- Removed the independent ten-minute schedule from `ev-shadow-forward.yml`;
+  it remains available for manual recovery only.
+- Added workflow-contract regressions for the new capture-to-score chain and
+  for the manual-only scorer workflow.
+
+Tests:
+
+```text
+RED: python -m pytest tests/v2/test_automation_contract.py -q
+     2 expected failures before workflow implementation
+GREEN: python -m pytest tests/v2/test_automation_contract.py -q
+       20 passed
+python -m pytest tests/v2/test_checkpoint_capture.py tests/v2/test_closing_capture.py tests/v2/test_ev_forward_scores.py tests/v2/test_ev_forward_predictions.py tests/v2/test_automation_contract.py -q
+53 passed
+python -m pytest -q
+411 passed
+python -c "import yaml; ..."
+yaml-ok
+git diff --check
+passed
+```
+
+Results:
+
+- No new V6 score job starts on an empty capture window.
+- A successfully saved odds snapshot starts the frozen V6 scorer in the same
+  GitHub Actions job, before that job completes.
+- V6 score and forward-bet immutability remain unchanged: later snapshots add
+  immutable score evidence and never rewrite an existing forward prediction.
+
+Insight:
+The scheduler frequency is now only used to discover due capture windows. It
+does not imply repeated EV model execution while prices are unchanged.
+
+Remaining:
+
+- A hosted write-mode T-3D/T-2D/T-1D/T-2H or T-30/T-10 capture must prove that
+  the inline V6 scorer completes against persisted new snapshots before
+  kickoff.
+
+Next:
+
+- Dispatch dry-run workflow smoke tests after deployment, then inspect the
+  first due production checkpoint for persisted scorer evidence.
+
+### 2026-08-08 - EV scorer and snapshot-cadence audit
+
+Status: `PARTIAL`
+
+Objective:
+Verify whether V6 calculates and persists a score immediately after each
+T-3D/T-2D/T-1D/T-2H/T-30/T-10 odds capture.
+
+Changes:
+
+- Updated operational documentation only; no code, workflow, or database
+  write was made by this audit.
+
+Tests:
+
+```text
+Read .github/workflows/v2-odds-scheduler.yml
+Read .github/workflows/ev-shadow-forward.yml
+Read scripts/forward_v2/score_ev_shadow_model.py
+Read latest score_ev_shadow_model job_runs and ev_model_scores from ullebets_v2
+Read current hosted EV Shadow Forward runs
+```
+
+Results:
+
+- Capture jobs persist `market_snapshots`; they do not invoke V6 scoring.
+- The V6 workflow is separately scheduled at minutes `5,15,25,35,45,55` and
+  each run reads every timing-valid future snapshot available at run time.
+- Latest production scorer job `c5858755ed6b403b9126446f70fa4796` succeeded at
+  `2026-08-08T19:06Z`: `2,347` input snapshots, `135` canonical markets,
+  `216` V6 side scores, and `24` newly persisted immutable scores.
+- All current Brazilian scores were excluded from forward selection because
+  Brasileirão Série A is outside V6's trained league domain.
+- GitHub scheduled scorer starts were observed at `17:52Z`, `18:22Z`, and
+  `19:06Z`, so the configured ten-minute cadence is not an exact runtime
+  guarantee.
+
+Insight:
+Every new snapshot can be scored on the next scorer pass and score keys retain
+the source snapshot key, but the system does not yet guarantee a score before
+kickoff after a late T-30/T-10 capture. Forward bets are immutable: a later
+snapshot produces a new score, not a mutation of an existing selection.
+
+Remaining:
+
+- Define and implement the production rule for fresh pre-kickoff EV: either
+  score synchronously after each capture or explicitly freeze V6 selection at
+  a declared earlier checkpoint.
+
+Next:
+
+- Decide and implement a capture-to-score contract before treating T-30/T-10
+  as prediction-refresh checkpoints.
 
 ### 2026-08-08 - Closing runner import repair deployed
 
