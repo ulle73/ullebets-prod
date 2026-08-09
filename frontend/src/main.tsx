@@ -6,6 +6,7 @@ import { App } from './app/App';
 import './styles/global.css';
 import './styles/pages.css';
 import './styles/live-data.css';
+import './styles/match-detail.css';
 import './styles/drilldowns.css';
 import './styles/workflow-pages.css';
 import './styles/shell-hardening.css';

@@ -7,6 +7,19 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
+    files: ['**/*.{js,mjs,cjs}'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: {
+        AbortSignal: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        process: 'readonly',
+        setTimeout: 'readonly',
+      },
+    },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       parserOptions: {

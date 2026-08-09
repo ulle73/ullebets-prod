@@ -4,12 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors blue,green \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "python ../scripts/forward_v2/serve_read_api.py",
+    "dev:web": "node scripts/wait-for-api.mjs && vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint . --max-warnings=0",
-    "test": "vitest"
+    "test": "vitest --pool=threads --maxWorkers=1"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.23",
@@ -31,6 +32,7 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.4",
+    "concurrently": "^10.0.4",
     "eslint": "10.7.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "jsdom": "30.0.1",

@@ -21,6 +21,8 @@ export interface MatchSummary {
   awayTeamKey: string | null;
   homeTeamName: string | null;
   awayTeamName: string | null;
+  homeTeamImageUrl?: string | null;
+  awayTeamImageUrl?: string | null;
   statusType: string | null;
   state: MatchState;
   homeScore: number | null;
@@ -81,6 +83,43 @@ export interface TeamStatRow {
   awayRank: number | null;
   homeLeagueAverage: number | null;
   awayLeagueAverage: number | null;
+  homeForValue: number | null;
+  homeAgainstValue: number | null;
+  awayForValue: number | null;
+  awayAgainstValue: number | null;
+  homeForRank: number | null;
+  homeAgainstRank: number | null;
+  awayForRank: number | null;
+  awayAgainstRank: number | null;
+  homeForLeagueAverage: number | null;
+  homeAgainstLeagueAverage: number | null;
+  awayForLeagueAverage: number | null;
+  awayAgainstLeagueAverage: number | null;
+}
+
+export type NullableNumberMap = Record<string, number | null>;
+
+export interface TeamProfileSpecialPair {
+  for: NullableNumberMap;
+  against: NullableNumberMap;
+}
+
+export interface TeamProfileSpecials {
+  shotsPerMinute: TeamProfileSpecialPair;
+  shotsPerTenMinutes: TeamProfileSpecialPair;
+  firstGoal: NullableNumberMap;
+  leagueAverage: {
+    shotsPerMinute: TeamProfileSpecialPair;
+    shotsPerTenMinutes: TeamProfileSpecialPair;
+    firstGoal: NullableNumberMap;
+  };
+}
+
+export interface TeamProfileSummary {
+  profileDate: string | null;
+  generatedAt: string | null;
+  sampleSize: number;
+  specials: TeamProfileSpecials;
 }
 
 export interface MatchResultSummary {
@@ -125,6 +164,10 @@ export interface MatchDetailResponse {
   result: MatchResultSummary | null;
   actualStats: ActualStatRow[];
   marketOffers: MarketOffer[];
+  teamProfiles: {
+    home: TeamProfileSummary | null;
+    away: TeamProfileSummary | null;
+  };
 }
 
 export interface LeagueSummary {
@@ -252,9 +295,22 @@ export interface AutoSelection {
   matchStartTime: string | null;
   validForForwardEvaluation: boolean | null;
   invalidForModel: boolean;
+  selectionFamily: 'v6' | 'legacy' | null;
+  resultStatus: string | null;
+  settlementStatus: string | null;
+  settlementResult: 'win' | 'loss' | 'push' | null;
+  actualValue: number | null;
+  pnlUnits: number | null;
+  stakeUnits: number | null;
+  validForPerformance: boolean | null;
 }
 
 export interface AutoResponse {
+  count: number;
+  rawCount: number;
+  excludedComboLegCount: number;
+  excludedShadowPredictionCount: number;
+  collapsedDuplicateCount: number;
   summary: { total: number; valid: number; excluded: number };
   page: PageInfo;
   selections: AutoSelection[];

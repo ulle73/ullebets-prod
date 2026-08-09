@@ -4,6 +4,10 @@ from datetime import UTC, date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from ullebets_v2.forward_exposures import (
+    canonicalize_forward_bet_docs,
+    forward_selection_family,
+)
 from ullebets_v2.matchups.service import build_matchups_score_docs
 from ullebets_v2.storage.collections import (
     AUDIT_REPORTS,
@@ -74,11 +78,12 @@ def _find_rows(
     collection_name: str,
     query: dict[str, Any],
     *,
+    projection: dict[str, int] | None = None,
     sort: list[tuple[str, int]] | None = None,
     offset: int = 0,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
-    cursor = database[collection_name].find(query, projection={"_id": 0})
+    cursor = database[collection_name].find(query, projection=projection or {"_id": 0})
     if sort:
         cursor = cursor.sort(sort)
     if offset:
@@ -370,32 +375,60 @@ def _profile_as_of(
 def _stat_rows(home_profile: dict[str, Any] | None, away_profile: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not home_profile or not away_profile:
         return []
-    home_stats = home_profile.get("statistics", {}).get("for", {})
-    away_stats = away_profile.get("statistics", {}).get("for", {})
-    stat_keys = sorted(set(home_stats) | set(away_stats))
+    home_statistics = home_profile.get("statistics", {})
+    away_statistics = away_profile.get("statistics", {})
+    home_for = home_statistics.get("for", {})
+    home_against = home_statistics.get("against", {})
+    away_for = away_statistics.get("for", {})
+    away_against = away_statistics.get("against", {})
+    stat_keys = sorted(set(home_for) | set(home_against) | set(away_for) | set(away_against))
     rows: list[dict[str, Any]] = []
     for stat_key in stat_keys:
         for period in ("ALL", "1ST", "2ND"):
-            home_node = home_stats.get(stat_key, {}).get(period, {})
-            away_node = away_stats.get(stat_key, {}).get(period, {})
-            home_league = (
-                home_profile.get("statistics", {}).get("leagueAverage", {}).get("for", {}).get(stat_key, {}).get(period, {})
-            )
-            away_league = (
-                away_profile.get("statistics", {}).get("leagueAverage", {}).get("for", {}).get(stat_key, {}).get(period, {})
-            )
-            if not any(node.get("value") is not None for node in (home_node, away_node, home_league, away_league)):
+            home_for_node = home_for.get(stat_key, {}).get(period, {})
+            home_against_node = home_against.get(stat_key, {}).get(period, {})
+            away_for_node = away_for.get(stat_key, {}).get(period, {})
+            away_against_node = away_against.get(stat_key, {}).get(period, {})
+            home_league_for = home_statistics.get("leagueAverage", {}).get("for", {}).get(stat_key, {}).get(period, {})
+            home_league_against = home_statistics.get("leagueAverage", {}).get("against", {}).get(stat_key, {}).get(period, {})
+            away_league_for = away_statistics.get("leagueAverage", {}).get("for", {}).get(stat_key, {}).get(period, {})
+            away_league_against = away_statistics.get("leagueAverage", {}).get("against", {}).get(stat_key, {}).get(period, {})
+            if not any(
+                node.get("value") is not None
+                for node in (
+                    home_for_node,
+                    home_against_node,
+                    away_for_node,
+                    away_against_node,
+                    home_league_for,
+                    home_league_against,
+                    away_league_for,
+                    away_league_against,
+                )
+            ):
                 continue
             rows.append(
                 {
                     "statKey": stat_key,
                     "period": period,
-                    "homeValue": home_node.get("value"),
-                    "awayValue": away_node.get("value"),
-                    "homeRank": home_node.get("rank"),
-                    "awayRank": away_node.get("rank"),
-                    "homeLeagueAverage": home_league.get("value"),
-                    "awayLeagueAverage": away_league.get("value"),
+                    "homeValue": home_for_node.get("value"),
+                    "awayValue": away_for_node.get("value"),
+                    "homeRank": home_for_node.get("rank"),
+                    "awayRank": away_for_node.get("rank"),
+                    "homeLeagueAverage": home_league_for.get("value"),
+                    "awayLeagueAverage": away_league_for.get("value"),
+                    "homeForValue": home_for_node.get("value"),
+                    "homeAgainstValue": home_against_node.get("value"),
+                    "awayForValue": away_for_node.get("value"),
+                    "awayAgainstValue": away_against_node.get("value"),
+                    "homeForRank": home_for_node.get("rank"),
+                    "homeAgainstRank": home_against_node.get("rank"),
+                    "awayForRank": away_for_node.get("rank"),
+                    "awayAgainstRank": away_against_node.get("rank"),
+                    "homeForLeagueAverage": home_league_for.get("value"),
+                    "homeAgainstLeagueAverage": home_league_against.get("value"),
+                    "awayForLeagueAverage": away_league_for.get("value"),
+                    "awayAgainstLeagueAverage": away_league_against.get("value"),
                 }
             )
     return rows
@@ -498,8 +531,23 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
         home_profile = _profile_as_of(database, home_key, "home", source_date) if home_key else None
         away_profile = _profile_as_of(database, away_key, "away", source_date) if away_key else None
 
+    team_rows = _find_rows(
+        database,
+        SUPPORT_TEAMS,
+        {"team_key": {"$in": [key for key in (home_key, away_key) if key]}},
+        projection={"_id": 0, "team_key": 1, "team_image_url": 1},
+    )
+    team_images = {
+        str(row.get("team_key")): row.get("team_image_url")
+        for row in team_rows
+        if row.get("team_key")
+    }
+    match = _match_summary(fixture, result)
+    match["homeTeamImageUrl"] = team_images.get(home_key)
+    match["awayTeamImageUrl"] = team_images.get(away_key)
+
     return {
-        "match": _match_summary(fixture, result),
+        "match": match,
         "matchups": [
             _matchup_summary(row, fixture)
             for row in sorted(matchup_rows, key=lambda item: int(item.get("rank_position") or 10**9))
@@ -511,6 +559,10 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
         "result": _result_summary(result),
         "actualStats": [_actual_stat_summary(row) for row in actual_rows],
         "marketOffers": [_market_offer_summary(row) for row in market_rows],
+        "teamProfiles": {
+            "home": _profile_summary(home_profile),
+            "away": _profile_summary(away_profile),
+        },
     }
 
 
@@ -584,6 +636,7 @@ def _profile_summary(row: dict[str, Any] | None) -> dict[str, Any] | None:
     if row is None:
         return None
     meta = row.get("meta") if isinstance(row.get("meta"), dict) else {}
+    games = row.get("games") if isinstance(row.get("games"), list) else []
     return {
         "profileKey": row.get("profile_key"),
         "profileDate": row.get("profile_date"),
@@ -591,7 +644,8 @@ def _profile_summary(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "matchType": row.get("match_type"),
         "leagueTeamCount": meta.get("leagueTeamCount"),
         "savedAt": _iso(meta.get("savedAt")),
-        "games": [_profile_game_summary(game) for game in row.get("games", []) if isinstance(game, dict)],
+        "games": [_profile_game_summary(game) for game in games if isinstance(game, dict)],
+        "sampleSize": len(games),
         "statistics": _iso(row.get("statistics") or {}),
         "specials": _iso(row.get("specials") or {}),
         "behaviour": _iso(row.get("behaviour")),
@@ -681,16 +735,26 @@ def _with_league_filter(database: Any, query: dict[str, Any], league_key: str | 
     return {**query, "match_key": {"$in": keys}}
 
 
-def _auto_summary(database: Any, query: dict[str, Any]) -> dict[str, int]:
-    collection = database[FORWARD_BETS]
-    total = collection.count_documents(query)
-    valid_query = {
-        **query,
-        "valid_for_forward_evaluation": True,
-        "invalid_for_model": {"$ne": True},
-    }
-    valid = collection.count_documents(valid_query)
-    return {"total": total, "valid": valid, "excluded": total - valid}
+def _forward_selection_key(row: dict[str, Any]) -> str | None:
+    for field_name in ("prediction_key", "selection_key", "tracking_key"):
+        value = row.get(field_name)
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def _forward_result_lookup(database: Any, rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    keys = sorted({key for row in rows if (key := _forward_selection_key(row)) is not None})
+    if not keys:
+        return {}
+    result_rows = _find_rows(database, FORWARD_RESULTS, {"result_loop_key": {"$in": keys}})
+    lookup: dict[str, dict[str, Any]] = {}
+    for result in result_rows:
+        for field_name in ("result_loop_key", "prediction_key", "selection_key", "tracking_key"):
+            value = result.get(field_name)
+            if isinstance(value, str) and value.strip():
+                lookup[value] = result
+    return lookup
 
 
 def read_auto(
@@ -719,23 +783,37 @@ def read_auto(
         ),
         league_key,
     )
-    summary = _auto_summary(database, query)
-    rows = _find_rows(
-        database,
-        FORWARD_BETS,
-        query,
-        sort=[("match_start_time", -1)],
-        offset=page_offset,
-        limit=page_limit,
+    raw_rows = _find_rows(database, FORWARD_BETS, query)
+    canonical_rows, exposure_audit = canonicalize_forward_bet_docs(raw_rows)
+    canonical_rows.sort(
+        key=lambda row: (
+            str(_iso(row.get("match_start_time")) or ""),
+            forward_selection_family(row) == "v6",
+            str(row.get("prediction_key") or ""),
+        ),
+        reverse=True,
     )
+    summary = {
+        "total": len(canonical_rows),
+        "valid": sum(
+            row.get("valid_for_forward_evaluation") is True and not row.get("invalid_for_model")
+            for row in canonical_rows
+        ),
+        "excluded": 0,
+    }
+    summary["excluded"] = summary["total"] - summary["valid"]
+    rows = canonical_rows[page_offset:page_offset + page_limit]
     fixtures = _fixture_lookup(database, [str(row.get("match_key")) for row in rows if row.get("match_key")])
+    results = _forward_result_lookup(database, rows)
     selections = []
     for row in rows:
         fixture = fixtures.get(str(row.get("match_key") or ""), {})
+        selection_key = _forward_selection_key(row)
+        result = results.get(selection_key or "", {})
         selected_odds = row.get("selected_odds") if row.get("selected_odds") is not None else row.get("saved_odds")
         selections.append(
             {
-                "selectionKey": row.get("selection_key") or row.get("prediction_key"),
+                "selectionKey": selection_key,
                 "predictionKey": row.get("prediction_key"),
                 "matchKey": row.get("match_key"),
                 "leagueKey": fixture.get("league_key"),
@@ -763,9 +841,22 @@ def read_auto(
                 "matchStartTime": _iso(row.get("match_start_time")),
                 "validForForwardEvaluation": row.get("valid_for_forward_evaluation"),
                 "invalidForModel": bool(row.get("invalid_for_model")),
+                "selectionFamily": forward_selection_family(row),
+                "resultStatus": result.get("result_loop_status"),
+                "settlementStatus": result.get("settlement_status"),
+                "settlementResult": result.get("settlement_result"),
+                "actualValue": result.get("actual_value"),
+                "pnlUnits": result.get("pnl_units"),
+                "stakeUnits": result.get("stake_units"),
+                "validForPerformance": result.get("valid_for_performance"),
             }
         )
     return {
+        "count": exposure_audit["canonical_count"],
+        "rawCount": exposure_audit["raw_count"],
+        "excludedComboLegCount": exposure_audit["excluded_combo_leg_count"],
+        "excludedShadowPredictionCount": exposure_audit["excluded_shadow_prediction_count"],
+        "collapsedDuplicateCount": exposure_audit["collapsed_duplicate_count"],
         "summary": summary,
         "page": {
             "limit": page_limit,

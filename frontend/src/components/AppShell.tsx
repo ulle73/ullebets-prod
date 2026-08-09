@@ -2,7 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Activity, BrainCircuit, Menu, X } from 'lucide-react';
 import type { PropsWithChildren } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { useDashboard } from '../data/queries';
+import { localDateKey, useDashboard } from '../data/queries';
 import { sharedDateSearch } from '../domain/navigation';
 import { MatchRail } from './MatchRail';
 import { TopNav } from './TopNav';
@@ -10,10 +10,11 @@ import { TopNav } from './TopNav';
 export function AppShell({ children }: PropsWithChildren) {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const focusMode = location.pathname.startsWith('/matcher/');
   const requestedDate = searchParams.get('date') || undefined;
-  const dashboard = useDashboard(requestedDate);
+  const dashboard = useDashboard(requestedDate, !focusMode);
   const matches = dashboard.data?.matches ?? [];
-  const selectedDate = dashboard.data?.selectedDate ?? requestedDate ?? '';
+  const selectedDate = dashboard.data?.selectedDate ?? requestedDate ?? localDateKey();
   const sharedSearch = sharedDateSearch(location.search);
 
   const changeDate = (date: string) => {
@@ -36,10 +37,10 @@ export function AppShell({ children }: PropsWithChildren) {
   return (
     <>
       <a className="skip-link" href="#main-content">Hoppa till huvudinnehåll</a>
-      <div className="app-shell">
-        <aside className="desktop-rail">{rail}</aside>
+      <div className={`app-shell${focusMode ? ' app-shell--focus' : ''}`}>
+        {focusMode ? null : <aside className="desktop-rail">{rail}</aside>}
         <section className="workspace-shell">
-          <header className="workspace-header">
+          {focusMode ? null : <header className="workspace-header">
             <div className="brand-row">
               <Link className="brand" to={`/oversikt${sharedSearch}`} aria-label="Ullebets översikt"><span className="brand__mark">U</span><span>ULLEBETS</span></Link>
               <span className="preview-badge">Live</span>
@@ -67,8 +68,8 @@ export function AppShell({ children }: PropsWithChildren) {
                 </Dialog.Root>
               </div>
             </div>
-          </header>
-          <TopNav />
+          </header>}
+          {focusMode ? null : <TopNav />}
           <main className="workspace" id="main-content" tabIndex={-1}>{children}</main>
         </section>
       </div>

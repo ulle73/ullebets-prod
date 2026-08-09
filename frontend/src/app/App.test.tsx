@@ -33,4 +33,14 @@ describe('Ullebets application shell', () => {
     expect(await screen.findByText('12,6')).toBeInTheDocument();
     expect(screen.queryByText(/Bet365/i)).not.toBeInTheDocument();
   });
+
+  it('shows a route fallback while the page chunk loads', async () => {
+    renderApp('/modell', {
+      '/api/v1/dashboard': dashboard,
+      '/api/v1/model': { modelIds: [], policyIds: [], scoreCount: 0, forwardSelectionCount: 0, settledForwardCount: 0, officialClvCount: 0 },
+    });
+
+    expect(screen.getByText('Laddar vy')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Modell & proof' }, { timeout: 5_000 })).toBeInTheDocument();
+  });
 });

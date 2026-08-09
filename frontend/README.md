@@ -21,33 +21,33 @@ npm ci
 
 ## Run locally
 
-Use two terminals.
-
-### Terminal 1 — V2 read API
-
-```bash
-cd frontend
-npm run dev:api
-```
-
-This starts the read-only API on `http://127.0.0.1:8787`.
-
-Health check:
-
-```text
-http://127.0.0.1:8787/api/v1/health
-```
-
-The API rejects write methods and does not persist frontend state.
-
-### Terminal 2 — frontend
-
 ```bash
 cd frontend
 npm run dev
 ```
 
-Vite normally starts on `http://localhost:5173` and proxies `/api/*` to the read API.
+This starts both the read-only API on `http://127.0.0.1:8787` and Vite on
+`http://localhost:5173`. Vite is exposed only after the API healthcheck and
+current-date dashboard warmup succeed. Stopping the command stops both
+processes.
+
+To start only the API for diagnostics:
+
+```bash
+npm run dev:api
+```
+
+Health check: `http://127.0.0.1:8787/api/v1/health`.
+
+The API rejects write methods and does not persist frontend state.
+
+Vite proxies `/api/*` to the read API.
+
+Successful read responses use bounded server-side caching, single-flight
+background revalidation, ETags and gzip. Current/future dashboard data has a
+short fresh window and can be served stale briefly while Cosmos refreshes in
+the background; historical and support responses can be cached longer. Errors
+and healthchecks are never cached.
 
 ## Data behavior
 

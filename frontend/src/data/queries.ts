@@ -13,10 +13,18 @@ import {
   type ResultsQuery,
 } from './api';
 
-export function useDashboard(date?: string) {
+export function localDateKey(now = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function useDashboard(date?: string, enabled = true) {
   return useQuery({
     queryKey: ['dashboard', date ?? 'product-today'],
     queryFn: ({ signal }) => fetchDashboard(date, signal),
+    enabled,
     staleTime: 15_000,
   });
 }

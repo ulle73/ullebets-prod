@@ -33,6 +33,9 @@ class FakeCollection:
                     return False
                 if "$ne" in expected and actual == expected["$ne"]:
                     return False
+            elif isinstance(expected, dict) and "$lte" in expected:
+                if actual is None or actual > expected["$lte"]:
+                    return False
             elif actual != expected:
                 return False
         return True
@@ -60,6 +63,16 @@ class FakeCollection:
 class FakeDatabase(dict):
     def __getitem__(self, key):
         return self.get(key, FakeCollection())
+
+
+class QueryCapturingCollection(FakeCollection):
+    def __init__(self, rows):
+        super().__init__(rows)
+        self.last_query = None
+
+    def find(self, query=None, projection=None):
+        self.last_query = query or {}
+        return super().find(query, projection)
 
 
 def fixture_row(*, source_date: str = "2026-08-09", start_time: datetime | None = None) -> dict:
@@ -111,9 +124,45 @@ def profile(team_key: str, match_type: str, profile_date: str, value: float) -> 
         "statistics": {
             "for": {"fouls": {"ALL": {"value": value, "rank": 1}}},
             "against": {"fouls": {"ALL": {"value": value - 1, "rank": 2}}},
-            "leagueAverage": {"for": {"fouls": {"ALL": {"value": 11.0}}}},
+            "leagueAverage": {
+                "for": {"fouls": {"ALL": {"value": 11.0}}},
+                "against": {"fouls": {"ALL": {"value": 10.0}}},
+            },
         },
-        "specials": {},
+        "specials": {
+            "shotsPerMinute": {
+                "for": {"leading": 0.11, "drawing": 0.19, "trailing": 0.22},
+                "against": {"leading": 0.08, "drawing": 0.17, "trailing": 0.15},
+            },
+            "shotsPerTenMinutes": {
+                "for": {"0-10": 1.88, "11-20": 0.64},
+                "against": {"0-10": 1.56, "11-20": 1.56},
+            },
+            "firstGoal": {
+                "scoreFirstPercentage": 0.727,
+                "concedeFirstPercentage": 0.273,
+                "averageTimeScoredFirst": 28.2,
+                "averageTimeConcededFirst": 24.1,
+                "rank-scoreFirstPercentage": 9,
+                "rank-concedeFirstPercentage": 15,
+            },
+            "leagueAverage": {
+                "shotsPerMinute": {
+                    "for": {"leading": 0.15, "drawing": 0.14, "trailing": 0.14},
+                    "against": {"leading": 0.15, "drawing": 0.14, "trailing": 0.14},
+                },
+                "shotsPerTenMinutes": {
+                    "for": {"0-10": 1.1, "11-20": 1.0},
+                    "against": {"0-10": 1.0, "11-20": 1.1},
+                },
+                "firstGoal": {
+                    "scoreFirstPercentage": 0.5,
+                    "concedeFirstPercentage": 0.5,
+                    "averageTimeScoredFirst": 26.0,
+                    "averageTimeConcededFirst": 26.0,
+                },
+            },
+        },
     }
 
 
@@ -135,6 +184,32 @@ def test_dashboard_reads_persisted_matchups_instead_of_recomputing(monkeypatch) 
     assert payload["matchups"][0]["leagueBaseline"] == 12.6
     assert payload["matchups"][0]["condition"] == "OVER"
     assert payload["matchupSource"] == "persisted"
+
+
+def test_dashboard_bounds_persisted_matchup_query_to_visible_ranks() -> None:
+    matchup_rows = []
+    for condition in ("over", "under"):
+        for rank in range(1, 26):
+            matchup_rows.append(
+                {
+                    **matchup_row(),
+                    "entry_key": f"{condition}-{rank}",
+                    "condition": condition,
+                    "rank_position": rank,
+                    "score": 100 - rank,
+                }
+            )
+    matchups = QueryCapturingCollection(matchup_rows)
+    database = FakeDatabase(
+        fixtures_canonical=FakeCollection([fixture_row()]),
+        matchups_score=matchups,
+    )
+
+    payload = read_dashboard(database, source_date="2026-08-09")
+
+    assert len(payload["matchups"]) == 40
+    assert max(row["rankPosition"] for row in payload["matchups"]) == 20
+    assert matchups.last_query.get("rank_position") == {"$lte": 20}
 
 
 def test_dashboard_can_compute_upcoming_matchups_read_only_from_current_profiles(monkeypatch) -> None:
@@ -233,6 +308,98 @@ def test_historical_match_detail_uses_profile_as_of_match_date_not_current_profi
     assert payload is not None
     assert payload["teamStats"][0]["homeValue"] == 10.0
     assert payload["teamStats"][0]["awayValue"] == 12.0
+
+
+def test_match_detail_exposes_complete_teamprofile_presentation_contract() -> None:
+    historical_date = "2000-01-01"
+    database = FakeDatabase(
+        fixtures_canonical=FakeCollection(
+            [fixture_row(source_date=historical_date, start_time=datetime(2000, 1, 1, 18, 0, tzinfo=UTC))]
+        ),
+        matchups_score=FakeCollection([]),
+        matchups_league_avg=FakeCollection([]),
+        market_snapshots=FakeCollection([]),
+        support_teams=FakeCollection(
+            [
+                {"team_key": "home", "team_image_url": "/images/teams/home.png"},
+                {"team_key": "away", "team_image_url": "/images/teams/away.png"},
+            ]
+        ),
+        teamprofiles=FakeCollection(
+            [
+                profile("home", "home", historical_date, 10.0),
+                profile("away", "away", historical_date, 12.0),
+            ]
+        ),
+    )
+
+    payload = read_match_detail(database, "sofascore:123")
+
+    assert payload is not None
+    assert payload["match"]["homeTeamImageUrl"] == "/images/teams/home.png"
+    assert payload["match"]["awayTeamImageUrl"] == "/images/teams/away.png"
+    stat = payload["teamStats"][0]
+    assert stat == {
+        "statKey": "fouls",
+        "period": "ALL",
+        "homeValue": 10.0,
+        "awayValue": 12.0,
+        "homeRank": 1,
+        "awayRank": 1,
+        "homeLeagueAverage": 11.0,
+        "awayLeagueAverage": 11.0,
+        "homeForValue": 10.0,
+        "homeAgainstValue": 9.0,
+        "awayForValue": 12.0,
+        "awayAgainstValue": 11.0,
+        "homeForRank": 1,
+        "homeAgainstRank": 2,
+        "awayForRank": 1,
+        "awayAgainstRank": 2,
+        "homeForLeagueAverage": 11.0,
+        "homeAgainstLeagueAverage": 10.0,
+        "awayForLeagueAverage": 11.0,
+        "awayAgainstLeagueAverage": 10.0,
+    }
+    assert payload["teamProfiles"]["home"]["profileDate"] == historical_date
+    assert payload["teamProfiles"]["home"]["sampleSize"] == 6
+    assert payload["teamProfiles"]["home"]["specials"]["shotsPerMinute"]["for"]["drawing"] == 0.19
+    assert payload["teamProfiles"]["away"]["specials"]["shotsPerTenMinutes"]["against"]["0-10"] == 1.56
+    assert payload["teamProfiles"]["home"]["specials"]["firstGoal"]["averageTimeScoredFirst"] == 28.2
+
+
+def test_match_detail_only_loads_matchups_for_requested_match() -> None:
+    source_date = "2026-08-09"
+    requested = fixture_row(source_date=source_date)
+    other = {
+        **fixture_row(source_date=source_date),
+        "match_key": "sofascore:456",
+        "home_team_key": "other-home",
+        "away_team_key": "other-away",
+    }
+    matchups = QueryCapturingCollection(
+        [
+            matchup_row(snapshot_date=source_date),
+            {
+                **matchup_row(snapshot_date=source_date),
+                "entry_key": "row-2",
+                "match_key": "sofascore:456",
+            },
+        ]
+    )
+    database = FakeDatabase(
+        fixtures_canonical=FakeCollection([requested, other]),
+        matchups_score=matchups,
+        matchups_league_avg=FakeCollection([]),
+        market_snapshots=FakeCollection([]),
+        teamprofiles=FakeCollection([]),
+    )
+
+    payload = read_match_detail(database, "sofascore:123")
+
+    assert payload is not None
+    assert [row["entryKey"] for row in payload["matchups"]] == ["row-1"]
+    assert matchups.last_query.get("match_key") == {"$in": ["sofascore:123"]}
 
 
 def test_auto_count_covers_full_collection_even_when_rows_are_limited() -> None:
