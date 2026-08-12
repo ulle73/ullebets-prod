@@ -1,16 +1,16 @@
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Link } from 'react-router-dom';
 import { signalCardHover } from '../domain/motion';
 import type { MatchupEntry } from '../domain/types';
+import { EntityLink } from './EntityLink';
 
 interface SignalCardProps {
   signal: MatchupEntry;
 }
 
-function scopeLabel(scope: MatchupEntry['scope'], home: string | null, away: string | null): string {
-  if (scope === 'home') return home ? `Hemmalaget – ${home}` : 'Hemmalaget';
-  if (scope === 'away') return away ? `Bortalaget – ${away}` : 'Bortalaget';
+function scopeLabel(scope: MatchupEntry['scope']): string {
+  if (scope === 'home') return 'Hemmalaget';
+  if (scope === 'away') return 'Bortalaget';
   return 'Totalt';
 }
 
@@ -39,8 +39,14 @@ export function SignalCard({ signal }: SignalCardProps) {
     >
       <header className="signal-card__header">
         <div>
-          <span className="signal-card__league">{signal.leagueName ?? 'Liga saknas'}</span>
-          <strong className="signal-card__match">{signal.homeTeamName ?? 'Okänt lag'} vs {signal.awayTeamName ?? 'Okänt lag'}</strong>
+          <EntityLink kind="league" id={signal.leagueKey} className="signal-card__league">
+            {signal.leagueName ?? 'Liga saknas'}
+          </EntityLink>
+          <strong className="signal-card__match">
+            <EntityLink kind="team" id={signal.homeTeamKey}>{signal.homeTeamName ?? 'Okänt lag'}</EntityLink>
+            <span aria-hidden="true"> vs </span>
+            <EntityLink kind="team" id={signal.awayTeamKey}>{signal.awayTeamName ?? 'Okänt lag'}</EntityLink>
+          </strong>
         </div>
         <div className="matchup-score" aria-label="Matchup-score">
           <span>Score</span>
@@ -51,7 +57,7 @@ export function SignalCard({ signal }: SignalCardProps) {
       <div className="matchup-tags">
         <span className={`direction direction--${signal.condition.toLowerCase()}`}><DirectionIcon size={13} aria-hidden="true" />{signal.condition}</span>
         <span>{signal.statLabel ?? signal.statKey ?? 'Stat saknas'}</span>
-        <span>{scopeLabel(signal.scope, signal.homeTeamName, signal.awayTeamName)}</span>
+        <span>{scopeLabel(signal.scope)}</span>
         <span>{signal.periodLabel ?? signal.period ?? 'Period saknas'}</span>
       </div>
 
@@ -62,7 +68,7 @@ export function SignalCard({ signal }: SignalCardProps) {
 
       <footer className="signal-card__footer">
         {signal.rankPosition !== null ? <span>Rank #{signal.rankPosition}</span> : null}
-        <Link to={`/matcher/${encodeURIComponent(signal.matchKey)}`} className="quiet-link">Matchdetalj</Link>
+        <EntityLink kind="match" id={signal.matchKey} className="quiet-link" ariaLabel="Matchdetalj">Matchdetalj</EntityLink>
       </footer>
     </motion.article>
   );
