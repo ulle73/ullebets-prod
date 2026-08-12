@@ -3,8 +3,8 @@ import type { AutoSelection, ForwardResult, LeagueResponse, MatchDetailResponse,
 export interface LeagueStatRow {
   teamKey: string;
   teamName: string;
-  context: 'home' | 'away' | string;
-  orientation: 'for' | 'against' | string;
+  context: string;
+  orientation: string;
   statKey: string;
   period: string;
   value: number;
