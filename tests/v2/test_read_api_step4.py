@@ -1,5 +1,5 @@
 from tests.v2.test_read_api_contracts import MemoryCollection, MemoryDatabase
-from ullebets_v2.read_api.service import read_model
+from ullebets_v2.read_api.http import dispatch_get
 
 
 def test_model_read_contract_exposes_persisted_runtime_statuses_without_inference() -> None:
@@ -23,8 +23,9 @@ def test_model_read_contract_exposes_persisted_runtime_statuses_without_inferenc
         forward_results=MemoryCollection(),
     )
 
-    payload = read_model(database)
+    status, payload = dispatch_get(database, '/api/v1/model', {})
 
+    assert status.value == 200
     assert payload['modelIds'] == ['v6', 'v6-shadow']
     assert payload['policyIds'] == ['policy-a', 'policy-b']
     assert payload['modelStatuses'] == ['forward_test_only']
