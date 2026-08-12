@@ -17,30 +17,45 @@ function optional(params: URLSearchParams, key: string): string | undefined {
 }
 
 export function autoQueryFromSearch(params: URLSearchParams): AutoQuery {
-  return {
+  const query: AutoQuery = {
     limit: pageNumber(params.get('limit'), DEFAULT_PAGE_LIMIT, 1, MAX_PAGE_LIMIT),
     offset: pageNumber(params.get('offset'), 0, 0),
-    league: optional(params, 'league'),
-    stat: optional(params, 'stat'),
-    period: optional(params, 'period'),
-    scope: optional(params, 'scope'),
-    direction: optional(params, 'direction'),
-    model: optional(params, 'model'),
-    policy: optional(params, 'policy'),
   };
+  const league = optional(params, 'league');
+  const stat = optional(params, 'stat');
+  const period = optional(params, 'period');
+  const scope = optional(params, 'scope');
+  const direction = optional(params, 'direction');
+  const model = optional(params, 'model');
+  const policy = optional(params, 'policy');
+  if (league) query.league = league;
+  if (stat) query.stat = stat;
+  if (period) query.period = period;
+  if (scope) query.scope = scope;
+  if (direction) query.direction = direction;
+  if (model) query.model = model;
+  if (policy) query.policy = policy;
+  return query;
 }
 
 export function resultsQueryFromSearch(params: URLSearchParams): ResultsQuery {
-  return {
+  const query: ResultsQuery = {
     limit: pageNumber(params.get('limit'), DEFAULT_PAGE_LIMIT, 1, MAX_PAGE_LIMIT),
     offset: pageNumber(params.get('offset'), 0, 0),
-    status: optional(params, 'status'),
-    league: optional(params, 'league'),
-    stat: optional(params, 'stat'),
-    period: optional(params, 'period'),
-    scope: optional(params, 'scope'),
-    direction: optional(params, 'direction'),
   };
+  const status = optional(params, 'status');
+  const league = optional(params, 'league');
+  const stat = optional(params, 'stat');
+  const period = optional(params, 'period');
+  const scope = optional(params, 'scope');
+  const direction = optional(params, 'direction');
+  if (status) query.status = status;
+  if (league) query.league = league;
+  if (stat) query.stat = stat;
+  if (period) query.period = period;
+  if (scope) query.scope = scope;
+  if (direction) query.direction = direction;
+  return query;
 }
 
 export function patchSearchParams(
