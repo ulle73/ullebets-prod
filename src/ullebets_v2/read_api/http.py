@@ -7,12 +7,12 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, unquote, urlparse
 
 from ullebets_v2.read_api.drilldowns import read_league, read_match_detail, read_team
+from ullebets_v2.read_api.model_status import read_model
 from ullebets_v2.read_api.service import (
     DEFAULT_PAGE_LIMIT,
     read_auto,
     read_dashboard,
     read_matches,
-    read_model,
     read_results,
     read_system_status,
 )
