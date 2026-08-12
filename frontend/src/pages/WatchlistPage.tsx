@@ -10,10 +10,7 @@ import { formatKickoff } from '../domain/formatters';
 export function WatchlistPage() {
   const [items, setItems] = useState<WatchReference[]>(() => readWatchlist());
   const dashboard = useDashboard();
-  const savedMatchIds = useMemo(
-    () => items.filter((item) => item.kind === 'match').map((item) => item.id),
-    [items],
-  );
+  const savedMatchIds = useMemo(() => items.filter((item) => item.kind === 'match').map((item) => item.id), [items]);
   const resolvedMatches = useMatches(savedMatchIds);
   const resolvedById = new Map((resolvedMatches.data?.matches ?? []).map((match) => [match.matchKey, match]));
 
@@ -35,6 +32,7 @@ export function WatchlistPage() {
         <section className="watch-list" aria-label="Bevakade objekt">
           {items.map((item) => {
             const match = item.kind === 'match' ? resolvedById.get(item.id) : undefined;
+            const waitingForMatch = item.kind === 'match' && resolvedMatches.isLoading;
             return (
               <article className="watch-row" key={`${item.kind}:${item.id}`}>
                 <div>
@@ -48,7 +46,7 @@ export function WatchlistPage() {
                       </small>
                     </>
                   ) : (
-                    <><strong>{item.id}</strong><small>{item.kind === 'match' ? 'Matchen kunde inte lösas i aktuell datakälla' : 'Signalreferens'}</small></>
+                    <><strong>{item.id}</strong><small>{waitingForMatch ? 'Hämtar aktuell matchdata…' : item.kind === 'match' ? 'Matchen kunde inte lösas i aktuell datakälla' : 'Signalreferens'}</small></>
                   )}
                 </div>
                 <button className="icon-button" type="button" aria-label={`Ta bort ${item.id}`} onClick={() => update(items.filter((candidate) => !(candidate.kind === item.kind && candidate.id === item.id)))}><Trash2 size={16} /></button>
