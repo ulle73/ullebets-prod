@@ -6,6 +6,7 @@ on:
       - style-1
       - style-1-tdd
       - style-1-step1
+      - style-1-step2
     paths:
       - "frontend/**"
       - "src/ullebets_v2/read_api/**"
