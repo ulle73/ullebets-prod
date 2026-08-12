@@ -6,22 +6,9 @@ import { App } from './app/App';
 import './styles/global.css';
 import './styles/pages.css';
 import './styles/live-data.css';
+import './styles/drilldowns.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root');
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: true },
-  },
-});
-
-createRoot(root).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </QueryClientProvider>
-  </StrictMode>,
-);
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } } });
+createRoot(root).render(<StrictMode><QueryClientProvider client={queryClient}><BrowserRouter><App /></BrowserRouter></QueryClientProvider></StrictMode>);

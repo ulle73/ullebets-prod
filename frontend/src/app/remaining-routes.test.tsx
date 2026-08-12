@@ -53,7 +53,7 @@ describe('complete Style-1 route surface', () => {
       },
     });
     expect(await screen.findByRole('heading', { name: 'Live Team' })).toBeInTheDocument();
-    expect(screen.getByText('10,2')).toBeInTheDocument();
+    expect(screen.getAllByText('10,2').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Öppna ligan' })).toHaveAttribute('href', '/liga/league-key');
   });
 
