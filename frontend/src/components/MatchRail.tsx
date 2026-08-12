@@ -1,8 +1,9 @@
-import { CalendarDays, Search } from 'lucide-react';
+import { CalendarDays, ExternalLink, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { matchPath, useLocation } from 'react-router-dom';
 import { formatKickoff } from '../domain/formatters';
-import type { MatchSummary } from '../domain/types';
+import type { MatchState, MatchSummary } from '../domain/types';
+import { EntityLink } from './EntityLink';
 
 interface MatchRailProps {
   matches: MatchSummary[];
@@ -15,33 +16,34 @@ interface MatchRailProps {
 
 type StatusFilter = 'all' | 'upcoming' | 'live' | 'finished';
 
-function statusBucket(status: string | null): Exclude<StatusFilter, 'all'> {
-  const normalized = (status ?? '').toLowerCase();
-  if (['finished', 'ended', 'cancelled', 'postponed'].some((value) => normalized.includes(value))) return 'finished';
-  if (['live', 'inprogress', 'in_progress', '1st', '2nd', 'halftime'].some((value) => normalized.includes(value))) return 'live';
-  return 'upcoming';
+function matchesStatusFilter(state: MatchState, filter: StatusFilter): boolean {
+  if (filter === 'all') return true;
+  return state === filter;
 }
 
 export function MatchRail({ matches, selectedDate, onDateChange, loading = false, failed = false, compact = false }: MatchRailProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const location = useLocation();
+  const matchRoute = matchPath('/matcher/:matchId', location.pathname);
+  const activeMatchId = matchRoute?.params.matchId ? decodeURIComponent(matchRoute.params.matchId) : null;
 
   const filteredMatches = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('sv-SE');
     return matches.filter((match) => {
-      if (statusFilter !== 'all' && statusBucket(match.statusType) !== statusFilter) return false;
+      if (!matchesStatusFilter(match.state, statusFilter)) return false;
       if (!needle) return true;
       return [match.homeTeamName, match.awayTeamName, match.leagueName]
-        .filter(Boolean)
-        .some((value) => value!.toLocaleLowerCase('sv-SE').includes(needle));
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLocaleLowerCase('sv-SE').includes(needle));
     });
   }, [matches, search, statusFilter]);
 
-  const grouped = filteredMatches.reduce<Map<string, MatchSummary[]>>((groups, match) => {
-    const league = match.leagueName || 'Okänd liga';
-    const leagueMatches = groups.get(league) ?? [];
-    leagueMatches.push(match);
-    groups.set(league, leagueMatches);
+  const grouped = filteredMatches.reduce<Map<string, { leagueKey: string | null; matches: MatchSummary[] }>>((groups, match) => {
+    const leagueName = match.leagueName || 'Okänd liga';
+    const existing = groups.get(leagueName) ?? { leagueKey: match.leagueKey, matches: [] };
+    existing.matches.push(match);
+    groups.set(leagueName, existing);
     return groups;
   }, new Map());
 
@@ -73,30 +75,43 @@ export function MatchRail({ matches, selectedDate, onDateChange, loading = false
           ['upcoming', 'Kommande'],
           ['live', 'Pågår'],
           ['finished', 'Resultat'],
-        ] as const).map(([value, label]) => (
-          <button key={value} type="button" className={statusFilter === value ? 'is-active' : ''} onClick={() => setStatusFilter(value)}>{label}</button>
+        ] as const).map(([filter, label]) => (
+          <button key={filter} type="button" className={statusFilter === filter ? 'is-active' : ''} onClick={() => setStatusFilter(filter)}>{label}</button>
         ))}
       </div>
 
-      {failed ? <p className="rail-state">Kunde inte läsa matcher från V2.</p> : null}
+      {failed ? <p className="rail-state">Matcher kunde inte hämtas.</p> : null}
       {!failed && !loading && filteredMatches.length === 0 ? <p className="rail-state">Inga matcher för valt datum/filter.</p> : null}
 
       <div className="league-list">
-        {Array.from(grouped.entries()).map(([league, leagueMatches]) => (
-          <section key={league} className="league-group">
-            <div className="league-group__title"><span className="league-mark" aria-hidden="true">•</span><h2>{league}</h2></div>
+        {Array.from(grouped.entries()).map(([leagueName, group]) => (
+          <section key={leagueName} className="league-group">
+            <div className="league-group__title">
+              <span className="league-mark" aria-hidden="true">•</span>
+              <h2><EntityLink kind="league" id={group.leagueKey}>{leagueName}</EntityLink></h2>
+            </div>
             <div className="match-list">
-              {leagueMatches.map((match) => (
-                <Link className="match-row" to={`/matcher/${encodeURIComponent(match.matchKey)}${selectedDate ? `?date=${encodeURIComponent(selectedDate)}` : ''}`} key={match.matchKey}>
-                  <time dateTime={match.startTime ?? undefined}>{match.startTime ? formatKickoff(match.startTime) : '—'}</time>
-                  <span className="match-row__teams">
-                    <strong>{match.homeTeamName ?? 'Okänt lag'}</strong>
-                    <span className="match-row__versus">–</span>
-                    <strong>{match.awayTeamName ?? 'Okänt lag'}</strong>
-                  </span>
-                  <span className={`status-dot status-dot--${statusBucket(match.statusType)}`} aria-label={match.statusType ?? 'Okänd status'} />
-                </Link>
-              ))}
+              {group.matches.map((match) => {
+                const matchLabel = `${match.homeTeamName ?? 'Okänt lag'} – ${match.awayTeamName ?? 'Okänt lag'}`;
+                return (
+                  <article className={`match-row${activeMatchId === match.matchKey ? ' is-active' : ''}`} key={match.matchKey}>
+                    <time dateTime={match.startTime ?? undefined}>{match.startTime ? formatKickoff(match.startTime) : '—'}</time>
+                    <span className="match-row__teams">
+                      <strong><EntityLink kind="team" id={match.homeTeamKey}>{match.homeTeamName ?? 'Okänt lag'}</EntityLink></strong>
+                      <span className="match-row__versus">–</span>
+                      <strong><EntityLink kind="team" id={match.awayTeamKey}>{match.awayTeamName ?? 'Okänt lag'}</EntityLink></strong>
+                    </span>
+                    {match.state === 'finished' && match.homeScore !== null && match.awayScore !== null ? (
+                      <span className="match-row__score" aria-label={`Slutresultat ${match.homeScore}–${match.awayScore}`}>{match.homeScore}–{match.awayScore}</span>
+                    ) : (
+                      <span className={`status-dot status-dot--${match.state}`} aria-label={match.state} />
+                    )}
+                    <EntityLink kind="match" id={match.matchKey} className="match-row__open" ariaLabel={`Öppna ${matchLabel}`}>
+                      <ExternalLink size={14} aria-hidden="true" />
+                    </EntityLink>
+                  </article>
+                );
+              })}
             </div>
           </section>
         ))}

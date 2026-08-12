@@ -5,6 +5,7 @@ on:
     branches:
       - style-1
       - style-1-tdd
+      - style-1-step1
     paths:
       - "frontend/**"
       - ".github/workflows/style-1-frontend.yml"
@@ -50,9 +51,14 @@ jobs:
             exit 1
           fi
 
-      - name: Verify implemented frontend
-        run: |
-          npm run typecheck
-          npm run lint
-          npm run test -- --run
-          npm run build
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test -- --run
+
+      - name: Build
+        run: npm run build

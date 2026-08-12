@@ -10,7 +10,14 @@ export function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 export function renderApp(route: string, responses: Record<string, unknown> = {}) {
-  const dashboardFallback = { selectedDate: null, matches: [], matchups: [] };
+  const dashboardFallback = {
+    selectedDate: '2026-08-13',
+    timezone: 'Europe/Stockholm',
+    generatedAt: '2026-08-12T20:00:00Z',
+    matches: [],
+    matchups: [],
+    matchupSource: 'missing',
+  };
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const raw = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const path = raw.startsWith('http') ? new URL(raw).pathname : raw.split('?')[0]!;

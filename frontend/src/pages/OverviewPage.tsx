@@ -20,38 +20,42 @@ export function OverviewPage() {
   const under = filtered.filter((row) => row.condition === 'UNDER');
 
   if (dashboard.isLoading) {
-    return <StateNotice state="loading" title="Läser V2-data" detail="Hämtar dagens matcher och matchup-ranking från V2." />;
+    return <StateNotice state="loading" title="Hämtar dagens matcher" detail="Matchlistan och matchup-rankingen uppdateras." />;
   }
   if (dashboard.isError) {
-    return <StateNotice state="failed" title="Read API kan inte nås" detail="Starta V2 read API och kontrollera MONGODB_URI. Frontend visar ingen reservdata." />;
+    return <StateNotice state="failed" title="Dagens matcher kunde inte hämtas" detail="Försök igen om en stund. Ingen reservdata visas när källan inte kan nås." />;
+  }
+  if (!dashboard.data) {
+    return <StateNotice state="empty" title="Ingen matchdata tillgänglig" detail="Det finns ingen läsbar data för den aktuella vyn." />;
   }
 
-  const sourceLabel = dashboard.data?.matchupSource === 'persisted'
-    ? 'Persistad V2-ranking'
-    : dashboard.data?.matchupSource === 'computed_read_only'
-      ? 'V2-ranking · read-only beräknad'
-      : 'V2-ranking saknas';
+  const data = dashboard.data;
+  const sourceLabel = data.matchupSource === 'computed_read_only'
+    ? 'Aktuell matchup-ranking'
+    : data.matchupSource === 'persisted'
+      ? 'Matchup-ranking'
+      : 'Ranking saknas';
 
   return (
     <div className="page-stack">
       <section className="page-hero">
         <div>
-          <p className="eyebrow">Workspace · Översikt</p>
+          <p className="eyebrow">Översikt</p>
           <h2>Dagens matchups</h2>
-          <p className="page-subtitle">Matchup-score, riktning, stat, period, scope, bias och ligasnitt kommer från V2:s matchupmotor. Frontend räknar inte fram eller fyller i produktdata.</p>
+          <p className="page-subtitle">Jämför dagens högst rankade OVER- och UNDER-matchups per stat, period och lagkontext.</p>
         </div>
         <div className="summary-strip" aria-label="Översiktsstatus">
-          {dashboard.data?.selectedDate ? <span><CalendarDays size={14} />{dashboard.data.selectedDate}</span> : null}
-          <span><Activity size={14} />{dashboard.data?.matches.length ?? 0} matcher</span>
+          <span><CalendarDays size={14} />{data.selectedDate}</span>
+          <span><Activity size={14} />{data.matches.length} matcher</span>
           <span>{sourceLabel}</span>
         </div>
       </section>
 
-      {(dashboard.data?.matches.length ?? 0) === 0 ? (
-        <StateNotice state="empty" title="Inga matcher i V2 för valt datum" detail="Ingen syntetisk fallback visas. Välj ett annat datum eller kontrollera fixtures_canonical." />
+      {data.matches.length === 0 ? (
+        <StateNotice state="empty" title="Inga matcher för valt datum" detail="Välj ett annat datum för att se tillgängliga matcher." />
       ) : null}
-      {(dashboard.data?.matches.length ?? 0) > 0 && matchups.length === 0 ? (
-        <StateNotice state="empty" title="Matcher finns men matchup-ranking saknas" detail="V2 saknar tillräcklig persistad ranking eller aktuella teamprofiles för en säker read-only beräkning. Frontend visar inga ersättningsvärden." />
+      {data.matches.length > 0 && matchups.length === 0 ? (
+        <StateNotice state="empty" title="Matchup-ranking saknas" detail="Matcher finns för dagen, men det finns ännu inte tillräcklig data för en matchup-ranking." />
       ) : null}
 
       <div className="filter-toolbar">

@@ -13,20 +13,25 @@ class FakeCursor(list):
             rows.sort(key=lambda row: row.get(field) or "", reverse=direction < 0)
         return FakeCursor(rows)
 
+    def skip(self, value: int):
+        return FakeCursor(self[value:])
+
     def limit(self, value: int):
         return FakeCursor(self[:value])
 
 
 class FakeCollection:
-    def __init__(self, rows):
+    def __init__(self, rows=()):
         self.rows = list(rows)
 
     @staticmethod
     def _matches(row, query):
         for key, expected in query.items():
             actual = row.get(key)
-            if isinstance(expected, dict) and "$in" in expected:
-                if actual not in expected["$in"]:
+            if isinstance(expected, dict):
+                if "$in" in expected and actual not in expected["$in"]:
+                    return False
+                if "$ne" in expected and actual == expected["$ne"]:
                     return False
             elif actual != expected:
                 return False
@@ -47,10 +52,14 @@ class FakeCollection:
         query = query or {}
         return sum(1 for row in self.rows if self._matches(row, query))
 
+    def distinct(self, field, query=None):
+        query = query or {}
+        return list(dict.fromkeys(row.get(field) for row in self.rows if self._matches(row, query) and row.get(field) is not None))
+
 
 class FakeDatabase(dict):
     def __getitem__(self, key):
-        return super().__getitem__(key)
+        return self.get(key, FakeCollection())
 
 
 def fixture_row(*, source_date: str = "2026-08-09", start_time: datetime | None = None) -> dict:
@@ -192,12 +201,12 @@ def test_dashboard_has_no_synthetic_fallback_when_date_has_no_rows() -> None:
 
     payload = read_dashboard(database, source_date="2099-01-01")
 
-    assert payload == {
-        "selectedDate": "2099-01-01",
-        "matches": [],
-        "matchups": [],
-        "matchupSource": "missing",
-    }
+    assert payload["selectedDate"] == "2099-01-01"
+    assert payload["timezone"] == "Europe/Stockholm"
+    assert payload["generatedAt"].endswith("Z")
+    assert payload["matches"] == []
+    assert payload["matchups"] == []
+    assert payload["matchupSource"] == "missing"
 
 
 def test_historical_match_detail_uses_profile_as_of_match_date_not_current_profile() -> None:
@@ -239,7 +248,8 @@ def test_auto_count_covers_full_collection_even_when_rows_are_limited() -> None:
 
     payload = read_auto(database, limit=1)
 
-    assert payload["count"] == 2
+    assert payload["summary"]["total"] == 2
+    assert payload["page"] == {"limit": 1, "offset": 0, "hasMore": True}
     assert len(payload["selections"]) == 1
 
 
@@ -255,5 +265,6 @@ def test_results_summary_covers_full_collection_even_when_rows_are_limited() -> 
 
     payload = read_results(database, limit=1)
 
-    assert payload["summary"] == {"rows": 2, "settled": 1, "wins": 1, "losses": 0, "excluded": 1}
+    assert payload["summary"] == {"rows": 2, "settled": 1, "wins": 1, "losses": 0, "pushes": 0, "excluded": 1}
+    assert payload["page"] == {"limit": 1, "offset": 0, "hasMore": True}
     assert len(payload["rows"]) == 1
