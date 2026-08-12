@@ -204,7 +204,7 @@ export interface TeamProfileContext {
   profileKey: string | null;
   profileDate: string | null;
   generatedAt: string | null;
-  matchType: 'home' | 'away' | string | null;
+  matchType: string | null;
   leagueTeamCount: number | null;
   savedAt: string | null;
   games: TeamProfileGame[];
