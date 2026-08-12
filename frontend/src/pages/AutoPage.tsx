@@ -1,25 +1,47 @@
 import { BrainCircuit, ExternalLink, ShieldCheck } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { EntityLink } from '../components/EntityLink';
 import { MetricTile } from '../components/MetricTile';
 import { PageHeader } from '../components/PageHeader';
+import { PaginationBar } from '../components/PaginationBar';
 import { StateNotice } from '../components/StateNotice';
+import { WorkflowFilters, type WorkflowFilter } from '../components/WorkflowFilters';
 import { useAuto } from '../data/queries';
+import { autoQueryFromSearch, DEFAULT_PAGE_LIMIT, patchSearchParams } from '../data/workflow-query';
+import { DIRECTION_OPTIONS, PERIOD_OPTIONS, SCOPE_OPTIONS, STAT_OPTIONS } from '../domain/workflow-filter-options';
 import { formatExpectedRoi, formatOdds, formatProbability } from '../domain/formatters';
 
 export function AutoPage() {
-  const query = useAuto();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const readQuery = autoQueryFromSearch(searchParams);
+  const query = useAuto(readQuery);
+  const limit = readQuery.limit ?? DEFAULT_PAGE_LIMIT;
+  const offset = readQuery.offset ?? 0;
+
   if (query.isLoading) return <StateNotice state="loading" title="Läser Auto" detail="Hämtar registrerade forward-val." />;
   if (query.isError || !query.data) return <StateNotice state="failed" title="Auto kunde inte läsas" detail="Försök igen när datakällan är tillgänglig." />;
 
-  const { summary, selections } = query.data;
+  const { summary, selections, page } = query.data;
+  const filters: WorkflowFilter[] = [
+    { key: 'stat', label: 'Stat', value: readQuery.stat ?? '', options: STAT_OPTIONS },
+    { key: 'period', label: 'Period', value: readQuery.period ?? '', options: PERIOD_OPTIONS },
+    { key: 'scope', label: 'Lag/scope', value: readQuery.scope ?? '', options: SCOPE_OPTIONS },
+    { key: 'direction', label: 'Riktning', value: readQuery.direction ?? '', options: DIRECTION_OPTIONS },
+  ];
+
+  const changeFilter = (key: string, value: string) => setSearchParams(patchSearchParams(searchParams, { [key]: value }, { resetOffset: true }));
+  const changeLimit = (value: number) => setSearchParams(patchSearchParams(searchParams, { limit: value }, { resetOffset: true }));
+  const changePage = (value: number) => setSearchParams(patchSearchParams(searchParams, { offset: value }));
+
   return (
     <div className="page-stack">
       <PageHeader eyebrow="Registrerade forward-val" title="Auto" subtitle="Här visas val som redan registrerats av systemets urvalspolicy. Sidan skapar inga egna kandidater." />
       <div className="metric-tile-grid metric-tile-grid--3">
-        <MetricTile label="Registrerade val" value={summary.total} detail="Filtrerad mängd" tone="brand" icon={<ShieldCheck size={14} />} />
+        <MetricTile label="Registrerade val" value={summary.total} detail="Matchar aktuellt filter" tone="brand" icon={<ShieldCheck size={14} />} />
         <MetricTile label="Giltiga forward" value={summary.valid} detail="Giltiga för forward-utvärdering" icon={<BrainCircuit size={14} />} />
         <MetricTile label="Exkluderade" value={summary.excluded} detail="Ej forward-performance" tone="warn" />
       </div>
+      <WorkflowFilters filters={filters} pageLimit={limit} onFilterChange={changeFilter} onPageLimitChange={changeLimit} />
       {selections.length === 0 ? <StateNotice state="empty" title="Inga registrerade forward-val" detail="Inga val matchar den aktuella läsvyn." /> : (
         <section className="product-section auto-list" aria-label="Forward-val">
           {selections.map((row, index) => {
@@ -47,6 +69,7 @@ export function AutoPage() {
           })}
         </section>
       )}
+      <PaginationBar offset={offset} limit={limit} total={summary.total} hasMore={page.hasMore} onPageChange={changePage} />
     </div>
   );
 }

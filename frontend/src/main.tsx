@@ -7,6 +7,7 @@ import './styles/global.css';
 import './styles/pages.css';
 import './styles/live-data.css';
 import './styles/drilldowns.css';
+import './styles/workflow-pages.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root');
