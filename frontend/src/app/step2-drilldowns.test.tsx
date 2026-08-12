@@ -19,6 +19,7 @@ describe('step 2 drilldown pages',()=>{
   expect(main().getByRole('button',{name:'FOR'})).toBeInTheDocument();
   expect(main().getByText('Största avvikelser mot ligan')).toBeInTheDocument();
   expect(main().getByText('+30,0 %')).toBeInTheDocument();
+  expect(main().getByText('−20,0 %')).toBeInTheDocument();
   expect(main().getByRole('link',{name:/Opponent FC/})).toHaveAttribute('href','/lag/opp');
   expect(main().getByRole('link',{name:/2–1/})).toHaveAttribute('href','/matcher/past-77');
  });
@@ -46,6 +47,6 @@ describe('step 2 drilldown pages',()=>{
   expect(main().getByRole('heading',{name:'Marknadsodds'})).toBeInTheDocument();
   expect(main().getByText('1,90')).toBeInTheDocument();
   expect(main().getByRole('heading',{name:'Utfall & forward-evidens'})).toBeInTheDocument();
-  expect(main().getByText('+5,5 %')).toBeInTheDocument();
+  expect(main().getByText('CLV +5,5 %')).toBeInTheDocument();
  });
 });
