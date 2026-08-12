@@ -1,5 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchAuto, fetchDashboard, fetchMatchDetail, fetchModel, fetchResults, fetchSystem, fetchTeam } from './api';
+import {
+  fetchAuto,
+  fetchDashboard,
+  fetchLeague,
+  fetchMatchDetail,
+  fetchMatches,
+  fetchModel,
+  fetchResults,
+  fetchSystem,
+  fetchTeam,
+  type AutoQuery,
+  type ResultsQuery,
+} from './api';
 
 export function localDateKey(now = new Date()): string {
   const year = now.getFullYear();
@@ -9,11 +21,19 @@ export function localDateKey(now = new Date()): string {
 }
 
 export function useDashboard(date?: string) {
-  const selectedDate = date || localDateKey();
   return useQuery({
-    queryKey: ['dashboard', selectedDate],
-    queryFn: ({ signal }) => fetchDashboard(selectedDate, signal),
+    queryKey: ['dashboard', date ?? 'product-today'],
+    queryFn: ({ signal }) => fetchDashboard(date, signal),
     staleTime: 15_000,
+  });
+}
+
+export function useMatches(matchKeys: string[]) {
+  return useQuery({
+    queryKey: ['matches', matchKeys],
+    queryFn: ({ signal }) => fetchMatches(matchKeys, signal),
+    enabled: matchKeys.length > 0,
+    staleTime: 30_000,
   });
 }
 
@@ -26,12 +46,29 @@ export function useMatchDetail(matchKey?: string) {
   });
 }
 
-export function useAuto() {
-  return useQuery({ queryKey: ['auto'], queryFn: ({ signal }) => fetchAuto(signal), staleTime: 15_000 });
+export function useLeague(leagueKey?: string) {
+  return useQuery({
+    queryKey: ['league', leagueKey],
+    queryFn: ({ signal }) => fetchLeague(leagueKey!, signal),
+    enabled: Boolean(leagueKey),
+    staleTime: 60_000,
+  });
 }
 
-export function useResults() {
-  return useQuery({ queryKey: ['results'], queryFn: ({ signal }) => fetchResults(signal), staleTime: 30_000 });
+export function useAuto(query: AutoQuery = {}) {
+  return useQuery({
+    queryKey: ['auto', query],
+    queryFn: ({ signal }) => fetchAuto(query, signal),
+    staleTime: 15_000,
+  });
+}
+
+export function useResults(query: ResultsQuery = {}) {
+  return useQuery({
+    queryKey: ['results', query],
+    queryFn: ({ signal }) => fetchResults(query, signal),
+    staleTime: 30_000,
+  });
 }
 
 export function useTeam(teamKey?: string) {
