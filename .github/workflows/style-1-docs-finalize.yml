@@ -1,0 +1,80 @@
+name: Style-1 Docs Finalize
+
+on:
+  push:
+    branches:
+      - style-1-docs-finalize
+    paths:
+      - ".github/workflows/style-1-docs-finalize.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: style-1-docs-finalize
+
+      - name: Update verified frontend readiness
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          work_path = Path('docs/work-log.md')
+          work = work_path.read_text(encoding='utf-8')
+          work = work.replace('Last updated: 2026-08-12', 'Last updated: 2026-08-13', 1)
+          work = work.replace(
+              '- `VERIFIED`: the full V2 Python test suite currently passes, `415/415`.',
+              '- `VERIFIED`: the full V2 Python test suite currently passes, `434/434`.',
+              1,
+          )
+          entry_title = '### 2026-08-13 - Style-1 frontend and read-only product surface'
+          if entry_title not in work:
+              marker = '## Chronological entries\n'
+              if marker not in work:
+                  raise SystemExit('work-log chronological marker missing')
+              entry = '''\n### 2026-08-13 - Style-1 frontend and read-only product surface\n\nStatus: `VERIFIED` for the implemented product surface on `style-1`; production deployment and the in-domain model lifecycle remain separate readiness gates.\n\nObjective: build the complete styled Ullebets frontend against typed, read-only V2 contracts without changing model, prediction, odds-capture, settlement, database-write, or production workflow behavior.\n\nVerified implementation sequence:\n\n- Step 1 commit `ae75e1a`: stable read contracts, Stockholm-owned product date, entity navigation, league route, real 404, typed Auto/Results contracts, and watchlist resolution.\n- Step 2 commit `ba775d7`: match, team, and league drilldowns with persisted odds, actuals, forward evidence, teamprofile contexts, league-relative deviations, rankings, and clickable history.\n- Step 3 commit `4aae1ff`: shareable read-only filters, server pagination, persisted history rows, and stable pagination with previous data retained while the next page loads.\n- Step 4 commit `202df85`: persisted model/policy runtime statuses and visible jobs/health/audits; observation counts are explicitly not treated as proof of forward ROI or CLV.\n- Step 5 commit `37ba528`: keyboard skip link, date-only shared navigation state, mobile access to model/system tools, narrow-layout hardening, and route-shell regression coverage.\n\nFinal hosted verification on `style-1` commit `37ba528d00446e6b788d288e381609d962c29e45`:\n\n- frontend Actions run `31648971262`: dependency audits found 0 vulnerabilities; hardcoded-preview guard passed; TypeScript passed; ESLint passed; 12 Vitest files / 45 tests passed; Vite production build passed;\n- backend-isolation run `31648971290`: complete Python suite passed `434/434`;\n- the frontend runtime does not contain the known preview match/card fixtures guarded by CI, and the UI does not infer proof from row counts;\n- read-side additions are confined to `src/ullebets_v2/read_api/**` plus read-API tests. No model training/scoring policy, prediction write, odds acquisition, settlement, or database write path was changed by the frontend work.\n\nRemaining truth boundary: model-specific in-domain forward ROI, model-specific in-domain CLV/beat-close evidence, live T-30/T-10/closing lifecycle proof, production deployment, and complete operational acceptance remain `UNPROVEN`, `BLOCKED`, `PARTIAL`, or `NOT STARTED` exactly as their independent evidence requires.\n'''
+              work = work.replace(marker, marker + entry, 1)
+          work_path.write_text(work, encoding='utf-8')
+
+          readiness_path = Path('docs/app-readiness-checklist.md')
+          readiness = readiness_path.read_text(encoding='utf-8')
+          readiness = readiness.replace('Last updated: 2026-08-12', 'Last updated: 2026-08-13', 1)
+          blocker = '- [ ] `NOT STARTED` Build the frontend and a stable frontend read API.\n'
+          readiness = readiness.replace(blocker, '', 1)
+          start = readiness.find('## 11. Frontend and product surface')
+          end = readiness.find('## 12. Release readiness')
+          if start < 0 or end < 0 or end <= start:
+              raise SystemExit('frontend readiness section markers missing')
+          section = '''## 11. Frontend and product surface\n\n- [x] `VERIFIED` A stable read-only API now exposes the fixture/dashboard, match, league, team, Auto, results, model, and system contracts required by the frontend without adding write behavior.\n- [x] `VERIFIED` The complete `style-1` frontend is implemented across the five primary destinations plus match, team, league, model, system-status, and real not-found routes.\n- [x] `VERIFIED` Today's/upcoming matches and match detail are rendered from read contracts, including available scores, market offers, actuals, checkpoints, team comparison, and forward evidence.\n- [x] `VERIFIED` Team statistics are explorable by home/away context, FOR/AGAINST orientation, period, rank, and league-relative deviation; league stat rankings are also available.\n- [x] `VERIFIED` Registered forward selections expose offered odds, model probability, expected ROI field, model/policy identities, and persisted runtime status without presenting observation counts as proof.\n- [x] `VERIFIED` Settled forward-result rows can show persisted ROI/PnL, closing odds, official CLV status/value, settlement state, exclusions, and linked match/team/league entities. This verifies the product surface, not positive forward efficacy.\n- [ ] `PARTIAL` Data freshness, missing-data, exclusion, health, and audit states are shown on the relevant surfaces, but uniform freshness metadata across every product section still depends on the source/read contract carrying it.\n- [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, 45 frontend tests, and production build all pass on `style-1` run `31648971262`.\n\n'''
+          readiness = readiness[:start] + section + readiness[end:]
+          readiness = readiness.replace(
+              '- [x] Current V2 regression suite passes `408/408`.',
+              '- [x] Current V2 regression suite passes `434/434` on `style-1` backend-isolation run `31648971290`.',
+              1,
+          )
+          readiness_path.write_text(readiness, encoding='utf-8')
+          PY
+
+      - name: Verify documentation diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git diff -- docs/work-log.md docs/app-readiness-checklist.md
+
+      - name: Commit documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "ulle73"
+          git config user.email "145575457+ulle73@users.noreply.github.com"
+          git add docs/work-log.md docs/app-readiness-checklist.md
+          git diff --cached --check
+          git commit -m "docs: record verified style-1 frontend surface"
+          git push origin HEAD:style-1-docs-finalize
