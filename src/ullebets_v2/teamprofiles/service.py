@@ -21,6 +21,7 @@ from ullebets_v2.teamprofiles.specials import (
 
 
 PERIODS = ("ALL", "1ST", "2ND")
+MATCH_KEY_QUERY_BATCH_SIZE = 50
 
 
 def utc_now() -> datetime:
@@ -85,6 +86,11 @@ def build_teamprofile_docs(
     filtered_results = [row for row in match_results_canonical if _include_result_row(row, profile_date)]
     if not filtered_results:
         return []
+    result_match_keys = {
+        str(row["match_key"])
+        for row in filtered_results
+        if row.get("match_key") is not None
+    }
 
     stats_lookup: dict[tuple[str, str, str, str], float] = {}
     stat_periods_by_match: dict[str, set[tuple[str, str]]] = defaultdict(set)
@@ -95,8 +101,7 @@ def build_teamprofile_docs(
         scope = str(row.get("scope") or "")
         if not match_key or not stat_key or scope not in {"home", "away"}:
             continue
-        result_row = next((item for item in filtered_results if str(item.get("match_key") or "") == match_key), None)
-        if result_row is None:
+        if match_key not in result_match_keys:
             continue
         value = row.get("actual_value")
         if not isinstance(value, (int, float)):
@@ -274,29 +279,68 @@ def load_canonical_rows(
     *,
     profile_date: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    results = list(database["match_results_canonical"].find({}, projection={"_id": 0}))
+    result_query: dict[str, Any] = {}
     if profile_date is not None:
-        results = [row for row in results if _include_result_row(row, profile_date)]
-    match_keys = [str(row.get("match_key")) for row in results if row.get("match_key") is not None]
+        result_query["source_date"] = {"$lt": profile_date}
+    results = list(
+        database["match_results_canonical"].find(
+            result_query,
+            projection={
+                "_id": 0,
+                "match_key": 1,
+                "source_match_id": 1,
+                "source_date": 1,
+                "start_time": 1,
+                "league_key": 1,
+                "league_name": 1,
+                "home_team_key": 1,
+                "home_team_name": 1,
+                "home_team_id": 1,
+                "away_team_key": 1,
+                "away_team_name": 1,
+                "away_team_id": 1,
+            },
+        )
+    )
+    # Keep the local guard so a permissive database substitute cannot include future matches.
+    results = [row for row in results if _include_result_row(row, profile_date)]
+    match_keys = sorted({str(row["match_key"]) for row in results if row.get("match_key") is not None})
     if not match_keys:
         return [], [], [], []
-    stats = list(
-        database["match_stats_canonical"].find(
-            {"match_key": {"$in": match_keys}},
-            projection={"_id": 0},
-        )
+
+    def load_by_match_key_batches(
+        collection_name: str,
+        projection: dict[str, int],
+    ) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for offset in range(0, len(match_keys), MATCH_KEY_QUERY_BATCH_SIZE):
+            batch = match_keys[offset : offset + MATCH_KEY_QUERY_BATCH_SIZE]
+            rows.extend(
+                database[collection_name].find(
+                    {"match_key": {"$in": batch}},
+                    projection=projection,
+                )
+            )
+        return rows
+
+    stats = load_by_match_key_batches(
+        "match_stats_canonical",
+        {
+            "_id": 0,
+            "match_key": 1,
+            "stat_key": 1,
+            "period": 1,
+            "scope": 1,
+            "actual_value": 1,
+        },
     )
-    raw_incidents = list(
-        database["raw_incidents"].find(
-            {"match_key": {"$in": match_keys}},
-            projection={"_id": 0},
-        )
+    raw_incidents = load_by_match_key_batches(
+        "raw_incidents",
+        {"_id": 0, "match_key": 1, "payload": 1},
     )
-    raw_shotmaps = list(
-        database["raw_shotmaps"].find(
-            {"match_key": {"$in": match_keys}},
-            projection={"_id": 0},
-        )
+    raw_shotmaps = load_by_match_key_batches(
+        "raw_shotmaps",
+        {"_id": 0, "match_key": 1, "payload": 1},
     )
     return stats, results, raw_incidents, raw_shotmaps
 

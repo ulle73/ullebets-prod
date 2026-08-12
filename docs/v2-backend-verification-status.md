@@ -1,11 +1,43 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-08
+Last updated: 2026-08-12
 Branch: `main`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Cosmos Teamprofile And V6 Score-Idempotency Repair On 2026-08-12
+
+Two production defects were reproduced and repaired without changing model
+features, artifact, policy, or any frozen document:
+
+- the profile build previously sent all 579 historical `match_key` values in
+  one `match_stats_canonical` `$in` query; the real read-only Cosmos query
+  failed with `ExceededTimeLimit`;
+- a V6 rerun encountered a stored immutable score whose probability differed
+  by `5.55e-17` and EV by `1.11e-16`, despite identical inputs, features,
+  artifact, and policy. Exact JSON fingerprinting treated that harmless
+  machine precision variation as a conflict.
+
+The repaired reader applies `source_date < profile_date` in Cosmos, projects
+only the fields needed by teamprofiles, batches stats/incidents/shotmaps in
+50-match requests, and indexes results in memory. V6 persistence now accepts
+only a fully equivalent existing score with numeric variation no greater than
+`1e-12`; it increments `precision_equivalent_existing`, never updates the
+stored score, and still fails closed for material differences or a corrupted
+stored fingerprint.
+
+Verification:
+
+- regression tests failed before implementation: `3 failed, 7 passed`;
+- teamprofile and forward-score regression suite: `10/10` passed;
+- full V2 suite: `415/415` passed;
+- `python -m compileall -q src` and `git diff --check` passed.
+
+Status: `PARTIAL`. The failure modes are code- and database-read-reproduced,
+but the next full hosted teamprofile build and the next scheduled V6 rerun
+must confirm the repaired production executions.
 
 ## Capture-Triggered V6 Scoring On 2026-08-08
 

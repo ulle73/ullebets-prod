@@ -4,7 +4,10 @@ import json
 
 from ullebets_v2.teamprofiles.persistence import persist_teamprofile_records
 from ullebets_v2.enrichment.replay import build_match_enrichment_documents, build_teamstats_source_rows
-from ullebets_v2.teamprofiles.service import run_teamprofile_build
+from ullebets_v2.teamprofiles.service import (
+    load_canonical_rows,
+    run_teamprofile_build,
+)
 
 from tests.v2.test_match_enrichment import build_support_docs, build_match_record
 
@@ -22,9 +25,18 @@ class FakeDeleteResult:
 class FakeCollection:
     def __init__(self, docs: list[dict] | None = None) -> None:
         self.docs = list(docs or [])
+        self.find_queries: list[dict] = []
 
     def _matches(self, doc: dict, query: dict) -> bool:
         for key, value in query.items():
+            if isinstance(value, dict) and "$lt" in value:
+                if doc.get(key) is None or doc[key] >= value["$lt"]:
+                    return False
+                continue
+            if isinstance(value, dict) and "$in" in value:
+                if doc.get(key) not in value["$in"]:
+                    return False
+                continue
             if isinstance(value, dict) and "$nin" in value:
                 if doc.get(key) in value["$nin"]:
                     return False
@@ -32,6 +44,12 @@ class FakeCollection:
             if doc.get(key) != value:
                 return False
         return True
+
+    def find(self, query: dict | None = None, projection: dict | None = None) -> list[dict]:
+        del projection
+        resolved_query = query or {}
+        self.find_queries.append(resolved_query)
+        return [dict(doc) for doc in self.docs if self._matches(doc, resolved_query)]
 
     def update_one(self, query: dict, update: dict, upsert: bool = False) -> FakeUpdateResult:
         for doc in self.docs:
@@ -63,6 +81,57 @@ class FakeDatabase(dict):
         if collection_name not in self:
             self[collection_name] = FakeCollection()
         return dict.__getitem__(self, collection_name)
+
+
+def test_load_canonical_rows_filters_results_in_database_and_batches_match_keys() -> None:
+    profile_date = "2026-01-01"
+    match_keys = [f"sofascore:{index}" for index in range(101)]
+    database = FakeDatabase(
+        {
+            "match_results_canonical": FakeCollection(
+                [
+                    {"match_key": match_key, "source_date": "2025-12-31"}
+                    for match_key in match_keys
+                ]
+                + [
+                    {
+                        "match_key": "sofascore:excluded",
+                        "source_date": profile_date,
+                    }
+                ]
+            ),
+            "match_stats_canonical": FakeCollection(
+                [{"match_key": match_key, "stat_key": "cornerKicks"} for match_key in match_keys]
+            ),
+            "raw_incidents": FakeCollection(
+                [{"match_key": match_key, "payload": []} for match_key in match_keys]
+            ),
+            "raw_shotmaps": FakeCollection(
+                [{"match_key": match_key, "payload": []} for match_key in match_keys]
+            ),
+        }
+    )
+
+    stats, results, incidents, shotmaps = load_canonical_rows(
+        database,
+        profile_date=profile_date,
+    )
+
+    assert len(results) == len(match_keys)
+    assert len(stats) == len(match_keys)
+    assert len(incidents) == len(match_keys)
+    assert len(shotmaps) == len(match_keys)
+    assert database["match_results_canonical"].find_queries == [
+        {"source_date": {"$lt": profile_date}}
+    ]
+    for collection_name in (
+        "match_stats_canonical",
+        "raw_incidents",
+        "raw_shotmaps",
+    ):
+        queries = database[collection_name].find_queries
+        assert len(queries) == 3
+        assert all(len(query["match_key"]["$in"]) <= 50 for query in queries)
 
 
 def build_second_match() -> dict:

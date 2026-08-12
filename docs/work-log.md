@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-08
+Last updated: 2026-08-12
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `413/413`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `415/415`.
 
 ### Backend
 
@@ -95,6 +95,12 @@ Valid empty source responses are not failures when no matches or markets exist.
   closing capture that persists at least one new snapshot. The separate
   ten-minute scoring schedule is removed; a hosted write-mode due window must
   still prove the complete chain.
+- `VERIFIED`: the V2 teamprofile reader now filters results in Cosmos DB and
+  reads canonical stats/incidents/shotmaps in 50-match batches. This removes
+  the reproduced timeout from a 579-key `$in` query.
+- `VERIFIED`: immutable V6 score persistence now treats only numeric
+  differences of at most `1e-12` as equivalent, while preserving the stored
+  document and rejecting every material or corrupted score difference.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -163,17 +169,58 @@ Detailed model history:
 
 ## Next justified tests
 
-1. Verify the first current T-3D capture after 5 August 07:00 UTC.
-2. Verify the subsequent T-2H, T-30, and T-10 captures without manual time
+1. Run the repaired teamprofile build against the full production canonical
+   history and verify a successful hosted `job_runs` row.
+2. Verify the next V6 checkpoint rerun reuses precision-equivalent scores and
+   records no immutable conflict.
+3. Verify the next current T-3D capture.
+4. Verify the subsequent T-2H, T-30, and T-10 captures without manual time
    simulation.
-3. Materialize a valid prematch closing line and refresh CLV from it.
-4. Score future matches from one of V6's six supported leagues before kickoff.
-5. Settle those in-domain selections without changing artifact, features,
+5. Materialize a valid prematch closing line and refresh CLV from it.
+6. Score future matches from one of V6's six supported leagues before kickoff.
+7. Settle those in-domain selections without changing artifact, features,
    thresholds, scopes, periods, or registry.
-6. Evaluate forward ROI and CLV only after sufficient untouched observations
+8. Evaluate forward ROI and CLV only after sufficient untouched observations
    exist.
 
 ## Chronological entries
+
+### 2026-08-12 - Cosmos teamprofile and V6 score-idempotency repair
+
+Status: `PARTIAL`
+
+Changed `src/ullebets_v2/teamprofiles/service.py` and
+`src/ullebets_v2/ev_model/forward_scores.py`, with regression coverage in
+`tests/v2/test_teamprofiles.py` and `tests/v2/test_ev_forward_scores.py`.
+
+Root-cause evidence from the production-read-only investigation:
+
+- a single `match_stats_canonical` request for 579 historical `match_key`
+  values timed out in Cosmos DB with `ExceededTimeLimit`;
+- a stored V6 score and a rerun score had identical inputs, artifact, features,
+  and policy, but differed by `5.55e-17` in probability and `1.11e-16` in EV,
+  producing different exact JSON fingerprints.
+
+The reader now sends the historical date constraint to Cosmos, projects only
+needed fields, batches every dependent `match_key` query in groups of 50, and
+uses an in-memory result index rather than repeatedly scanning every result.
+Score persistence now reads the existing immutable row in full and accepts it
+only when all fields are identical except numeric machine precision within an
+absolute `1e-12` tolerance. It never overwrites an existing score; material
+field changes and corrupted stored fingerprints still fail closed.
+
+Tests run:
+
+- failing regression run before implementation:
+  `python -m pytest -q tests/v2/test_teamprofiles.py tests/v2/test_ev_forward_scores.py`
+  resulted in `3 failed, 7 passed`;
+- same targeted command after implementation: `10 passed`;
+- `python -m pytest -q`: `415 passed`;
+- `python -m compileall -q src` and `git diff --check`: passed.
+
+The code-level and database-read reproduction are verified. A full hosted
+teamprofile build and the next scheduled V6 rerun are still required to prove
+the repaired production executions.
 
 ### 2026-08-08 - Capture-triggered V6 scoring
 

@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-08
+Last updated: 2026-08-12
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -84,6 +84,10 @@ Status details and evidence:
   41/41 matches have raw statistics, incidents, shotmaps, results, scored
   canonical results, and exactly 27 primary-stat rows each.
 - [x] Teamprofiles can be rebuilt from canonical history.
+- [ ] `PARTIAL` The full production teamprofile build must run once after the
+  2026-08-12 Cosmos batching repair. The old 579-key query timed out; the
+  repaired reader now uses date filtering and 50-match batches, verified by
+  regression and full-suite tests.
 - [ ] `PARTIAL` Run and save a live/parity acceptance report for
   `matchups_score`.
 - [ ] `PARTIAL` Run and save a live/parity acceptance report for
@@ -134,6 +138,11 @@ Current acceptance window:
 - [x] Registry V5 resolves to 20 immutable policies with a stable fingerprint.
 - [x] Production forward scoring is configured to use only the frozen V6
   artifact and a separate immutable V6 forward-policy registry.
+- [x] Immutable score persistence preserves stored rows and accepts only
+  machine-precision-equivalent numeric reruns (absolute tolerance `1e-12`);
+  material changes and corrupt fingerprints still fail closed.
+- [ ] `PARTIAL` The next hosted V6 rerun must confirm that an equivalent
+  existing production score is reused without an immutable-conflict failure.
 - [ ] `PARTIAL` V6 scoring is bound to each accepted odds checkpoint and
   closing capture that persists a new snapshot. Local workflow contracts pass;
   hosted write-mode evidence from a real due checkpoint is still required.
