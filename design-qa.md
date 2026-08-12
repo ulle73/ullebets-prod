@@ -1,4 +1,6 @@
-# Design QA: match analytics
+# Design QA
+
+## Match analytics
 
 ## Result
 
@@ -31,3 +33,32 @@ The final implementation was compared together with the selected visual target a
 - Real V2 match data, team profiles and local crest assets render without synthetic fallback data.
 - The browser console returned zero errors in desktop and mobile checks.
 - Frontend typecheck, lint, all 23 frontend tests, production build, and all 401 V2 backend tests passed.
+
+## Auto forward ledger
+
+### Result
+
+**PARTIAL** on 2026-08-10.
+
+The desktop implementation is visually and functionally verified against the
+live V2 read API. Mobile acceptance remains outstanding.
+
+### Evidence
+
+- Target: `docs/design-references/auto-forward-ledger-target.png`
+- Implemented route: `http://localhost:5173/auto`
+- Live read: 67 raw rows -> 4 canonical straight exposures
+- Excluded: 46 combo legs and 8 shadow-only rows
+- Collapsed: 9 repeated export exposures
+- Registered V6: 0; legacy: 4
+- Full backend suite: 434 passed
+- Full frontend suite: 23 passed
+- Frontend typecheck, lint, and production build passed
+- Desktop V6 empty state and Legacy ledger rendered with zero console errors
+
+### Remaining visual checks
+
+1. Repeat at a mobile viewport and verify no body-level horizontal overflow.
+2. Fix any mobile-only mismatch before changing this result to passed.
+
+final result: partial

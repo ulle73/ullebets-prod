@@ -102,6 +102,37 @@ def test_run_forward_result_refresh_dry_run_builds_settled_clv_tracked_rows() ->
     assert row["odds_captured_after_start"] is False
 
 
+def test_forward_results_use_one_canonical_straight_exposure() -> None:
+    shared = {
+        "selection_key": "shared-selection",
+        "tracking_key": "shared-selection",
+        "match_key": "match-1",
+        "stat_key": "cornerKicks",
+        "period": "ALL",
+        "scope": "total",
+        "direction": "over",
+        "line_value": 10.5,
+        "saved_odds": 2.0,
+        "match_start_time": "2026-07-28T10:00:00Z",
+    }
+    summary = run_forward_result_refresh(
+        forward_bet_docs=[
+            shared | {"prediction_key": "first", "prediction_type": "single", "saved_at": "2026-07-28T09:00:00Z"},
+            shared | {"prediction_key": "replay", "prediction_type": "single", "saved_at": "2026-07-28T09:05:00Z"},
+            shared | {"prediction_key": "combo-leg", "prediction_type": "combo", "export_mode": "combos", "saved_at": "2026-07-28T09:00:00Z"},
+        ],
+        clv_tracking_docs=[],
+        settled_bet_docs=[],
+        dry_run=True,
+        refreshed_at=datetime(2026, 7, 28, 9, 30, tzinfo=UTC),
+    )
+
+    assert summary["forward_results"] == 1
+    assert summary["result_docs"][0]["prediction_key"] == "first"
+    assert summary["forward_exposure_audit"]["excluded_combo_leg_count"] == 1
+    assert summary["forward_exposure_audit"]["collapsed_duplicate_count"] == 1
+
+
 def test_forward_results_report_t30_fallback_separately() -> None:
     summary = run_forward_result_refresh(
         forward_bet_docs=[

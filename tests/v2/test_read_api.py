@@ -410,6 +410,7 @@ def test_auto_count_covers_full_collection_even_when_rows_are_limited() -> None:
                 {"selection_key": "s2", "match_key": "m2", "match_start_time": datetime(2026, 8, 8, 12, tzinfo=UTC)},
             ]
         ),
+        forward_results=FakeCollection([]),
         fixtures_canonical=FakeCollection([]),
     )
 
@@ -418,6 +419,139 @@ def test_auto_count_covers_full_collection_even_when_rows_are_limited() -> None:
     assert payload["summary"]["total"] == 2
     assert payload["page"] == {"limit": 1, "offset": 0, "hasMore": True}
     assert len(payload["selections"]) == 1
+
+
+def test_auto_joins_settlement_and_classifies_v6_from_frozen_provenance() -> None:
+    database = FakeDatabase(
+        forward_bets=FakeCollection(
+            [
+                {
+                    "prediction_key": "prediction-v6",
+                    "match_key": "sofascore:123",
+                    "match_start_time": datetime(2026, 8, 9, 18, tzinfo=UTC),
+                    "stat_key": "cornerKicks",
+                    "period": "ALL",
+                    "scope": "away",
+                    "direction": "over",
+                    "line_value": 4.5,
+                    "selected_odds": 1.91,
+                    "predicted_win_probability": 0.61,
+                    "expected_roi_units": 0.165,
+                    "prediction_type": "ev_registered_score_policy",
+                    "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+                    "selection_policy_id": "v6_corners_away_total_forward_v1",
+                    "selection_policy_registry_id": "forward_policy_registry_v1",
+                    "valid_for_forward_evaluation": True,
+                    "invalid_for_model": False,
+                }
+            ]
+        ),
+        forward_results=FakeCollection(
+            [
+                {
+                    "result_loop_key": "prediction-v6",
+                    "prediction_key": "prediction-v6",
+                    "result_loop_status": "settled",
+                    "settlement_status": "settled",
+                    "settlement_result": "win",
+                    "actual_value": 6,
+                    "pnl_units": 0.91,
+                    "stake_units": 1.0,
+                    "valid_for_performance": True,
+                }
+            ]
+        ),
+        fixtures_canonical=FakeCollection([fixture_row()]),
+    )
+
+    payload = read_auto(database)
+
+    assert payload["selections"][0] == {
+        "selectionKey": "prediction-v6",
+        "matchKey": "sofascore:123",
+        "homeTeamName": "Home FC",
+        "awayTeamName": "Away FC",
+        "leagueName": "Test League",
+        "statKey": "cornerKicks",
+        "period": "ALL",
+        "scope": "away",
+        "direction": "over",
+        "lineValue": 4.5,
+        "selectedOdds": 1.91,
+        "predictedWinProbability": 0.61,
+        "expectedRoiUnits": 0.165,
+        "modelId": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+        "modelStatus": None,
+        "policyId": "v6_corners_away_total_forward_v1",
+        "selectionFamily": "v6",
+        "matchStartTime": "2026-08-09T18:00:00Z",
+        "validForForwardEvaluation": True,
+        "invalidForModel": False,
+        "resultStatus": "settled",
+        "settlementStatus": "settled",
+        "settlementResult": "win",
+        "actualValue": 6,
+        "pnlUnits": 0.91,
+        "stakeUnits": 1.0,
+        "validForPerformance": True,
+    }
+
+
+def test_auto_excludes_combo_legs_and_collapses_replayed_legacy_exposure() -> None:
+    shared = {
+        "selection_key": "legacy-selection",
+        "match_key": "sofascore:123",
+        "match_start_time": datetime(2026, 8, 9, 18, tzinfo=UTC),
+        "stat_key": "cornerKicks",
+        "period": "ALL",
+        "scope": "away",
+        "direction": "over",
+        "line_value": 4.5,
+        "saved_odds": 1.91,
+        "invalid_for_model": False,
+    }
+    database = FakeDatabase(
+        forward_bets=FakeCollection(
+            [
+                shared | {"prediction_key": "legacy-first", "prediction_type": "single", "saved_at": datetime(2026, 8, 9, 10, tzinfo=UTC)},
+                shared | {"prediction_key": "legacy-replay", "prediction_type": "single", "saved_at": datetime(2026, 8, 9, 11, tzinfo=UTC)},
+                shared | {"prediction_key": "combo-leg", "prediction_type": "combo", "export_mode": "combos", "saved_at": datetime(2026, 8, 9, 10, tzinfo=UTC)},
+                shared
+                | {
+                    "prediction_key": "v6-prediction",
+                    "selection_key": "v6-prediction",
+                    "prediction_type": "ev_registered_score_policy",
+                    "model_id": "ev_scope_interaction_recency45_asof_capped_v6",
+                    "model_status": "forward_test_only",
+                    "selection_policy_id": "v6_corners_away_total_forward_v1",
+                    "selection_policy_registry_id": "forward_policy_registry_v1",
+                    "selected_odds": 1.95,
+                    "predicted_win_probability": 0.61,
+                    "expected_roi_units": 0.165,
+                    "odds_snapshot_time": datetime(2026, 8, 9, 12, tzinfo=UTC),
+                    "prediction_created_at": datetime(2026, 8, 9, 12, 1, tzinfo=UTC),
+                    "valid_for_forward_evaluation": True,
+                },
+            ]
+        ),
+        forward_results=FakeCollection([]),
+        fixtures_canonical=FakeCollection([fixture_row()]),
+    )
+
+    payload = read_auto(database)
+
+    assert payload["rawCount"] == 4
+    assert payload["count"] == 2
+    assert payload["excludedComboLegCount"] == 1
+    assert payload["collapsedDuplicateCount"] == 1
+    assert [row["selectionKey"] for row in payload["selections"]] == [
+        "v6-prediction",
+        "legacy-first",
+    ]
+    assert [row["selectionFamily"] for row in payload["selections"]] == [
+        "v6",
+        "legacy",
+    ]
 
 
 def test_results_summary_covers_full_collection_even_when_rows_are_limited() -> None:

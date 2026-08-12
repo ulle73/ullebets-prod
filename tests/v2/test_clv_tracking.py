@@ -144,7 +144,7 @@ def test_run_clv_tracking_keeps_t30_fallback_separate_from_official_clv() -> Non
     assert summary["fallback_clv_rows"] == 1
 
 
-def test_run_clv_tracking_refresh_dry_run_keeps_distinct_prediction_rows_for_same_tracking_key() -> None:
+def test_run_clv_tracking_refresh_freezes_first_canonical_exposure() -> None:
     summary = run_clv_tracking_refresh(
         tracked_bet_docs=[
             {
@@ -197,9 +197,10 @@ def test_run_clv_tracking_refresh_dry_run_keeps_distinct_prediction_rows_for_sam
         refreshed_at=datetime(2026, 7, 30, 0, 26, tzinfo=UTC),
     )
 
-    assert summary["clv_tracking_rows"] == 2
-    assert [row["clv_key"] for row in summary["clv_docs"]] == ["pred-1", "pred-2"]
-    assert all(row["tracking_key"] == "shared-selection" for row in summary["clv_docs"])
+    assert summary["clv_tracking_rows"] == 1
+    assert summary["clv_docs"][0]["clv_key"] == "pred-1"
+    assert summary["clv_docs"][0]["tracking_key"] == "shared-selection"
+    assert summary["forward_exposure_audit"]["collapsed_duplicate_count"] == 1
 
 
 def test_run_clv_tracking_refresh_dry_run_marks_missing_closing_and_invalid_timing() -> None:

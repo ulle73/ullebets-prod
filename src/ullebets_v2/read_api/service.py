@@ -939,36 +939,33 @@ def read_results(
     if status:
         query["result_loop_status"] = status
     query = _with_league_filter(database, query, league_key)
-    collection = database[FORWARD_RESULTS]
-    total = collection.count_documents(query)
-    valid_settled = {**query, "settlement_status": "settled", "valid_for_performance": True}
-    settled = collection.count_documents(valid_settled)
-    wins = collection.count_documents({**valid_settled, "win": True})
-    losses = collection.count_documents({**valid_settled, "win": False})
-    pushes = collection.count_documents({**valid_settled, "settlement_result": "push"})
-    excluded = collection.count_documents({**query, "valid_for_performance": False})
-    rows = _find_rows(
-        database,
-        FORWARD_RESULTS,
-        query,
-        sort=[("match_start_time", -1)],
-        offset=page_offset,
-        limit=page_limit,
-    )
+    raw_rows = _find_rows(database, FORWARD_RESULTS, query)
+    canonical_rows, exposure_audit = canonicalize_forward_bet_docs(raw_rows)
+    canonical_rows.sort(key=lambda row: str(_iso(row.get("match_start_time")) or ""), reverse=True)
+    valid_settled = [
+        row
+        for row in canonical_rows
+        if row.get("settlement_status") == "settled" and row.get("valid_for_performance") is True
+    ]
+    rows = canonical_rows[page_offset:page_offset + page_limit]
     fixtures = _fixture_lookup(database, [str(row.get("match_key")) for row in rows if row.get("match_key")])
     return {
         "summary": {
-            "rows": total,
-            "settled": settled,
-            "wins": wins,
-            "losses": losses,
-            "pushes": pushes,
-            "excluded": excluded,
+            "rows": len(canonical_rows),
+            "settled": len(valid_settled),
+            "wins": sum(1 for row in valid_settled if row.get("settlement_result") == "win"),
+            "losses": sum(1 for row in valid_settled if row.get("settlement_result") == "loss"),
+            "pushes": sum(1 for row in valid_settled if row.get("settlement_result") == "push"),
+            "excluded": sum(1 for row in canonical_rows if row.get("valid_for_performance") is False),
         },
+        "rawCount": exposure_audit["raw_count"],
+        "excludedComboLegCount": exposure_audit["excluded_combo_leg_count"],
+        "excludedShadowPredictionCount": exposure_audit["excluded_shadow_prediction_count"],
+        "collapsedDuplicateCount": exposure_audit["collapsed_duplicate_count"],
         "page": {
             "limit": page_limit,
             "offset": page_offset,
-            "hasMore": page_offset + len(rows) < total,
+            "hasMore": page_offset + len(rows) < len(canonical_rows),
         },
         "rows": [_result_read_model(row, fixtures.get(str(row.get("match_key") or ""), {})) for row in rows],
     }
@@ -977,16 +974,25 @@ def read_results(
 def read_model(database: Any) -> dict[str, Any]:
     scores = database[EV_MODEL_SCORES]
     forward = database[FORWARD_BETS]
-    results = database[FORWARD_RESULTS]
     model_ids = sorted(str(value) for value in scores.distinct("model_id") if value)
     policy_ids = sorted(str(value) for value in forward.distinct("selection_policy_id") if value)
+    canonical_forward, _ = canonicalize_forward_bet_docs(_find_rows(database, FORWARD_BETS, {}))
+    canonical_results, _ = canonicalize_forward_bet_docs(_find_rows(database, FORWARD_RESULTS, {}))
     return {
         "modelIds": model_ids,
         "policyIds": policy_ids,
         "scoreCount": scores.count_documents({}),
-        "forwardSelectionCount": forward.count_documents({}),
-        "settledForwardCount": results.count_documents({"settlement_status": "settled", "valid_for_performance": True}),
-        "officialClvCount": results.count_documents({"clv_status": "available", "closing_quality": "t10"}),
+        "forwardSelectionCount": len(canonical_forward),
+        "settledForwardCount": sum(
+            1
+            for row in canonical_results
+            if row.get("settlement_status") == "settled" and row.get("valid_for_performance") is True
+        ),
+        "officialClvCount": sum(
+            1
+            for row in canonical_results
+            if row.get("clv_status") == "tracked" and row.get("official_clv") is True
+        ),
     }
 
 

@@ -9,6 +9,7 @@ describe('complete Style-1 route surface', () => {
     renderApp('/auto', {
       '/api/v1/dashboard': dashboard,
       '/api/v1/auto': {
+        count: 1, rawCount: 1, excludedComboLegCount: 0, excludedShadowPredictionCount: 0, collapsedDuplicateCount: 0,
         summary: { total: 1, valid: 1, excluded: 0 },
         page: { limit: 50, offset: 0, hasMore: false },
         selections: [{
@@ -16,12 +17,13 @@ describe('complete Style-1 route surface', () => {
           homeTeamKey: 'a', awayTeamKey: 'b', homeTeamName: 'A', awayTeamName: 'B', statKey: 'cornerKicks', period: 'ALL', scope: 'away', direction: 'OVER',
           lineValue: 4.5, selectedOdds: 1.91, predictedWinProbability: 0.61, expectedRoiUnits: 0.09, modelId: 'model-live', modelStatus: 'forward_test_only',
           policyId: 'policy-live', policyStatus: 'shadow', snapshotKey: 'snap', offerKey: 'offer', oddsSnapshotTime: null, predictionCreatedAt: null,
-          matchStartTime: null, validForForwardEvaluation: true, invalidForModel: false,
+          matchStartTime: null, validForForwardEvaluation: true, invalidForModel: false, selectionFamily: 'v6', resultStatus: null,
+          settlementStatus: null, settlementResult: null, actualValue: null, pnlUnits: null, stakeUnits: null, validForPerformance: null,
         }],
       },
     });
-    expect(await screen.findByRole('heading', { name: 'Auto' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'A' })).toHaveAttribute('href', '/lag/a');
+    expect(await screen.findByRole('heading', { name: 'V6 Forward' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Öppna A mot B' })).toHaveAttribute('href', '/matcher/m1');
     expect(screen.getByText('1,91')).toBeInTheDocument();
   });
 

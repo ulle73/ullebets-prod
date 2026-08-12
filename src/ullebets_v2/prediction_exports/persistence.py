@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.forward_exposures import is_combo_leg
 from ullebets_v2.storage.collections import FORWARD_BETS, PREDICTION_EXPORTS
 
 
@@ -24,13 +25,35 @@ def persist_prediction_export_records(
         export_upserts += 1 if result.upserted_id is not None else 0
 
     forward_bet_upserts = 0
+    forward_bet_existing = 0
     for row in forward_bet_docs:
-        result = database[FORWARD_BETS].update_one(
+        collection = database[FORWARD_BETS]
+        existing = collection.find_one(
+            {"canonical_exposure_key": row["canonical_exposure_key"]},
+            projection={"_id": 0, "prediction_key": 1},
+        )
+        if existing is None and row.get("selection_key"):
+            existing = next(
+                (
+                    candidate
+                    for candidate in collection.find(
+                        {"selection_key": row["selection_key"]},
+                        projection={"_id": 0},
+                    )
+                    if not is_combo_leg(candidate)
+                ),
+                None,
+            )
+        if existing is not None:
+            forward_bet_existing += 1
+            continue
+        result = collection.update_one(
             {"prediction_key": row["prediction_key"]},
-            {"$set": row},
+            {"$setOnInsert": row},
             upsert=True,
         )
         forward_bet_upserts += 1 if result.upserted_id is not None else 0
+        forward_bet_existing += 1 if result.upserted_id is None else 0
 
     parity_upserts = 0
     for row in parity_rows:
@@ -66,6 +89,7 @@ def persist_prediction_export_records(
     return {
         "prediction_export_upserts": export_upserts,
         "forward_bet_upserts": forward_bet_upserts,
+        "forward_bet_existing": forward_bet_existing,
         "parity_upserts": parity_upserts,
         "audit_upserts": audit_upserts,
         "health_upserts": health_upserts,

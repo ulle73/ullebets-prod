@@ -11,6 +11,7 @@ from ullebets_v2.clv_tracking.reports import (
     build_clv_tracking_parity_rows,
 )
 from ullebets_v2.forward_timing import evaluate_forward_timing
+from ullebets_v2.forward_exposures import canonicalize_forward_bet_docs
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
 from ullebets_v2.storage.collections import CLOSING_LINES, FORWARD_BETS
 
@@ -114,6 +115,14 @@ def _normalize_tracking_doc(row: dict[str, Any]) -> dict[str, Any]:
         "run_id": row.get("run_id"),
         "export_mode": row.get("export_mode"),
         "prediction_type": row.get("prediction_type"),
+        "model_id": row.get("model_id"),
+        "model_status": row.get("model_status"),
+        "selection_policy_id": row.get("selection_policy_id"),
+        "selection_policy_status": row.get("selection_policy_status"),
+        "selection_policy_registry_id": row.get(
+            "selection_policy_registry_id"
+        ),
+        "canonical_exposure_key": row.get("canonical_exposure_key"),
         "bet_key": row.get("bet_key") or row.get("trackingKey"),
         "match_key": match_key,
         "source_match_id": source_match_id,
@@ -596,13 +605,21 @@ def run_clv_tracking_refresh(
 ) -> dict[str, Any]:
     timestamp = refreshed_at or utc_now()
     tracked_rows = tracked_bet_docs if tracked_bet_docs is not None else model_snapshot_docs
+    tracks_forward_exposures = tracked_bet_docs is not None
     if tracked_rows is None:
         if database is not None:
             tracked_rows = load_forward_bet_docs(database)
             if not tracked_rows:
                 tracked_rows = load_model_snapshot_docs(database)
+            else:
+                tracks_forward_exposures = True
         else:
             tracked_rows = []
+    exposure_audit: dict[str, int] | None = None
+    if tracks_forward_exposures:
+        tracked_rows, exposure_audit = canonicalize_forward_bet_docs(
+            tracked_rows
+        )
     closing_lines = closing_line_docs
     if closing_lines is None:
         if database is not None:
@@ -679,6 +696,8 @@ def run_clv_tracking_refresh(
         },
         "clv_docs": clv_docs,
     }
+    if exposure_audit is not None:
+        summary["forward_exposure_audit"] = exposure_audit
     if dry_run:
         return summary
     if database is None:

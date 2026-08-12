@@ -9,6 +9,7 @@ from ullebets_v2.analysis.service import (
     load_analysis_run_doc_from_database,
 )
 from ullebets_v2.analysis.service import run_auto_analysis_pipeline
+from ullebets_v2.forward_exposures import forward_exposure_key
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
 from ullebets_v2.prediction_exports.combos import build_combos
 from ullebets_v2.prediction_exports.persistence import persist_prediction_export_records
@@ -242,44 +243,43 @@ def build_forward_bet_docs(
 ) -> list[dict[str, Any]]:
     docs: list[dict[str, Any]] = []
     for export_doc in prediction_export_docs:
+        if export_doc.get("prediction_type") != "single":
+            continue
         for leg_index, leg in enumerate(export_doc.get("legs", []), start=1):
-            prediction_key = (
-                export_doc["prediction_key"]
-                if export_doc.get("prediction_type") == "single"
-                else f"{export_doc['prediction_key']}|leg{leg_index}"
-            )
-            docs.append(
-                {
-                    "prediction_key": prediction_key,
-                    "parent_prediction_key": export_doc["prediction_key"],
-                    "export_mode": export_mode,
-                    "prediction_type": export_doc.get("prediction_type"),
-                    "run_id": export_doc.get("run_id"),
-                    "analysis_key": export_doc.get("analysis_key"),
-                    "selection_key": leg.get("selection_key"),
-                    "tracking_key": leg.get("selection_key"),
-                    "match_key": leg.get("match_key"),
-                    "source_match_id": leg.get("source_match_id"),
-                    "offer_key": leg.get("offer_key"),
-                    "home_team_name": leg.get("home_team_name"),
-                    "away_team_name": leg.get("away_team_name"),
-                    "league_name": leg.get("league_name"),
-                    "stat_key": leg.get("stat_key"),
-                    "scope": leg.get("scope"),
-                    "period": leg.get("period"),
-                    "direction": leg.get("direction"),
-                    "line_value": leg.get("line_value"),
-                    "saved_odds": leg.get("selected_odds"),
-                    "primary_ev": leg.get("primary_ev"),
-                    "strategy_score": leg.get("strategy_score"),
-                    "headline": leg.get("headline"),
-                    "saved_at": generated_at,
-                    "match_start_time": leg.get("match_start_time"),
-                    "invalid_for_model": False,
-                    "leg_index": leg_index,
-                    "leg_count": export_doc.get("leg_count"),
-                }
-            )
+            row = {
+                "parent_prediction_key": export_doc["prediction_key"],
+                "export_mode": export_mode,
+                "prediction_type": export_doc.get("prediction_type"),
+                "run_id": export_doc.get("run_id"),
+                "analysis_key": export_doc.get("analysis_key"),
+                "selection_key": leg.get("selection_key"),
+                "tracking_key": leg.get("selection_key"),
+                "match_key": leg.get("match_key"),
+                "source_match_id": leg.get("source_match_id"),
+                "offer_key": leg.get("offer_key"),
+                "home_team_name": leg.get("home_team_name"),
+                "away_team_name": leg.get("away_team_name"),
+                "league_name": leg.get("league_name"),
+                "stat_key": leg.get("stat_key"),
+                "scope": leg.get("scope"),
+                "period": leg.get("period"),
+                "direction": leg.get("direction"),
+                "line_value": leg.get("line_value"),
+                "selected_odds": leg.get("selected_odds"),
+                "saved_odds": leg.get("selected_odds"),
+                "primary_ev": leg.get("primary_ev"),
+                "strategy_score": leg.get("strategy_score"),
+                "headline": leg.get("headline"),
+                "saved_at": generated_at,
+                "match_start_time": leg.get("match_start_time"),
+                "invalid_for_model": False,
+                "leg_index": leg_index,
+                "leg_count": export_doc.get("leg_count"),
+            }
+            canonical_exposure_key = forward_exposure_key(row)
+            row["canonical_exposure_key"] = canonical_exposure_key
+            row["prediction_key"] = canonical_exposure_key
+            docs.append(row)
     return docs
 
 

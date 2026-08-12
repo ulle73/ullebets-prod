@@ -335,6 +335,7 @@ def build_core_index_plan() -> list[dict[str, Any]]:
             "collection": FORWARD_BETS,
             "indexes": [
                 {"keys": [("prediction_key", 1)], "name": "prediction_key_unique", "unique": True},
+                {"keys": [("canonical_exposure_key", 1)], "name": "canonical_exposure_key"},
                 {"keys": [("selection_key", 1)], "name": "selection_key"},
                 {
                     "keys": [

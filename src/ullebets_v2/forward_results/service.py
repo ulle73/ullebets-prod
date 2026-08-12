@@ -3,6 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from ullebets_v2.forward_exposures import (
+    canonicalize_forward_bet_docs,
+    forward_selection_family,
+)
 from ullebets_v2.clv_tracking.service import build_clv_tracking_docs, load_closing_line_docs
 from ullebets_v2.forward_timing import evaluate_forward_timing
 from ullebets_v2.forward_results.persistence import persist_forward_result_records
@@ -186,6 +190,19 @@ def build_forward_result_docs(
                 "run_id": row.get("run_id"),
                 "export_mode": row.get("export_mode"),
                 "prediction_type": row.get("prediction_type"),
+                "model_id": row.get("model_id"),
+                "model_status": row.get("model_status"),
+                "selection_policy_id": row.get("selection_policy_id"),
+                "selection_policy_status": row.get(
+                    "selection_policy_status"
+                ),
+                "selection_policy_registry_id": row.get(
+                    "selection_policy_registry_id"
+                ),
+                "selection_family": forward_selection_family(row),
+                "canonical_exposure_key": row.get(
+                    "canonical_exposure_key"
+                ) or row.get("exposure_key"),
                 "selection_key": row.get("selection_key"),
                 "tracking_key": row.get("tracking_key"),
                 "match_key": row.get("match_key"),
@@ -200,6 +217,10 @@ def build_forward_result_docs(
                 "scope": row.get("scope"),
                 "direction": row.get("direction"),
                 "line_value": row.get("line_value"),
+                "predicted_win_probability": row.get(
+                    "predicted_win_probability"
+                ),
+                "expected_roi_units": row.get("expected_roi_units"),
                 "saved_odds": _to_float(row.get("saved_odds")),
                 "saved_at": row.get("odds_snapshot_time")
                 or row.get("saved_at"),
@@ -295,6 +316,7 @@ def run_forward_result_refresh(
     tracked_rows = forward_bet_docs
     if tracked_rows is None:
         tracked_rows = load_forward_bet_docs(database) if database is not None else []
+    tracked_rows, exposure_audit = canonicalize_forward_bet_docs(tracked_rows)
 
     clv_rows = clv_tracking_docs
     if clv_rows is None:
@@ -392,6 +414,7 @@ def run_forward_result_refresh(
         "job": "refresh_forward_results",
         "refreshed_at": timestamp.isoformat(),
         "forward_bets": len(tracked_rows),
+        "forward_exposure_audit": exposure_audit,
         "clv_tracking_rows": len(clv_rows),
         "settled_bets": len(settled_rows),
         "forward_results": len(result_docs),

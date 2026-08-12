@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from ullebets_v2.forward_exposures import canonicalize_forward_bet_docs
 from ullebets_v2.forward_timing import evaluate_forward_timing
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
 from ullebets_v2.settlement.common import (
@@ -278,6 +279,9 @@ def _run_selection_settlement(
             selections = []
         else:
             selections = _load_selection_docs(database, selection_source=selection_source)
+    exposure_audit: dict[str, int] | None = None
+    if selection_source == FORWARD_BET_SELECTION_SOURCE:
+        selections, exposure_audit = canonicalize_forward_bet_docs(selections)
     if stats is None or results is None:
         if database is None:
             stats = stats or []
@@ -363,6 +367,8 @@ def _run_selection_settlement(
         },
         "settled_docs": settled_docs,
     }
+    if exposure_audit is not None:
+        summary["forward_exposure_audit"] = exposure_audit
     if dry_run:
         return summary
     if database is None:

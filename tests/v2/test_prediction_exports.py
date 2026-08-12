@@ -43,6 +43,7 @@ class InsertableFakeCollection:
             return FakeUpdateResult(upserted=False)
         new_doc = dict(query)
         new_doc.update(update.get("$set", {}))
+        new_doc.update(update.get("$setOnInsert", {}))
         self.docs.append(new_doc)
         return FakeUpdateResult(upserted=True)
 
@@ -194,8 +195,40 @@ def test_run_prediction_export_pipeline_dry_run_builds_combo_exports() -> None:
     assert summary["analysis_candidates"] == 2
     assert summary["source_candidates"] == 2
     assert summary["prediction_exports"] == 1
-    assert summary["forward_bets"] == 2
+    assert summary["forward_bets"] == 0
     assert summary["parity_status_counts"] == {"matched": 1}
+
+
+def test_repeated_single_exports_freeze_one_canonical_forward_exposure() -> None:
+    database = InsertableFakeDatabase()
+    candidate = build_candidate(
+        selection_key="sel-1",
+        match_key="match-1",
+        source_match_id="match-1",
+        home_team="Arsenal",
+        away_team="Bournemouth",
+        odds=1.9,
+        ev=8.2,
+        score=82,
+        best=True,
+    )
+
+    for export_mode in ("daily", "user-closing"):
+        run_prediction_export_pipeline(
+            export_mode=export_mode,
+            source_workflow=f"{export_mode}.yml",
+            analysis_run_doc=build_analysis_run(),
+            analysis_candidate_docs=[candidate],
+            database=database,
+            dry_run=False,
+            fetched_at=datetime(2026, 6, 22, 10, 0, tzinfo=UTC),
+        )
+
+    assert database["prediction_exports"].count_documents() == 2
+    assert database["forward_bets"].count_documents() == 1
+    row = database["forward_bets"].docs[0]
+    assert row["canonical_exposure_key"]
+    assert row["export_mode"] == "daily"
 
 
 def test_run_prediction_export_pipeline_dry_run_handles_empty_candidates() -> None:

@@ -1,0 +1,46 @@
+.auto-exposure-audit {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(32, 184, 196, 0.16);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: rgba(32, 184, 196, 0.035);
+  font-size: 9px;
+  letter-spacing: 0.035em;
+}
+
+.auto-exposure-audit span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.auto-exposure-audit strong {
+  color: var(--color-text);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.auto-cell--model {
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auto-cell--model small {
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 600px) {
+  .auto-exposure-audit {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 12px;
+  }
+}

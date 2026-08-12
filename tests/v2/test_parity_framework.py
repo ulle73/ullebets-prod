@@ -76,6 +76,11 @@ def test_forward_bets_index_supports_registered_policy_dedupe() -> None:
         ("selection_policy_id", 1),
         ("match_key", 1),
     ]
+    exposure_index = next(
+        index for index in forward_plan["indexes"]
+        if index["name"] == "canonical_exposure_key"
+    )
+    assert exposure_index["keys"] == [("canonical_exposure_key", 1)]
 
 
 def test_workflow_matrix_uses_suffix_free_v2_outputs() -> None:
