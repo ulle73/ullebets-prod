@@ -16,8 +16,13 @@ def persist_teamprofile_records(
 ) -> dict[str, int]:
     profile_upserts = 0
     for row in profile_docs:
+        profile_identity = {
+            "team_key": row["team_key"],
+            "profile_date": row["profile_date"],
+            "match_type": row["match_type"],
+        }
         result = database[TEAMPROFILES].update_one(
-            {"profile_key": row["profile_key"]},
+            profile_identity,
             {"$set": row},
             upsert=True,
         )

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import math
 
 import pandas as pd
 import pytest
 
 from ullebets_v2.ev_model.forward_scores import (
+    _sha256_json,
+    _score_fingerprint,
     audit_forward_score_docs,
     build_forward_score_docs,
     persist_forward_score_docs,
@@ -132,16 +135,66 @@ def test_forward_scores_are_immutable_and_idempotent() -> None:
         "inserted": 1,
         "existing": 0,
         "conflicts": 0,
+        "precision_equivalent_existing": 0,
     }
     assert second == {
         "inserted": 0,
         "existing": 1,
         "conflicts": 0,
+        "precision_equivalent_existing": 0,
     }
 
     changed = [{**docs[0], "expected_roi_units": 0.5}]
+    changed[0]["score_fingerprint_sha256"] = _score_fingerprint(changed[0])
     with pytest.raises(RuntimeError, match="immutable score conflict"):
         persist_forward_score_docs(collection, changed)
+
+
+def test_forward_scores_reuse_machine_precision_equivalent_score_without_overwrite() -> None:
+    docs = build_forward_score_docs(
+        _score_frame(),
+        model_id="model-v3",
+        artifact_sha256="artifact-hash",
+        training_end="2026-05-24",
+        feature_columns=["history_role_attack_10"],
+        created_at=datetime(2026, 7, 30, 11, 0, tzinfo=UTC),
+    )
+    stored = {
+        **docs[0],
+        "predicted_win_probability": math.nextafter(
+            docs[0]["predicted_win_probability"],
+            math.inf,
+        ),
+        "expected_roi_units": math.nextafter(
+            docs[0]["expected_roi_units"],
+            math.inf,
+        ),
+        "odds_snapshot_time": docs[0]["odds_snapshot_time"].replace(tzinfo=None),
+        "match_start_time": docs[0]["match_start_time"].replace(tzinfo=None),
+        "feature_values": {
+            **docs[0]["feature_values"],
+            "history_role_attack_10": math.nextafter(
+                docs[0]["feature_values"]["history_role_attack_10"],
+                math.inf,
+            ),
+        },
+    }
+    stored["feature_fingerprint_sha256"] = _sha256_json(
+        stored["feature_values"]
+    )
+    stored["score_fingerprint_sha256"] = _score_fingerprint(stored)
+    collection = FakeCollection()
+    collection.rows[stored["score_key"]] = stored
+
+    metrics = persist_forward_score_docs(collection, docs)
+
+    assert metrics == {
+        "inserted": 0,
+        "existing": 1,
+        "conflicts": 0,
+        "precision_equivalent_existing": 1,
+    }
+    assert collection.rows[stored["score_key"]] == stored
 
 
 def test_forward_score_audit_detects_timing_outcome_and_fingerprint_risks() -> None:

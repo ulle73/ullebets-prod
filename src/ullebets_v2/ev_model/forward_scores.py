@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import hashlib
 import json
+import math
 from typing import Any, Iterable
 
 import numpy as np
@@ -15,6 +16,8 @@ FINGERPRINT_EXCLUDED_COLUMNS = {
     "score_created_at",
     "score_fingerprint_sha256",
 }
+DERIVED_FINGERPRINT_COLUMNS = {"feature_fingerprint_sha256"}
+FLOAT_EQUIVALENCE_ABS_TOLERANCE = 1e-12
 
 
 def _value(value: Any) -> Any:
@@ -67,6 +70,72 @@ def _score_fingerprint(doc: dict[str, Any]) -> str:
             if key not in FINGERPRINT_EXCLUDED_COLUMNS
         }
     )
+
+
+def _normalize_datetime_utc(value: datetime) -> datetime:
+    normalized = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    return normalized.astimezone(UTC)
+
+
+def _has_valid_feature_fingerprint(doc: dict[str, Any]) -> bool:
+    feature_values = doc.get("feature_values")
+    return (
+        isinstance(feature_values, dict)
+        and doc.get("feature_fingerprint_sha256")
+        == _sha256_json(feature_values)
+    )
+
+
+def _score_values_equivalent(left: Any, right: Any) -> bool:
+    left = _value(left)
+    right = _value(right)
+    if isinstance(left, datetime) or isinstance(right, datetime):
+        if not isinstance(left, datetime) or not isinstance(right, datetime):
+            return False
+        return _normalize_datetime_utc(left) == _normalize_datetime_utc(right)
+    if isinstance(left, bool) or isinstance(right, bool):
+        return left is right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return math.isclose(
+            float(left),
+            float(right),
+            rel_tol=0.0,
+            abs_tol=FLOAT_EQUIVALENCE_ABS_TOLERANCE,
+        )
+    if isinstance(left, dict) or isinstance(right, dict):
+        if not isinstance(left, dict) or not isinstance(right, dict):
+            return False
+        return left.keys() == right.keys() and all(
+            _score_values_equivalent(left[key], right[key])
+            for key in left
+        )
+    if isinstance(left, (list, tuple)) or isinstance(right, (list, tuple)):
+        if not isinstance(left, (list, tuple)) or not isinstance(right, (list, tuple)):
+            return False
+        return len(left) == len(right) and all(
+            _score_values_equivalent(item_left, item_right)
+            for item_left, item_right in zip(left, right, strict=True)
+        )
+    return left == right
+
+
+def _score_documents_equivalent(existing: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    excluded_columns = {
+        *FINGERPRINT_EXCLUDED_COLUMNS,
+        *DERIVED_FINGERPRINT_COLUMNS,
+        "_id",
+    }
+    existing_values = {
+        key: value
+        for key, value in existing.items()
+        if key not in excluded_columns
+    }
+    candidate_values = {
+        key: value
+        for key, value in candidate.items()
+        if key not in excluded_columns
+    }
+    return _score_values_equivalent(existing_values, candidate_values)
 
 
 def audit_forward_score_docs(
@@ -296,7 +365,12 @@ def persist_forward_score_docs(
     collection: Any,
     docs: list[dict[str, Any]],
 ) -> dict[str, int]:
-    metrics = {"inserted": 0, "existing": 0, "conflicts": 0}
+    metrics = {
+        "inserted": 0,
+        "existing": 0,
+        "conflicts": 0,
+        "precision_equivalent_existing": 0,
+    }
     for doc in docs:
         expected_fingerprint = _score_fingerprint(doc)
         if doc.get("score_fingerprint_sha256") != expected_fingerprint:
@@ -306,22 +380,25 @@ def persist_forward_score_docs(
             )
         existing = collection.find_one(
             {"score_key": doc["score_key"]},
-            projection={
-                "_id": 0,
-                "score_key": 1,
-                "score_fingerprint_sha256": 1,
-            },
+            projection={"_id": 0},
         )
         if existing is not None:
+            existing_fingerprint = existing.get("score_fingerprint_sha256")
+            if existing_fingerprint == expected_fingerprint:
+                metrics["existing"] += 1
+                continue
             if (
-                existing.get("score_fingerprint_sha256")
-                != expected_fingerprint
+                existing_fingerprint != _score_fingerprint(existing)
+                or not _has_valid_feature_fingerprint(existing)
+                or not _has_valid_feature_fingerprint(doc)
+                or not _score_documents_equivalent(existing, doc)
             ):
                 metrics["conflicts"] += 1
                 raise RuntimeError(
                     f"immutable score conflict for {doc['score_key']}"
                 )
             metrics["existing"] += 1
+            metrics["precision_equivalent_existing"] += 1
             continue
         result = collection.update_one(
             {"score_key": doc["score_key"]},

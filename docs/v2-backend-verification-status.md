@@ -1,11 +1,102 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-08
+Last updated: 2026-08-12
 Branch: `main`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Production-Database Teamprofile And V6 Rerun On 2026-08-12
+
+The two newly repaired paths were tested in write mode against `ullebets_v2`.
+They are database-verified; hosted GitHub Actions evidence remains separate.
+
+### Teamprofiles
+
+The first complete run `cd422e097d584acfa1996caf05088a66` succeeded with:
+
+- 585 canonical results
+- 147,408 canonical stats
+- 1,107 raw incidents
+- 1,105 raw shotmaps
+- 265 dated teamprofiles
+- matched parity and `ok` audit/health reports
+
+A read-only timing probe isolated the historical reader at `242.565 s` and
+profile construction at `2.536 s`. The original upsert predicate used
+unindexed `profile_key`, even though `teamprofiles` has the unique index
+`team_key + profile_date + match_type`. That caused the first full write run
+to take about 15 minutes.
+
+Persistence now uses the indexed unique identity. The complete idempotent
+rerun `62deff7b22704dc5a229ee6b39101100` succeeded with all 265 profiles and
+no duplicate inserts. Its post-read write stage took `123.665 s`; the full
+local command took `407.641 s`, dominated by the large historical read.
+
+### V6 Score Archive
+
+The first exact production scorer command failed closed on run
+`6b5e26b5a61c491494ef7eda8a6a5ec7`. The conflicting stored/rebuilt score had
+the same raw inputs, artifact, policy, and semantic feature values; only
+`market_anchor_lambda` differed by about `4e-16`. Its derived feature
+fingerprint consequently changed and the earlier equivalence check rejected
+the row.
+
+The repair validates each row's feature fingerprint but excludes that derived
+hash from semantic equality. It compares actual nested feature values with an
+absolute `1e-12` tolerance, never overwrites the frozen document, and still
+fails for a material feature change or corrupted fingerprint.
+
+Rerun `33145640a5c54676b20bd6716ca74dbe` then succeeded:
+
+- valid prematch snapshots read: `308`
+- canonical market rows: `60`
+- frozen V6 score rows: `105`
+- inserted/existing/conflicts: `0 / 105 / 0`
+- precision-equivalent existing scores: `49`
+- in-domain/out-of-domain scores: `42 / 63`
+- registered forward bets created: `0`
+
+The 63 Brazilian rows remain archived diagnostics and are excluded from
+selection. The 42 La Liga rows are in-domain scores, but V6 remains
+score-only and produced no forward bets.
+
+Status: `PARTIAL`. V2 database behavior is proven in write mode. A hosted
+`main` run of the two relevant GitHub Actions jobs is still required to prove
+workflow environment and automation parity.
+
+## Cosmos Teamprofile And V6 Score-Idempotency Repair On 2026-08-12
+
+Two production defects were reproduced and repaired without changing model
+features, artifact, policy, or any frozen document:
+
+- the profile build previously sent all 579 historical `match_key` values in
+  one `match_stats_canonical` `$in` query; the real read-only Cosmos query
+  failed with `ExceededTimeLimit`;
+- a V6 rerun encountered a stored immutable score whose probability differed
+  by `5.55e-17` and EV by `1.11e-16`, despite identical inputs, features,
+  artifact, and policy. Exact JSON fingerprinting treated that harmless
+  machine precision variation as a conflict.
+
+The repaired reader applies `source_date < profile_date` in Cosmos, projects
+only the fields needed by teamprofiles, batches stats/incidents/shotmaps in
+50-match requests, and indexes results in memory. V6 persistence validates
+the derived feature fingerprint, then accepts only raw feature values with
+numeric variation no greater than `1e-12`; it increments
+`precision_equivalent_existing`, never updates the stored score, and still
+fails closed for material differences or a corrupted stored fingerprint.
+
+Verification:
+
+- regression tests failed before implementation: `3 failed, 7 passed`;
+- teamprofile and forward-score regression suite: `10/10` passed;
+- full V2 suite: `415/415` passed;
+- `python -m compileall -q src` and `git diff --check` passed.
+
+Status: `PARTIAL`. The failure modes are code- and database-read-reproduced,
+but the next full hosted teamprofile build and the next scheduled V6 rerun
+must confirm the repaired production executions.
 
 ## Capture-Triggered V6 Scoring On 2026-08-08
 
