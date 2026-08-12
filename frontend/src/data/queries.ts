@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   fetchAuto,
   fetchDashboard,
@@ -52,6 +52,7 @@ export function useAuto(query: AutoQuery = {}) {
   return useQuery({
     queryKey: ['auto', query],
     queryFn: ({ signal }) => fetchAuto(query, signal),
+    placeholderData: keepPreviousData,
     staleTime: 15_000,
   });
 }
@@ -60,6 +61,7 @@ export function useResults(query: ResultsQuery = {}) {
   return useQuery({
     queryKey: ['results', query],
     queryFn: ({ signal }) => fetchResults(query, signal),
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
   });
 }
