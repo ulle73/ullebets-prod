@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - style-1
+      - style-1-step3
     paths:
       - "frontend/**"
       - ".github/workflows/style-1-frontend.yml"
