@@ -5,6 +5,7 @@ on:
     branches:
       - style-1
       - style-1-tdd
+      - style-1-step1
     paths:
       - "frontend/**"
       - "src/ullebets_v2/read_api/**"
