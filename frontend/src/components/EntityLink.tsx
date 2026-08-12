@@ -9,7 +9,7 @@ type EntityLinkProps = {
   children: ReactNode;
   className?: string;
   ariaLabel?: string;
-} & Omit<ComponentPropsWithoutRef<'span'>, 'children' | 'className'>;
+} & Omit<ComponentPropsWithoutRef<'span'>, 'children' | 'className' | 'id'>;
 
 function entityPath(kind: EntityKind, id: string): string {
   const encoded = encodeURIComponent(id);
