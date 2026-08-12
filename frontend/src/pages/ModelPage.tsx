@@ -29,7 +29,7 @@ export function ModelPage() {
       <PageHeader
         eyebrow="Modell & evidens"
         title="Modell & proof"
-        subtitle="Visar registrerade modell- och policystatusar samt evidensvolym. Antal observationer är inte proof på positiv forward-ROI eller CLV."
+        subtitle="Visar registrerade modell- och policystatusar samt evidensvolym utan att tolka observationsantal som verifierad avkastning."
       />
       <div className="metric-tile-grid metric-tile-grid--4">
         <MetricTile label="Modellscorer" value={data.scoreCount} detail="Registrerade scorer" icon={<Activity size={14} />} />
