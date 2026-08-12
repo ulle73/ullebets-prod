@@ -25,10 +25,14 @@ export function OverviewPage() {
   if (dashboard.isError) {
     return <StateNotice state="failed" title="Dagens matcher kunde inte hämtas" detail="Försök igen om en stund. Ingen reservdata visas när källan inte kan nås." />;
   }
+  if (!dashboard.data) {
+    return <StateNotice state="empty" title="Ingen matchdata tillgänglig" detail="Det finns ingen läsbar data för den aktuella vyn." />;
+  }
 
-  const sourceLabel = dashboard.data?.matchupSource === 'computed_read_only'
+  const data = dashboard.data;
+  const sourceLabel = data.matchupSource === 'computed_read_only'
     ? 'Aktuell matchup-ranking'
-    : dashboard.data?.matchupSource === 'persisted'
+    : data.matchupSource === 'persisted'
       ? 'Matchup-ranking'
       : 'Ranking saknas';
 
@@ -41,16 +45,16 @@ export function OverviewPage() {
           <p className="page-subtitle">Jämför dagens högst rankade OVER- och UNDER-matchups per stat, period och lagkontext.</p>
         </div>
         <div className="summary-strip" aria-label="Översiktsstatus">
-          <span><CalendarDays size={14} />{dashboard.data.selectedDate}</span>
-          <span><Activity size={14} />{dashboard.data.matches.length} matcher</span>
+          <span><CalendarDays size={14} />{data.selectedDate}</span>
+          <span><Activity size={14} />{data.matches.length} matcher</span>
           <span>{sourceLabel}</span>
         </div>
       </section>
 
-      {dashboard.data.matches.length === 0 ? (
+      {data.matches.length === 0 ? (
         <StateNotice state="empty" title="Inga matcher för valt datum" detail="Välj ett annat datum för att se tillgängliga matcher." />
       ) : null}
-      {dashboard.data.matches.length > 0 && matchups.length === 0 ? (
+      {data.matches.length > 0 && matchups.length === 0 ? (
         <StateNotice state="empty" title="Matchup-ranking saknas" detail="Matcher finns för dagen, men det finns ännu inte tillräcklig data för en matchup-ranking." />
       ) : null}
 
