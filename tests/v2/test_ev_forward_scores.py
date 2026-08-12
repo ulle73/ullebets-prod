@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from ullebets_v2.ev_model.forward_scores import (
+    _sha256_json,
     _score_fingerprint,
     audit_forward_score_docs,
     build_forward_score_docs,
@@ -170,7 +171,17 @@ def test_forward_scores_reuse_machine_precision_equivalent_score_without_overwri
         ),
         "odds_snapshot_time": docs[0]["odds_snapshot_time"].replace(tzinfo=None),
         "match_start_time": docs[0]["match_start_time"].replace(tzinfo=None),
+        "feature_values": {
+            **docs[0]["feature_values"],
+            "history_role_attack_10": math.nextafter(
+                docs[0]["feature_values"]["history_role_attack_10"],
+                math.inf,
+            ),
+        },
     }
+    stored["feature_fingerprint_sha256"] = _sha256_json(
+        stored["feature_values"]
+    )
     stored["score_fingerprint_sha256"] = _score_fingerprint(stored)
     collection = FakeCollection()
     collection.rows[stored["score_key"]] = stored

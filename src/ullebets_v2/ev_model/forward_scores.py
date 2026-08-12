@@ -16,6 +16,7 @@ FINGERPRINT_EXCLUDED_COLUMNS = {
     "score_created_at",
     "score_fingerprint_sha256",
 }
+DERIVED_FINGERPRINT_COLUMNS = {"feature_fingerprint_sha256"}
 FLOAT_EQUIVALENCE_ABS_TOLERANCE = 1e-12
 
 
@@ -76,6 +77,15 @@ def _normalize_datetime_utc(value: datetime) -> datetime:
     return normalized.astimezone(UTC)
 
 
+def _has_valid_feature_fingerprint(doc: dict[str, Any]) -> bool:
+    feature_values = doc.get("feature_values")
+    return (
+        isinstance(feature_values, dict)
+        and doc.get("feature_fingerprint_sha256")
+        == _sha256_json(feature_values)
+    )
+
+
 def _score_values_equivalent(left: Any, right: Any) -> bool:
     left = _value(left)
     right = _value(right)
@@ -110,7 +120,11 @@ def _score_values_equivalent(left: Any, right: Any) -> bool:
 
 
 def _score_documents_equivalent(existing: dict[str, Any], candidate: dict[str, Any]) -> bool:
-    excluded_columns = {*FINGERPRINT_EXCLUDED_COLUMNS, "_id"}
+    excluded_columns = {
+        *FINGERPRINT_EXCLUDED_COLUMNS,
+        *DERIVED_FINGERPRINT_COLUMNS,
+        "_id",
+    }
     existing_values = {
         key: value
         for key, value in existing.items()
@@ -375,6 +389,8 @@ def persist_forward_score_docs(
                 continue
             if (
                 existing_fingerprint != _score_fingerprint(existing)
+                or not _has_valid_feature_fingerprint(existing)
+                or not _has_valid_feature_fingerprint(doc)
                 or not _score_documents_equivalent(existing, doc)
             ):
                 metrics["conflicts"] += 1

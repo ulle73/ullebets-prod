@@ -95,12 +95,18 @@ Valid empty source responses are not failures when no matches or markets exist.
   closing capture that persists at least one new snapshot. The separate
   ten-minute scoring schedule is removed; a hosted write-mode due window must
   still prove the complete chain.
-- `VERIFIED`: the V2 teamprofile reader now filters results in Cosmos DB and
-  reads canonical stats/incidents/shotmaps in 50-match batches. This removes
-  the reproduced timeout from a 579-key `$in` query.
-- `VERIFIED`: immutable V6 score persistence now treats only numeric
-  differences of at most `1e-12` as equivalent, while preserving the stored
-  document and rejecting every material or corrupted score difference.
+- `VERIFIED`: V2 rebuilt the full dated teamprofile snapshot in the production
+  database: 585 matches, 147,408 canonical stat rows, 1,107 incidents, 1,105
+  shotmaps, and 265 teamprofiles. The completed job recorded matched parity
+  plus `ok` audit and health reports.
+- `VERIFIED`: teamprofile persistence now uses the database's existing unique
+  identity (`team_key`, `profile_date`, `match_type`) rather than an
+  unindexed `profile_key`. The immediate full idempotent rebuild succeeded;
+  its write stage completed in 123.7 seconds after the historical read/build.
+- `VERIFIED`: V6 score persistence now compares raw feature values with an
+  absolute `1e-12` tolerance and independently validates their derived feature
+  fingerprint. A production-database rerun reused 105 frozen scores with zero
+  conflicts; 49 were precision-equivalent rows. It created zero forward bets.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -169,10 +175,10 @@ Detailed model history:
 
 ## Next justified tests
 
-1. Run the repaired teamprofile build against the full production canonical
-   history and verify a successful hosted `job_runs` row.
-2. Verify the next V6 checkpoint rerun reuses precision-equivalent scores and
-   records no immutable conflict.
+1. Verify the next hosted `update-teamstats-and-teamprofiles.yml` run executes
+   the repaired teamprofile persistence on `main`.
+2. Verify the next hosted V6 checkpoint/scorer rerun records no immutable
+   conflict on `main`.
 3. Verify the next current T-3D capture.
 4. Verify the subsequent T-2H, T-30, and T-10 captures without manual time
    simulation.
@@ -184,6 +190,57 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-12 - Production-database teamprofile and V6 rerun
+
+Status: `PARTIAL`
+
+Objective: run the two remaining V2 code paths against real current data,
+then diagnose and repair any real failure before accepting them.
+
+Production-database evidence in `ullebets_v2`:
+
+- `build_teamprofiles` run `cd422e097d584acfa1996caf05088a66` succeeded with
+  265 inserted dated profiles from 585 canonical results, 147,408 stat rows,
+  1,107 incidents, and 1,105 shotmaps. Its parity, audit, and health reports
+  were `matched`, `ok`, and `ok`.
+- A read-only phase measurement showed `242.565 s` for canonical loading and
+  `2.536 s` for profile building. The original write path then spent about 15
+  minutes on 265 sequential upserts because it queried unindexed
+  `profile_key`, while the collection's unique index is
+  `team_key + profile_date + match_type`.
+- Persistence now uses that indexed identity. The idempotent full rerun
+  `62deff7b22704dc5a229ee6b39101100` succeeded with all 265 profiles and
+  `0` duplicate writes; its write stage was `123.665 s`. The full local
+  command including historical data loading took `407.641 s`.
+- The first V6 rerun, `6b5e26b5a61c491494ef7eda8a6a5ec7`, correctly failed
+  closed. The stored and rebuilt values differed only in
+  `feature_values.market_anchor_lambda` by approximately `4e-16`, but its
+  derived `feature_fingerprint_sha256` differed and bypassed the earlier
+  tolerance rule.
+- The corrected V6 rerun `33145640a5c54676b20bd6716ca74dbe` succeeded on 308
+  valid prematch snapshots across five future fixtures. It reused all 105
+  frozen score rows with `0` conflicts; 49 were precision-equivalent. It kept
+  42 in-domain La Liga scores and excluded 63 Brazilian out-of-domain scores;
+  it created zero forward bets.
+
+Changes:
+
+- `teamprofiles/persistence.py` now upserts through the canonical unique
+  profile identity.
+- `forward_scores.py` validates the feature fingerprint independently but
+  compares actual feature values, not a derivative hash, for tolerant
+  immutable reuse.
+
+Tests:
+
+- targeted teamprofile and score regression tests: `10 passed`;
+- full V2 suite: `415 passed`;
+- `python -m compileall -q src` and `git diff --check`: passed.
+
+New insight: the two V2 database code paths are verified in write mode, but
+the exact GitHub Actions runners still need one hosted run on the deployed
+commit before the automation layer can be called fully verified.
 
 ### 2026-08-12 - Cosmos teamprofile and V6 score-idempotency repair
 
@@ -204,10 +261,11 @@ Root-cause evidence from the production-read-only investigation:
 The reader now sends the historical date constraint to Cosmos, projects only
 needed fields, batches every dependent `match_key` query in groups of 50, and
 uses an in-memory result index rather than repeatedly scanning every result.
-Score persistence now reads the existing immutable row in full and accepts it
-only when all fields are identical except numeric machine precision within an
-absolute `1e-12` tolerance. It never overwrites an existing score; material
-field changes and corrupted stored fingerprints still fail closed.
+Score persistence now reads the existing immutable row in full, validates the
+derived feature fingerprint, and accepts only raw values that differ by
+numeric machine precision within an absolute `1e-12` tolerance. It never
+overwrites an existing score; material field changes and corrupted stored
+fingerprints still fail closed.
 
 Tests run:
 

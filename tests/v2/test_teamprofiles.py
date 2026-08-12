@@ -26,6 +26,7 @@ class FakeCollection:
     def __init__(self, docs: list[dict] | None = None) -> None:
         self.docs = list(docs or [])
         self.find_queries: list[dict] = []
+        self.update_queries: list[dict] = []
 
     def _matches(self, doc: dict, query: dict) -> bool:
         for key, value in query.items():
@@ -52,6 +53,7 @@ class FakeCollection:
         return [dict(doc) for doc in self.docs if self._matches(doc, resolved_query)]
 
     def update_one(self, query: dict, update: dict, upsert: bool = False) -> FakeUpdateResult:
+        self.update_queries.append(dict(query))
         for doc in self.docs:
             if self._matches(doc, query):
                 for key, value in update.get("$set", {}).items():
@@ -334,8 +336,18 @@ def test_persist_teamprofile_records_replaces_stale_docs_for_same_profile_date()
     metrics = persist_teamprofile_records(
         database,
         profile_docs=[
-            {"profile_key": "current|team-a|home", "profile_date": "current", "team_key": "team-a"},
-            {"profile_key": "current|team-b|away", "profile_date": "current", "team_key": "team-b"},
+            {
+                "profile_key": "current|team-a|home",
+                "profile_date": "current",
+                "team_key": "team-a",
+                "match_type": "home",
+            },
+            {
+                "profile_key": "current|team-b|away",
+                "profile_date": "current",
+                "team_key": "team-b",
+                "match_type": "away",
+            },
         ],
         parity_rows=[],
         audit_rows=[],
@@ -348,3 +360,15 @@ def test_persist_teamprofile_records_replaces_stale_docs_for_same_profile_date()
     assert database["teamprofiles"].count_documents({"profile_key": "current|unknown:None|home"}) == 0
     assert database["teamprofiles"].count_documents({"profile_key": "2025-10-18|old-team|away"}) == 1
     assert database["teamprofiles"].count_documents({"profile_key": "2025-10-17|keep-team|home"}) == 1
+    assert database["teamprofiles"].update_queries == [
+        {
+            "team_key": "team-a",
+            "profile_date": "current",
+            "match_type": "home",
+        },
+        {
+            "team_key": "team-b",
+            "profile_date": "current",
+            "match_type": "away",
+        },
+    ]
