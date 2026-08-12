@@ -13,7 +13,7 @@ import type {
 type QueryValue = string | number | boolean | null | undefined;
 export type ApiQuery = Record<string, QueryValue>;
 
-export interface AutoQuery {
+export interface AutoQuery extends ApiQuery {
   limit?: number;
   offset?: number;
   league?: string;
@@ -25,7 +25,7 @@ export interface AutoQuery {
   policy?: string;
 }
 
-export interface ResultsQuery {
+export interface ResultsQuery extends ApiQuery {
   limit?: number;
   offset?: number;
   status?: string;
