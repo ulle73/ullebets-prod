@@ -1,0 +1,335 @@
+export type ReadState = 'ready' | 'loading' | 'empty' | 'failed' | 'excluded';
+export type EvidenceState = 'analysis' | 'forward-test' | 'historical' | 'excluded';
+export type MatchupCondition = 'OVER' | 'UNDER';
+export type MatchupSource = 'persisted' | 'computed_read_only' | 'missing';
+export type MatchState = 'upcoming' | 'live' | 'finished' | 'postponed' | 'cancelled' | 'unknown';
+
+export interface PageInfo {
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface MatchSummary {
+  matchKey: string;
+  sourceMatchId: string | number | null;
+  sourceDate: string | null;
+  startTime: string | null;
+  leagueKey: string | null;
+  leagueName: string | null;
+  homeTeamKey: string | null;
+  awayTeamKey: string | null;
+  homeTeamName: string | null;
+  awayTeamName: string | null;
+  statusType: string | null;
+  state: MatchState;
+  homeScore: number | null;
+  awayScore: number | null;
+  resultFetchedAt: string | null;
+}
+
+export interface MatchupEntry {
+  entryKey: string;
+  snapshotDate: string | null;
+  matchKey: string;
+  leagueKey: string | null;
+  leagueName: string | null;
+  homeTeamKey: string | null;
+  awayTeamKey: string | null;
+  homeTeamName: string | null;
+  awayTeamName: string | null;
+  statKey: string | null;
+  statLabel: string | null;
+  period: string | null;
+  periodLabel: string | null;
+  scope: string | null;
+  condition: MatchupCondition;
+  score: number | null;
+  rankPosition: number | null;
+  isTop50: boolean;
+  marketBias: unknown;
+  leagueBaseline: number | null;
+}
+
+export interface DashboardResponse {
+  selectedDate: string;
+  timezone: string;
+  generatedAt: string;
+  matches: MatchSummary[];
+  matchups: MatchupEntry[];
+  matchupSource: MatchupSource;
+}
+
+export interface MatchesResponse {
+  matches: MatchSummary[];
+}
+
+export interface CheckpointReadModel {
+  label: string;
+  snapshotType: string | null;
+  capturedAt: string | null;
+  minutesToKickoff: number | null;
+  invalidForModel: boolean;
+}
+
+export interface TeamStatRow {
+  statKey: string;
+  period: string;
+  homeValue: number | null;
+  awayValue: number | null;
+  homeRank: number | null;
+  awayRank: number | null;
+  homeLeagueAverage: number | null;
+  awayLeagueAverage: number | null;
+}
+
+export interface MatchResultSummary {
+  homeScore: number | null;
+  awayScore: number | null;
+  fetchedAt: string | null;
+  mappingConfidence: string | null;
+  hasMatchDetails: boolean | null;
+  hasIncidents: boolean | null;
+  hasShotmap: boolean | null;
+}
+
+export interface ActualStatRow {
+  statKey: string | null;
+  period: string | null;
+  scope: string | null;
+  actualValue: number | null;
+  mappingConfidence: string | null;
+}
+
+export interface MarketOffer {
+  offerKey: string | null;
+  eventId: string | null;
+  statKey: string | null;
+  scope: string | null;
+  period: string | null;
+  line: number | null;
+  overOdds: number | null;
+  underOdds: number | null;
+  sourceProvider: string | null;
+  payloadKind: string | null;
+  updatedAt: string | null;
+}
+
+export interface MatchDetailResponse {
+  match: MatchSummary;
+  matchups: MatchupEntry[];
+  matchupSource: MatchupSource;
+  leagueAverageMatchups: Record<string, unknown>[];
+  checkpoints: CheckpointReadModel[];
+  teamStats: TeamStatRow[];
+  result: MatchResultSummary | null;
+  actualStats: ActualStatRow[];
+  marketOffers: MarketOffer[];
+}
+
+export interface LeagueSummary {
+  leagueKey: string;
+  leagueName: string | null;
+  leagueId: string | number | null;
+  country: string | null;
+  seasonId: string | number | null;
+  categoryId: string | number | null;
+  groupId: string | number | null;
+  capturedAt: string | null;
+}
+
+export interface TeamSummary {
+  teamKey: string;
+  leagueKey: string | null;
+  teamId: string | number | null;
+  teamName: string | null;
+  teamImageUrl: string | null;
+  optaId: string | number | null;
+  optaRank: number | null;
+  optaRating: number | null;
+  capturedAt: string | null;
+}
+
+export interface LeagueRanking {
+  rankingType: string | null;
+  leagueAverageOptaRating: number | null;
+  data: unknown;
+  capturedAt: string | null;
+}
+
+export interface LeagueResponse {
+  league: LeagueSummary;
+  teams: TeamSummary[];
+  ranking: LeagueRanking | null;
+  matches: MatchSummary[];
+}
+
+export interface TeamProfileHistoryRow {
+  matchId?: string | number | null;
+  date?: string | null;
+  timestamp?: number | null;
+  opp?: string | null;
+  val?: number | null;
+  oppVal?: number | null;
+}
+
+export interface TeamProfileStatNode {
+  value?: number | null;
+  rank?: number | null;
+  history?: TeamProfileHistoryRow[];
+}
+
+export type TeamProfilePeriods = Record<string, TeamProfileStatNode>;
+export type TeamProfileStats = Record<string, TeamProfilePeriods>;
+
+export interface TeamProfileStatistics {
+  for?: TeamProfileStats;
+  against?: TeamProfileStats;
+  leagueAverage?: {
+    for?: TeamProfileStats;
+    against?: TeamProfileStats;
+  };
+}
+
+export interface TeamProfileGame {
+  matchId: string | number | null;
+  matchKey: string | null;
+  date: string | null;
+  timestamp: number | null;
+  opponentName: string | null;
+  opponentTeamKey: string | null;
+}
+
+export interface TeamProfileContext {
+  profileKey: string | null;
+  profileDate: string | null;
+  generatedAt: string | null;
+  matchType: string | null;
+  leagueTeamCount: number | null;
+  savedAt: string | null;
+  games: TeamProfileGame[];
+  statistics: TeamProfileStatistics;
+  specials: unknown;
+  behaviour: unknown;
+}
+
+export interface TeamResponse {
+  team: TeamSummary;
+  league: LeagueSummary | null;
+  contexts: {
+    home: TeamProfileContext | null;
+    away: TeamProfileContext | null;
+  };
+  matches: MatchSummary[];
+}
+
+export interface AutoSelection {
+  selectionKey: string | null;
+  predictionKey: string | null;
+  matchKey: string | null;
+  leagueKey: string | null;
+  leagueName: string | null;
+  homeTeamKey: string | null;
+  awayTeamKey: string | null;
+  homeTeamName: string | null;
+  awayTeamName: string | null;
+  statKey: string | null;
+  period: string | null;
+  scope: string | null;
+  direction: string | null;
+  lineValue: number | null;
+  selectedOdds: number | null;
+  predictedWinProbability: number | null;
+  expectedRoiUnits: number | null;
+  modelId: string | null;
+  modelStatus: string | null;
+  policyId: string | null;
+  policyStatus: string | null;
+  snapshotKey: string | null;
+  offerKey: string | null;
+  oddsSnapshotTime: string | null;
+  predictionCreatedAt: string | null;
+  matchStartTime: string | null;
+  validForForwardEvaluation: boolean | null;
+  invalidForModel: boolean;
+}
+
+export interface AutoResponse {
+  summary: { total: number; valid: number; excluded: number };
+  page: PageInfo;
+  selections: AutoSelection[];
+}
+
+export interface ForwardResult {
+  resultLoopKey: string | null;
+  predictionKey: string | null;
+  selectionKey: string | null;
+  trackingKey: string | null;
+  matchKey: string | null;
+  leagueKey: string | null;
+  leagueName: string | null;
+  homeTeamKey: string | null;
+  awayTeamKey: string | null;
+  homeTeamName: string | null;
+  awayTeamName: string | null;
+  statKey: string | null;
+  period: string | null;
+  scope: string | null;
+  direction: string | null;
+  lineValue: number | null;
+  savedOdds: number | null;
+  savedAt: string | null;
+  oddsSnapshotTime: string | null;
+  predictionCreatedAt: string | null;
+  matchStartTime: string | null;
+  settlementStatus: string | null;
+  settlementResult: string | null;
+  actualValue: number | null;
+  homeValue: number | null;
+  awayValue: number | null;
+  win: boolean | null;
+  roiUnits: number | null;
+  pnlUnits: number | null;
+  stakeUnits: number | null;
+  actualSource: string | null;
+  actualSourceStatus: string | null;
+  settledAt: string | null;
+  validForPerformance: boolean | null;
+  invalidForModel: boolean;
+  resultLoopStatus: string | null;
+  statusReason: string | null;
+  openingOdds: number | null;
+  latestObservedOdds: number | null;
+  closingOdds: number | null;
+  closingQuality: string | null;
+  closingSnapshotLabel: string | null;
+  closingSnapshotTime: string | null;
+  officialClv: boolean;
+  clvBasis: string | null;
+  clvStatus: string | null;
+  clvPct: number | null;
+  beatClosingLine: boolean | null;
+  prematchObservationCount: number | null;
+  refreshedAt: string | null;
+}
+
+export interface ResultsResponse {
+  summary: { rows: number; settled: number; wins: number; losses: number; pushes: number; excluded: number };
+  page: PageInfo;
+  rows: ForwardResult[];
+}
+
+export interface ModelResponse {
+  modelIds: string[];
+  policyIds: string[];
+  scoreCount: number;
+  forwardSelectionCount: number;
+  settledForwardCount: number;
+  officialClvCount: number;
+}
+
+export interface SystemResponse {
+  jobs: Record<string, unknown>[];
+  health: Record<string, unknown>[];
+  audits: Record<string, unknown>[];
+}

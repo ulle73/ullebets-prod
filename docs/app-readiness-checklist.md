@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -27,7 +27,6 @@ Status details and evidence:
 - [ ] `PARTIAL` Prove output parity for every original backend workflow.
 - [ ] `PARTIAL` Remove the runtime dependency on the old repository's JS
   oracle so V2 can run independently.
-- [ ] `NOT STARTED` Build the frontend and a stable frontend read API.
 - [ ] `NOT STARTED` Complete production deployment, monitoring, and operational
   acceptance.
 
@@ -241,21 +240,20 @@ Current acceptance window:
 
 ## 11. Frontend and product surface
 
-- [ ] `NOT STARTED` Define a stable read API for fixtures, odds, predictions,
-  teamstats, results, ROI, and CLV.
-- [ ] `NOT STARTED` Build the frontend.
-- [ ] `NOT STARTED` Show today's/upcoming matches and match details.
-- [ ] `NOT STARTED` Show team statistics by stat, period, and scope.
-- [ ] `NOT STARTED` Show model predictions, offered odds, EV, and model status.
-- [ ] `NOT STARTED` Show settled results, ROI, closing odds, and CLV.
-- [ ] `NOT STARTED` Show data freshness, missing data, and audit warnings.
-- [ ] `NOT STARTED` Verify responsive desktop/mobile behavior and usability.
+- [x] `VERIFIED` A stable read-only API now exposes the fixture/dashboard, match, league, team, Auto, results, model, and system contracts required by the frontend without adding write behavior.
+- [x] `VERIFIED` The complete `style-1` frontend is implemented across the five primary destinations plus match, team, league, model, system-status, and real not-found routes.
+- [x] `VERIFIED` Today's/upcoming matches and match detail are rendered from read contracts, including available scores, market offers, actuals, checkpoints, team comparison, and forward evidence.
+- [x] `VERIFIED` Team statistics are explorable by home/away context, FOR/AGAINST orientation, period, rank, and league-relative deviation; league stat rankings are also available.
+- [x] `VERIFIED` Registered forward selections expose offered odds, model probability, expected ROI field, model/policy identities, and persisted runtime status without presenting observation counts as proof.
+- [x] `VERIFIED` Settled forward-result rows can show persisted ROI/PnL, closing odds, official CLV status/value, settlement state, exclusions, and linked match/team/league entities. This verifies the product surface, not positive forward efficacy.
+- [ ] `PARTIAL` Data freshness, missing-data, exclusion, health, and audit states are shown on the relevant surfaces, but uniform freshness metadata across every product section still depends on the source/read contract carrying it.
+- [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, 45 frontend tests, and production build all pass on `style-1` run `31648971262`.
 
 ## 12. Release readiness
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `408/408`.
+- [x] Current V2 regression suite passes `434/434` on `style-1` backend-isolation run `31648971290`.
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
   `392/392` tests at that checkpoint.

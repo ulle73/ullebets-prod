@@ -1,0 +1,62 @@
+name: Style-1 Frontend
+
+on:
+  push:
+    branches:
+      - style-1
+    paths:
+      - "frontend/**"
+      - ".github/workflows/style-1-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked frontend dependencies
+        run: npm ci
+
+      - name: Audit dependency tree
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
+
+      - name: Reject runtime product fixtures and known preview data
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e src/data/preview-data.ts
+          test ! -e src/data/product-snapshots.ts
+          if grep -RInE 'previewMatches|previewSignals|productSnapshot|Grêmio|São Paulo|Atlético Mineiro|Coritiba|Chapecoense|72\.3|83\.5|85\.4' src --exclude='*.test.*'; then
+            echo "Hardcoded/preview product data found in runtime frontend source."
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test -- --run
+
+      - name: Build
+        run: npm run build

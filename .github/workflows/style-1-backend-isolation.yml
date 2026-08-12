@@ -1,0 +1,39 @@
+name: Style-1 Backend Isolation
+
+on:
+  push:
+    branches:
+      - style-1
+    paths:
+      - "frontend/**"
+      - "src/ullebets_v2/read_api/**"
+      - "scripts/forward_v2/serve_read_api.py"
+      - "tests/v2/test_read_api*.py"
+      - "docs/superpowers/**"
+      - ".github/workflows/style-1-*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-regression:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install backend test environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest PyYAML
+
+      - name: Run complete existing regression suite
+        run: python -m pytest -q

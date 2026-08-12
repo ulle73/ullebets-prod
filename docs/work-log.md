@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -30,7 +30,7 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `415/415`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `434/434`.
 
 ### Backend
 
@@ -190,6 +190,29 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-13 - Style-1 frontend and read-only product surface
+
+Status: `VERIFIED` for the implemented product surface on `style-1`; production deployment and the in-domain model lifecycle remain separate readiness gates.
+
+Objective: build the complete styled Ullebets frontend against typed, read-only V2 contracts without changing model, prediction, odds-capture, settlement, database-write, or production workflow behavior.
+
+Verified implementation sequence:
+
+- Step 1 commit `ae75e1a`: stable read contracts, Stockholm-owned product date, entity navigation, league route, real 404, typed Auto/Results contracts, and watchlist resolution.
+- Step 2 commit `ba775d7`: match, team, and league drilldowns with persisted odds, actuals, forward evidence, teamprofile contexts, league-relative deviations, rankings, and clickable history.
+- Step 3 commit `4aae1ff`: shareable read-only filters, server pagination, persisted history rows, and stable pagination with previous data retained while the next page loads.
+- Step 4 commit `202df85`: persisted model/policy runtime statuses and visible jobs/health/audits; observation counts are explicitly not treated as proof of forward ROI or CLV.
+- Step 5 commit `37ba528`: keyboard skip link, date-only shared navigation state, mobile access to model/system tools, narrow-layout hardening, and route-shell regression coverage.
+
+Final hosted verification on `style-1` commit `37ba528d00446e6b788d288e381609d962c29e45`:
+
+- frontend Actions run `31648971262`: dependency audits found 0 vulnerabilities; hardcoded-preview guard passed; TypeScript passed; ESLint passed; 12 Vitest files / 45 tests passed; Vite production build passed;
+- backend-isolation run `31648971290`: complete Python suite passed `434/434`;
+- the frontend runtime does not contain the known preview match/card fixtures guarded by CI, and the UI does not infer proof from row counts;
+- read-side additions are confined to `src/ullebets_v2/read_api/**` plus read-API tests. No model training/scoring policy, prediction write, odds acquisition, settlement, or database write path was changed by the frontend work.
+
+Remaining truth boundary: model-specific in-domain forward ROI, model-specific in-domain CLV/beat-close evidence, live T-30/T-10/closing lifecycle proof, production deployment, and complete operational acceptance remain `UNPROVEN`, `BLOCKED`, `PARTIAL`, or `NOT STARTED` exactly as their independent evidence requires.
 
 ### 2026-08-12 - Production-database teamprofile and V6 rerun
 
