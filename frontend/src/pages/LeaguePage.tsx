@@ -13,7 +13,7 @@ export function LeaguePage(){
  const{leagueId}=useParams();const query=useLeague(leagueId);const[context,setContext]=useState('home');const[orientation,setOrientation]=useState('for');const[period,setPeriod]=useState('ALL');const[stat,setStat]=useState('');
  if(query.isLoading)return <StateNotice state="loading" title="Hämtar liga" detail="Läser liga, lag, matcher och statistikranking."/>;
  if(query.isError||!query.data)return <StateNotice state="failed" title="Ligan kunde inte hämtas" detail="Ligan finns inte eller datakällan kunde inte nås."/>;
- const{league,teams,matches,statRows}=query.data;const statKeys=Array.from(new Set(statRows.map((row)=>row.statKey))).sort((a,b)=>a.localeCompare(b,'sv'));const selectedStat=stat||statKeys[0]||'';
+ const{league,teams,matches}=query.data;const statRows=query.data.statRows??[];const statKeys=Array.from(new Set(statRows.map((row)=>row.statKey))).sort((a,b)=>a.localeCompare(b,'sv'));const selectedStat=stat||statKeys[0]||'';
  const ranking=statRows.filter((row)=>row.context===context&&row.orientation===orientation&&row.period===period&&row.statKey===selectedStat).sort((a,b)=>(a.rank??999)-(b.rank??999)||b.value-a.value);
  return <div className="page-stack">
   <PageHeader eyebrow={[league.country,league.seasonId].filter((v)=>v!==null&&v!=='').join(' · ')||'Liga'} title={league.leagueName??'Okänd liga'} subtitle={`${teams.length} lag · ${matches.length} matcher i läsvyn`}/>
