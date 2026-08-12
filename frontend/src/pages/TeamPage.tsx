@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { EntityLink } from '../components/EntityLink';
 import { PageHeader } from '../components/PageHeader';
@@ -14,9 +14,9 @@ export function TeamPage(){
  const{teamId}=useParams();const query=useTeam(teamId);const[contextKey,setContextKey]=useState<ProfileContextKey>('home');const[orientation,setOrientation]=useState<Orientation>('for');const[period,setPeriod]=useState('ALL');
  if(query.isLoading)return <StateNotice state="loading" title="Hämtar lagprofil" detail="Läser lagets statistik och ligaranking."/>;
  if(query.isError||!query.data)return <StateNotice state="empty" title="Lagprofil saknas" detail="Ingen lagprofil kunde hittas."/>;
- const data=query.data;const{team,league,contexts}=data;const availableContext=contexts[contextKey]??contexts.home??contexts.away;const activeKey=(contexts[contextKey]?contextKey:(contexts.home?'home':'away')) as ProfileContextKey;
- const rows=useMemo(()=>flattenContext(availableContext,activeKey).filter((row)=>row.orientation===orientation&&row.period===period),[availableContext,activeKey,orientation,period]);
- const deviations=useMemo(()=>strongestDeviations(data),[data]);
+ const data=query.data;const{team,league,contexts}=data;const availableContext=contexts[contextKey]??contexts.home??contexts.away;const activeKey:ProfileContextKey=contexts[contextKey]?contextKey:contexts.home?'home':'away';
+ const rows=flattenContext(availableContext,activeKey).filter((row)=>row.orientation===orientation&&row.period===period);
+ const deviations=strongestDeviations(data);
  return <div className="page-stack">
   <PageHeader eyebrow={league?.leagueName??'Lagprofil'} title={team.teamName??team.teamKey} subtitle={[team.optaRank!==null?`Opta #${team.optaRank}`:null,team.optaRating!==null?`Rating ${team.optaRating.toLocaleString('sv-SE')}`:null].filter(Boolean).join(' · ')||'Liga-relativ lagstatistik'} aside={league?<EntityLink kind="league" id={league.leagueKey} className="quiet-link">Öppna ligan</EntityLink>:undefined}/>
   <section className="profile-controls" aria-label="Lagprofilfilter">
