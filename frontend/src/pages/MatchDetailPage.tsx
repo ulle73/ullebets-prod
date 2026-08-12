@@ -1,6 +1,7 @@
 import { ArrowLeft, Clock3 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { CheckpointTimeline } from '../components/CheckpointTimeline';
+import { EntityLink } from '../components/EntityLink';
 import { SignalCard } from '../components/SignalCard';
 import { StateNotice } from '../components/StateNotice';
 import { useMatchDetail } from '../data/queries';
@@ -15,8 +16,8 @@ export function MatchDetailPage() {
   const { matchId } = useParams();
   const detail = useMatchDetail(matchId);
 
-  if (detail.isLoading) return <StateNotice state="loading" title="Läser match" detail="Hämtar kanonisk match, matchups, checkpoints och teamprofiles från V2." />;
-  if (detail.isError || !detail.data) return <StateNotice state="failed" title="Matchen kunde inte läsas" detail="Ingen preview- eller fallbackmatch visas." />;
+  if (detail.isLoading) return <StateNotice state="loading" title="Hämtar match" detail="Läser match, matchups och statistik." />;
+  if (detail.isError || !detail.data) return <StateNotice state="failed" title="Matchen kunde inte läsas" detail="Matchen hittades inte eller datakällan kunde inte nås." />;
 
   const data = detail.data;
   const match = data.match;
@@ -24,27 +25,34 @@ export function MatchDetailPage() {
     <div className="page-stack">
       <Link to="/oversikt" className="back-link"><ArrowLeft size={15} />Till översikt</Link>
       <section className="match-hero">
-        <div className="match-hero__meta"><span>{match.leagueName ?? 'Liga saknas'}</span>{match.startTime ? <span><Clock3 size={14} />{formatKickoff(match.startTime)}</span> : null}</div>
+        <div className="match-hero__meta">
+          <EntityLink kind="league" id={match.leagueKey}>{match.leagueName ?? 'Liga saknas'}</EntityLink>
+          {match.startTime ? <span><Clock3 size={14} />{formatKickoff(match.startTime)}</span> : null}
+        </div>
         <div className="team-versus">
-          <Link className="team-block" to={match.homeTeamKey ? `/lag/${encodeURIComponent(match.homeTeamKey)}` : '#'}><span className="team-monogram">{initials(match.homeTeamName)}</span><strong>{match.homeTeamName ?? 'Okänt lag'}</strong></Link>
+          <EntityLink className="team-block" kind="team" id={match.homeTeamKey}>
+            <span className="team-monogram">{initials(match.homeTeamName)}</span><strong>{match.homeTeamName ?? 'Okänt lag'}</strong>
+          </EntityLink>
           <span className="versus-badge">VS</span>
-          <Link className="team-block team-block--right" to={match.awayTeamKey ? `/lag/${encodeURIComponent(match.awayTeamKey)}` : '#'}><span className="team-monogram">{initials(match.awayTeamName)}</span><strong>{match.awayTeamName ?? 'Okänt lag'}</strong></Link>
+          <EntityLink className="team-block team-block--right" kind="team" id={match.awayTeamKey}>
+            <span className="team-monogram">{initials(match.awayTeamName)}</span><strong>{match.awayTeamName ?? 'Okänt lag'}</strong>
+          </EntityLink>
         </div>
       </section>
 
       <section className="content-section">
         <div className="section-heading"><div><p className="eyebrow">Oddsflöde</p><h2>Checkpoint-tidslinje</h2></div></div>
-        {data.checkpoints.length ? <CheckpointTimeline checkpoints={data.checkpoints} /> : <StateNotice state="empty" title="Inga checkpoints för matchen" detail="Frontend fyller inte i saknade snapshots." />}
+        {data.checkpoints.length ? <CheckpointTimeline checkpoints={data.checkpoints} /> : <StateNotice state="empty" title="Inga checkpoints för matchen" detail="Saknade snapshots fylls inte i." />}
       </section>
 
       <section className="content-section">
         <div className="section-heading"><div><p className="eyebrow">Matchups</p><h2>Ranking för matchen</h2></div></div>
-        {data.matchups.length ? <div className="detail-signal-grid">{data.matchups.map((row) => <SignalCard key={row.entryKey} signal={row} />)}</div> : <StateNotice state="empty" title="Ingen matchup-ranking" detail="V2 returnerade inga matchup-rader för matchen." />}
+        {data.matchups.length ? <div className="detail-signal-grid">{data.matchups.map((row) => <SignalCard key={row.entryKey} signal={row} />)}</div> : <StateNotice state="empty" title="Ingen matchup-ranking" detail="Ingen matchup-ranking finns för matchen." />}
       </section>
 
       <section className="content-section">
-        <div className="section-heading"><div><p className="eyebrow">Teamprofiles</p><h2>Lagjämförelse</h2></div></div>
-        {data.teamStats.length === 0 ? <StateNotice state="empty" title="Teamprofile-data saknas" detail="Inga värden uppskattas i frontend." /> : (
+        <div className="section-heading"><div><p className="eyebrow">Lagstatistik</p><h2>Lagjämförelse</h2></div></div>
+        {data.teamStats.length === 0 ? <StateNotice state="empty" title="Lagstatistik saknas" detail="Inga värden uppskattas i frontend." /> : (
           <div className="stats-table" role="table" aria-label="Lagstatistik">
             <div className="stats-row stats-row--head" role="row"><span>Stat / period</span><span>{match.homeTeamName}</span><span>{match.awayTeamName}</span><span>Ligasnitt H / B</span></div>
             {data.teamStats.map((row) => (
