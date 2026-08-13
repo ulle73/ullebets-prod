@@ -259,8 +259,12 @@ Current acceptance window:
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
   `392/392` tests at that checkpoint.
-- [ ] `NOT STARTED` Deploy backend jobs and frontend to their final production
-  environments.
+- [ ] `PARTIAL` Vercel hosts the Style-1 SPA and read-only Python API at
+  `ullebets-prod-preview.vercel.app`; public root routing and the API write
+  rejection are verified. The API is intentionally unavailable until Vercel
+  receives private `MONGODB_URI` and `MONGODB_DB=ullebets_v2` Production
+  variables. Existing Vercel SSO protection also remains enabled for
+  `vercel.app` URLs until a separate access-policy decision is made.
 - [ ] `NOT STARTED` Run a production acceptance test over at least one complete
   in-domain match lifecycle.
 - [ ] `NOT STARTED` Define release rollback, database recovery, and incident

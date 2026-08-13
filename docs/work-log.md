@@ -254,15 +254,32 @@ Tests:
   revision removes that import-dependent exception branch; it classifies
   PyMongo failures from the caught exception module inside the already-proven
   generic safety handler.
+- The seventh deploy `dpl_C8kJb5GsA4Tm6YUjtt9hmuDnFRJZ` uploaded the complete
+  `src/ullebets_v2` package rather than a partial static dependency closure.
+  Production now returns the controlled `503 {"error":"read_api_unconfigured"}`
+  for `/api/v1/health`, proving that Vercel has no `MONGODB_URI`. The root SPA
+  returned `200` and `POST /api/v1/health` returned `405` with
+  `Allow: GET, HEAD`, so the hosting, routing, and write boundary are proven.
+- Vercel project protection is `SSO all_except_custom_domains`. This is a
+  deliberate access-control setting, not an application failure; the
+  `vercel.app` URL therefore requires the owner's Vercel sign-in unless a
+  custom domain is attached or the protection policy is changed.
 
 New insight: static Vite hosting alone cannot work because local development
 depends on the port `8787` proxy. The API must be deployed on the same public
 origin; the new serverless adapter makes that boundary explicit and keeps
 MongoDB credentials server-only.
 
-Unproven: whether Vercel's configured database target is safe and reachable.
-After that is corrected, run external health, dashboard, SPA-route, and
-write-rejection tests.
+Blocked: set the Vercel **Production** variables `MONGODB_URI` and
+`MONGODB_DB=ullebets_v2` through an account-authorized Vercel environment
+manager. This session's connected Vercel deploy tool does not expose an
+environment-variable write operation, and the local Vercel CLI token is
+invalid; no secret was copied to source code or the frontend.
+
+Next justified test: after those variables are set and Vercel redeploys, call
+the public health and dashboard routes and confirm current data. Decide
+separately whether the existing SSO protection should remain until a custom
+domain is attached.
 
 Next justified test: deploy this exact source to `ullebets-prod-preview`, set
 only the two server-side production variables, and run the public acceptance
