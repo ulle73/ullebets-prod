@@ -44,6 +44,8 @@ def _get_database() -> Any:
         config = V2Config.from_env(REPOSITORY_ROOT)
         if not config.mongo_uri:
             raise ReadApiConfigurationError("MONGODB_URI is not configured")
+        if config.mongo_db != "ullebets_v2":
+            raise ReadApiConfigurationError("MONGODB_DB must target ullebets_v2")
         # get_database enforces the ullebets_v2-only write boundary even though
         # this function itself exposes only read methods.
         _database = get_database(config)
@@ -113,10 +115,15 @@ class handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         try:
             from ullebets_v2.read_api.http import dispatch_get
+            from pymongo.errors import PyMongoError
 
             status, payload = dispatch_get(_get_database(), parsed.path, parse_qs(parsed.query))
         except ReadApiConfigurationError:  # pragma: no cover - Vercel environment guard
             self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "read_api_unconfigured"})
+            return
+        except PyMongoError as exc:  # pragma: no cover - Vercel infrastructure guard
+            print(f"V2 read API database error: {type(exc).__name__}", file=sys.stderr)
+            self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "read_api_database_unavailable"})
             return
         except Exception as exc:  # pragma: no cover - production transport safety net
             self.log_error("V2 read API request failed: %s", type(exc).__name__)

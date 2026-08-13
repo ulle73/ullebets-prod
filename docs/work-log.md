@@ -243,15 +243,20 @@ Tests:
   isolates the remaining failure to server configuration/database access.
   Missing `MONGODB_URI` now returns the explicit but non-sensitive `503`
   `read_api_unconfigured` response; a regression test covers that guard.
+- The fifth deploy `dpl_GyLTo9WAPXvCUijm5e1L9fypZE7q` remained a V2-owned
+  `read_api_failure` rather than `read_api_unconfigured`. That means the
+  configured environment is not simply missing `MONGODB_URI`; the next
+  adapter revision distinguishes an unsafe database target from a PyMongo
+  connection failure and records only the exception class in server logs.
 
 New insight: static Vite hosting alone cannot work because local development
 depends on the port `8787` proxy. The API must be deployed on the same public
 origin; the new serverless adapter makes that boundary explicit and keeps
 MongoDB credentials server-only.
 
-Unproven: the Vercel project still needs `MONGODB_URI` and
-`MONGODB_DB=ullebets_v2` configured, followed by an external health,
-dashboard, SPA-route, and write-rejection test.
+Unproven: whether Vercel's configured database target is safe and reachable.
+After that is corrected, run external health, dashboard, SPA-route, and
+write-rejection tests.
 
 Next justified test: deploy this exact source to `ullebets-prod-preview`, set
 only the two server-side production variables, and run the public acceptance
