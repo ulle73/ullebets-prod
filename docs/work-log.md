@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -191,6 +191,54 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-14 - Vercel production MongoDB configuration
+
+Status: `VERIFIED` for the deployed read-only V2 API. This does not prove the
+separate live odds, closing, CLV, or in-domain V6 forward lifecycle.
+
+Objective: configure the existing Vercel production project with server-only
+V2 database access and prove the deployed frontend API can read the production
+database without accepting writes.
+
+Changes:
+
+- Added sensitive `Production`-only `MONGODB_URI` and `MONGODB_DB` variables
+  to Vercel project `ullebets-prod-preview`; no value was committed, logged, or
+  exposed to the browser.
+- Corrected the URI value after the first deployment showed that outer quotes
+  from the local dotenv file had been included in the Vercel secret.
+- Redeployed the same source with the corrected environment as
+  `dpl_9TDuhSF4VsPA12fAfpA3YEoFk6VF`.
+
+Tests:
+
+- `GET https://ullebets-prod-preview.vercel.app/api/v1/health`
+  -> `200 {"status":"ok"}`.
+- `GET https://ullebets-prod-preview.vercel.app/api/v1/dashboard?date=2026-08-14`
+  -> `200`, with a valid empty fixture response for that date.
+- `POST https://ullebets-prod-preview.vercel.app/api/v1/health`
+  -> `405`, preserving the read-only boundary.
+- Vercel runtime-errors query for the redeployment -> no runtime errors.
+
+Insight:
+
+Quoted dotenv values must be unquoted before being pasted into Vercel's secret
+manager. A health route that reaches `read_api_database_unavailable` proves
+that configuration is present but invalid; only the subsequent `200` proves
+the deployed function can connect to `ullebets_v2`.
+
+Remaining:
+
+- Existing `vercel.app` SSO protection remains intentional until an access
+  policy or custom-domain decision is made.
+- Production operation, monitoring, and a full in-domain lifecycle remain
+  separate readiness requirements.
+
+Next:
+
+- Verify only the next live checkpoint, closing, and in-domain forward windows
+  when source data makes them due.
 
 ### 2026-08-13 - Vercel production adapter for the V2 read surface
 

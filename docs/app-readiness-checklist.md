@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -27,8 +27,8 @@ Status details and evidence:
 - [ ] `PARTIAL` Prove output parity for every original backend workflow.
 - [ ] `PARTIAL` Remove the runtime dependency on the old repository's JS
   oracle so V2 can run independently.
-- [ ] `NOT STARTED` Complete production deployment, monitoring, and operational
-  acceptance.
+- [ ] `PARTIAL` Production Vercel hosting and the server-side V2 read API are
+  verified; monitoring, alerting, and full operational acceptance remain.
 
 ## 1. Database and safety
 
@@ -259,11 +259,11 @@ Current acceptance window:
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
   `392/392` tests at that checkpoint.
-- [ ] `PARTIAL` Vercel hosts the Style-1 SPA and read-only Python API at
-  `ullebets-prod-preview.vercel.app`; public root routing and the API write
-  rejection are verified. The API is intentionally unavailable until Vercel
-  receives private `MONGODB_URI` and `MONGODB_DB=ullebets_v2` Production
-  variables. Existing Vercel SSO protection also remains enabled for
+- [x] `VERIFIED` Vercel hosts the Style-1 SPA and read-only Python API at
+  `ullebets-prod-preview.vercel.app`. Sensitive Production-only
+  `MONGODB_URI` and `MONGODB_DB=ullebets_v2` are configured server-side;
+  production health and dashboard reads return `200`, while write requests are
+  rejected with `405`. Existing Vercel SSO protection remains enabled for
   `vercel.app` URLs until a separate access-policy decision is made.
 - [ ] `NOT STARTED` Run a production acceptance test over at least one complete
   in-domain match lifecycle.

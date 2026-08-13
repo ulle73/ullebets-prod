@@ -1,11 +1,32 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-12
+Last updated: 2026-08-14
 Branch: `main`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Vercel Read API Production Acceptance On 2026-08-14
+
+The existing Vercel project `ullebets-prod-preview` now has sensitive,
+Production-only `MONGODB_URI` and `MONGODB_DB=ullebets_v2` configuration. The
+first deployment after configuration returned `503 read_api_database_unavailable`
+because outer dotenv quotes were included in the URI. The secret was corrected
+without changing source code, then redeployed as
+`dpl_9TDuhSF4VsPA12fAfpA3YEoFk6VF`.
+
+Verification against the production alias:
+
+- `GET /api/v1/health` -> `200 {"status":"ok"}`
+- `GET /api/v1/dashboard?date=2026-08-14` -> `200` with a valid empty response
+  for the selected date
+- `POST /api/v1/health` -> `405`
+- Vercel reported no runtime errors for the redeployment
+
+Status: `VERIFIED` for the deployed server-side, read-only V2 API connection.
+This does not change the separate `UNPROVEN` live closing, CLV, and in-domain
+V6 forward-result requirements.
 
 ## Production-Database Teamprofile And V6 Rerun On 2026-08-12
 
