@@ -7,6 +7,41 @@ Database: `ullebets_v2`
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
 
+## Matchup Form And Current-Fixture Ranking On 2026-08-14
+
+Matchup cards now use a dedicated presentation-only form layer. It selects the
+latest 12 valid home or away matches from each existing teamprofile history,
+weights newer matches with a 45-day half-life, recalculates league ranks across
+the full participating league, and leaves the model/training teamprofile values
+unchanged. Each output records `rolling_12_weighted_45d`, window `12`, and the
+45-day half-life. The frontend exposes this as `Form 12` on each card.
+
+Two persistence defects were also repaired:
+
+- date rebuilds now remove only stale entries after all current entries have
+  been upserted, so an obsolete fixture cannot occupy a ranking place;
+- dashboard reads rank current fixtures locally by score, so stale historical
+  rank numbers cannot create missing positions in an otherwise valid response.
+
+The first sequential write run was intentionally marked failed after the local
+operator timeout interrupted it at 1,045/1,278 rows. Matchup persistence now
+uses ordered-false Mongo bulk batches of 100 writes. The subsequent production
+database rebuilds both succeeded:
+
+- `matchups_score`: run `f739f98a6e7644c58f33987d02406d7b`, 1,278 unique rows;
+- `matchups_league_avg`: run `4cb7278827e8419d851cf1496b098243`, 1,278 unique
+  rows and 162 stale rows removed.
+
+The read API returned exactly 20 OVER and 20 UNDER cards, each continuously
+ranked 1-20. All 2,556 rebuilt rows carry the new form metadata. One of nine
+fixtures, Real Racing Club - Villarreal, remains excluded because it lacks a
+verified Real Racing Club home profile. This is correct fail-closed behavior,
+not a ranking fallback.
+
+Status: `PARTIAL`. V2 build, deduplication, current-fixture ranking, and form
+metadata are database-verified. Old-repository output parity and the missing
+home-profile mapping remain unproven.
+
 ## Vercel Read API Production Acceptance On 2026-08-14
 
 The existing Vercel project `ullebets-prod-preview` now has sensitive,

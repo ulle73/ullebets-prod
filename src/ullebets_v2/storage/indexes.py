@@ -200,7 +200,12 @@ def build_core_index_plan() -> list[dict[str, Any]]:
                     "keys": [("team_key", 1), ("profile_date", 1), ("match_type", 1)],
                     "name": "team_profile_date_match_type",
                     "unique": True,
-                }
+                },
+                {
+                    "keys": [("league_key", 1), ("profile_date", 1), ("match_type", 1)],
+                    "name": "league_profile_date_match_type",
+                    "unique": False,
+                },
             ],
         },
         {

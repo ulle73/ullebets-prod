@@ -59,6 +59,9 @@ export function SignalCard({ signal }: SignalCardProps) {
         <span>{signal.statLabel ?? signal.statKey ?? 'Stat saknas'}</span>
         <span>{scopeLabel(signal.scope)}</span>
         <span>{signal.periodLabel ?? signal.period ?? 'Period saknas'}</span>
+        {signal.rankingWindowMatches !== null ? (
+          <span title="Ranking bygger pa lagens senaste matcher">Form {signal.rankingWindowMatches}</span>
+        ) : null}
       </div>
 
       <div className="matchup-details">

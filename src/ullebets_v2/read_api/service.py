@@ -210,6 +210,9 @@ def _matchup_summary(row: dict[str, Any], fixture: dict[str, Any] | None = None)
         "score": row.get("score"),
         "rankPosition": row.get("rank_position"),
         "isTop50": bool(row.get("is_top_50")),
+        "rankingMethod": row.get("ranking_method"),
+        "rankingWindowMatches": row.get("ranking_window_matches"),
+        "rankingRecencyHalfLifeDays": row.get("ranking_recency_half_life_days"),
         "marketBias": _iso(row.get("market_bias")),
         "leagueBaseline": forecast.get("leagueBaseline"),
     }
@@ -285,9 +288,8 @@ def _load_matchups(
             {
                 **persisted_query,
                 "condition": {"$in": ["over", "under"]},
-                "rank_position": {"$lte": rank_limit},
             },
-            sort=[("condition", 1), ("rank_position", 1), ("score", -1)],
+            sort=[("condition", 1), ("score", -1), ("entry_key", 1)],
         )
         present_conditions = {str(row.get("condition") or "").lower() for row in persisted}
         if present_conditions != {"over", "under"}:
@@ -312,21 +314,14 @@ def _load_matchups(
 
 
 def _ranked_matchups(matchup_rows: list[dict[str, Any]], *, limit_per_condition: int) -> list[dict[str, Any]]:
-    rows = list(matchup_rows)
-    rows.sort(
-        key=lambda row: (
-            str(row.get("condition") or ""),
-            int(row.get("rank_position") or 10**9),
-            -float(row.get("score") or 0),
-        )
-    )
     selected: list[dict[str, Any]] = []
     for condition in ("over", "under"):
-        selected.extend(
-            [row for row in rows if str(row.get("condition") or "").lower() == condition][
-                :limit_per_condition
-            ]
+        condition_rows = sorted(
+            (row for row in matchup_rows if str(row.get("condition") or "").lower() == condition),
+            key=lambda row: (-float(row.get("score") or 0), str(row.get("entry_key") or "")),
         )
+        for position, row in enumerate(condition_rows[:limit_per_condition], start=1):
+            selected.append({**row, "rank_position": position, "is_top_50": position <= 50})
     return selected
 
 

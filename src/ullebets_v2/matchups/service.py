@@ -5,6 +5,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
+from ullebets_v2.matchups.form_profiles import (
+    MATCHUP_FORM_METHOD,
+    MATCHUP_FORM_RECENCY_HALF_LIFE_DAYS,
+    MATCHUP_FORM_WINDOW_MATCHES,
+    build_matchup_form_profiles,
+)
 from ullebets_v2.matchups.persistence import persist_matchup_records
 from ullebets_v2.matchups.reports import (
     build_matchup_audit_rows,
@@ -317,16 +323,35 @@ def _select_latest_profiles(teamprofile_docs: list[dict[str, Any]], snapshot_dat
     for row in teamprofile_docs:
         team_key = str(row.get("team_key") or "")
         match_type = str(row.get("match_type") or "")
-        profile_date = str(row.get("profile_date") or "")
+        profile_date = _profile_effective_date(row)
         if not team_key or not match_type:
             continue
-        if profile_date != "current" and profile_date > snapshot_date:
+        if profile_date is None or profile_date > snapshot_date:
             continue
         key = (team_key, match_type)
         existing = selected.get(key)
-        if existing is None or str(existing.get("profile_date") or "") < profile_date:
+        if existing is None or _profile_order_key(existing) < _profile_order_key(row):
             selected[key] = row
     return selected
+
+
+def _profile_effective_date(profile: dict[str, Any]) -> str | None:
+    profile_date = str(profile.get("profile_date") or "")
+    if profile_date != "current":
+        return profile_date or None
+    generated_at = profile.get("generated_at") or profile.get("meta", {}).get("savedAt")
+    if isinstance(generated_at, datetime):
+        return generated_at.astimezone(UTC).date().isoformat()
+    if isinstance(generated_at, str) and len(generated_at) >= 10:
+        return generated_at[:10]
+    return None
+
+
+def _profile_order_key(profile: dict[str, Any]) -> tuple[str, int, str]:
+    effective_date = _profile_effective_date(profile) or ""
+    is_current = 1 if str(profile.get("profile_date") or "") == "current" else 0
+    generated_at = profile.get("generated_at")
+    return effective_date, is_current, str(generated_at or "")
 
 
 def _build_pairs(target_matches: list[dict[str, Any]], teamprofile_docs: list[dict[str, Any]], snapshot_date: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -395,7 +420,11 @@ def build_matchups_score_docs(
     teamprofile_docs: list[dict[str, Any]],
     snapshot_date: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    pairs, missing_matches = _build_pairs(target_matches, teamprofile_docs, snapshot_date)
+    pairs, missing_matches = _build_pairs(
+        target_matches,
+        build_matchup_form_profiles(teamprofile_docs),
+        snapshot_date,
+    )
     entries: list[dict[str, Any]] = []
     for pair in pairs:
         league_max = _league_size_from_meta(pair["home"]["profile"]) or _league_size_from_meta(pair["away"]["profile"]) or 20
@@ -429,6 +458,9 @@ def build_matchups_score_docs(
                     "period_label": period_label,
                     "home_behaviour": pair["home"]["profile"].get("behaviour"),
                     "away_behaviour": pair["away"]["profile"].get("behaviour"),
+                    "ranking_method": MATCHUP_FORM_METHOD,
+                    "ranking_window_matches": MATCHUP_FORM_WINDOW_MATCHES,
+                    "ranking_recency_half_life_days": MATCHUP_FORM_RECENCY_HALF_LIFE_DAYS,
                 }
                 for scope, scope_basis in (
                     ("total", avg_pair),
@@ -470,7 +502,11 @@ def build_matchups_league_avg_docs(
     teamprofile_docs: list[dict[str, Any]],
     snapshot_date: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    pairs, missing_matches = _build_pairs(target_matches, teamprofile_docs, snapshot_date)
+    pairs, missing_matches = _build_pairs(
+        target_matches,
+        build_matchup_form_profiles(teamprofile_docs),
+        snapshot_date,
+    )
     entries: list[dict[str, Any]] = []
     for pair in pairs:
         for stat_key, stat_label in STATS_FOR_VIEW:
@@ -515,6 +551,9 @@ def build_matchups_league_avg_docs(
                                 "market_bias": market_bias,
                                 "home_behaviour": pair["home"]["profile"].get("behaviour"),
                                 "away_behaviour": pair["away"]["profile"].get("behaviour"),
+                                "ranking_method": MATCHUP_FORM_METHOD,
+                                "ranking_window_matches": MATCHUP_FORM_WINDOW_MATCHES,
+                                "ranking_recency_half_life_days": MATCHUP_FORM_RECENCY_HALF_LIFE_DAYS,
                                 "forecast": {
                                     "baseline": forecast_bundle.get("baseline", {}).get("perScope", {}).get(bundle_scope),
                                     "leagueBaseline": forecast_bundle.get("baseline", {}).get("league", {}).get("perScope", {}).get(bundle_scope),
@@ -527,16 +566,57 @@ def build_matchups_league_avg_docs(
     return _assign_ranks(entries, top_field="ranking_bucket"), missing_matches
 
 
-def _load_teamprofiles(database: Any, snapshot_date: str, team_keys: set[str]) -> list[dict[str, Any]]:
-    rows = list(
+def _load_teamprofiles(
+    database: Any,
+    snapshot_date: str,
+    target_matches: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    league_keys = sorted({str(row.get("league_key") or "") for row in target_matches if row.get("league_key")})
+    if not league_keys:
+        return []
+    current_rows = list(
         database[TEAMPROFILES].find(
-            {
-                "team_key": {"$in": sorted(team_keys)},
-            },
+            {"league_key": {"$in": league_keys}, "profile_date": "current"},
             projection={"_id": 0},
         )
     )
-    return [row for row in rows if str(row.get("profile_date") or "") in {"current", ""} or str(row.get("profile_date") or "") <= snapshot_date]
+    usable_current = [row for row in current_rows if (_profile_effective_date(row) or "") <= snapshot_date]
+    if usable_current:
+        required_pairs = {
+            (str(row.get("home_team_key") or ""), "home")
+            for row in target_matches
+            if row.get("home_team_key")
+        } | {
+            (str(row.get("away_team_key") or ""), "away")
+            for row in target_matches
+            if row.get("away_team_key")
+        }
+        current_pairs = {
+            (str(row.get("team_key") or ""), str(row.get("match_type") or ""))
+            for row in usable_current
+        }
+        missing_team_keys = sorted({team_key for team_key, match_type in required_pairs if (team_key, match_type) not in current_pairs})
+        if not missing_team_keys:
+            return usable_current
+        fallback_rows = list(
+            database[TEAMPROFILES].find(
+                {"team_key": {"$in": missing_team_keys}},
+                projection={"_id": 0},
+            )
+        )
+        return [
+            row
+            for row in [*usable_current, *fallback_rows]
+            if (_profile_effective_date(row) or "") <= snapshot_date
+        ]
+
+    rows = list(
+        database[TEAMPROFILES].find(
+            {"league_key": {"$in": league_keys}},
+            projection={"_id": 0},
+        )
+    )
+    return [row for row in rows if (_profile_effective_date(row) or "") <= snapshot_date]
 
 
 def _run_matchup_build(
@@ -559,14 +639,7 @@ def _run_matchup_build(
         if database is None:
             profiles = []
         else:
-            team_keys = {
-                str(row.get("home_team_key") or "")
-                for row in target_matches
-            } | {
-                str(row.get("away_team_key") or "")
-                for row in target_matches
-            }
-            profiles = _load_teamprofiles(database, snapshot_date, team_keys)
+            profiles = _load_teamprofiles(database, snapshot_date, target_matches)
     entry_docs, missing_matches = builder(
         target_matches=target_matches,
         teamprofile_docs=profiles or [],
@@ -639,6 +712,7 @@ def _run_matchup_build(
         persistence_metrics = persist_matchup_records(
             database,
             collection_name=collection_name,
+            snapshot_date=snapshot_date,
             entry_docs=entry_docs,
             parity_rows=parity_rows,
             audit_rows=audit_rows,

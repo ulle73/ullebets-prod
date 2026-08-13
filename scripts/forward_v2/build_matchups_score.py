@@ -36,7 +36,8 @@ def main() -> int:
         source_workflow=args.source_workflow,
         target_matches=targets,
         snapshot_date=args.date,
-        database=None if args.dry_run else database,
+        # Dry runs must still read V2 profiles; only persistence is disabled.
+        database=database,
         dry_run=args.dry_run,
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))

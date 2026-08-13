@@ -49,6 +49,9 @@ export interface MatchupEntry {
   score: number | null;
   rankPosition: number | null;
   isTop50: boolean;
+  rankingMethod: string | null;
+  rankingWindowMatches: number | null;
+  rankingRecencyHalfLifeDays: number | null;
   marketBias: unknown;
   leagueBaseline: number | null;
 }

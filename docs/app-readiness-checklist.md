@@ -88,10 +88,13 @@ Status details and evidence:
   shotmaps, 265 profiles, and `ok` audit/health reports.
 - [ ] `PARTIAL` The next hosted `update-teamstats-and-teamprofiles.yml` run
   must prove the same main-branch result through GitHub Actions.
-- [ ] `PARTIAL` Run and save a live/parity acceptance report for
-  `matchups_score`.
-- [ ] `PARTIAL` Run and save a live/parity acceptance report for
-  `matchups_league_avg`.
+- [ ] `PARTIAL` `matchups_score` rebuilt successfully on 2026-08-14 with
+  1,278 deduplicated, 12-match recency-weighted rows across 8 mapped fixtures.
+  Old-output parity and the unresolved Real Racing Club home-profile mapping
+  still need acceptance evidence.
+- [ ] `PARTIAL` `matchups_league_avg` rebuilt successfully on 2026-08-14 with
+  the same 1,278 deduplicated, 12-match recency-weighted rows. Old-output
+  parity and the unresolved Real Racing Club home-profile mapping remain open.
 - [ ] `PARTIAL` Prove matchup outcome settlement against old output and
   canonical actuals over a finished date range.
 

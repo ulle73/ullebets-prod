@@ -108,6 +108,9 @@ def matchup_row(*, snapshot_date: str = "2026-08-09") -> dict:
         "score": 73.4,
         "rank_position": 1,
         "is_top_50": True,
+        "ranking_method": "rolling_12_weighted_45d",
+        "ranking_window_matches": 12,
+        "ranking_recency_half_life_days": 45.0,
         "market_bias": None,
         "forecast": {"leagueBaseline": 12.6},
     }
@@ -183,10 +186,12 @@ def test_dashboard_reads_persisted_matchups_instead_of_recomputing(monkeypatch) 
     assert payload["matchups"][0]["score"] == 73.4
     assert payload["matchups"][0]["leagueBaseline"] == 12.6
     assert payload["matchups"][0]["condition"] == "OVER"
+    assert payload["matchups"][0]["rankingMethod"] == "rolling_12_weighted_45d"
+    assert payload["matchups"][0]["rankingWindowMatches"] == 12
     assert payload["matchupSource"] == "persisted"
 
 
-def test_dashboard_bounds_persisted_matchup_query_to_visible_ranks() -> None:
+def test_dashboard_reranks_current_fixture_rows_after_stale_global_ranks() -> None:
     matchup_rows = []
     for condition in ("over", "under"):
         for rank in range(1, 26):
@@ -208,8 +213,9 @@ def test_dashboard_bounds_persisted_matchup_query_to_visible_ranks() -> None:
     payload = read_dashboard(database, source_date="2026-08-09")
 
     assert len(payload["matchups"]) == 40
-    assert max(row["rankPosition"] for row in payload["matchups"]) == 20
-    assert matchups.last_query.get("rank_position") == {"$lte": 20}
+    assert [row["rankPosition"] for row in payload["matchups"][:20]] == list(range(1, 21))
+    assert [row["rankPosition"] for row in payload["matchups"][20:]] == list(range(1, 21))
+    assert "rank_position" not in matchups.last_query
 
 
 def test_dashboard_can_compute_upcoming_matchups_read_only_from_current_profiles(monkeypatch) -> None:

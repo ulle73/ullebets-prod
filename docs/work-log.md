@@ -192,6 +192,62 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-14 - Matchup ranking form, day replacement, and Cosmos persistence
+
+Status: `PARTIAL`. The V2 matchup presentation layer is verified against the
+production V2 database. It does not change V6, backtest features, artifacts,
+or frozen forward predictions.
+
+Objective: rank today's matchups from each team's recent, scope-correct form
+without stale fixture rows distorting the visible top 20.
+
+Changes:
+
+- Added a matchup-only `rolling_12_weighted_45d` form transform: 12 latest
+  matches per existing home/away profile, with a 45-day recency half-life.
+- Reranked against full current league profiles, not only the teams playing on
+  the selected day, while leaving stored model/teamprofile values unchanged.
+- Replaced same-day matchup snapshots safely after current rows are upserted;
+  dashboard ranking is now contiguous among current fixtures.
+- Fixed matchup CLI dry-runs to retain read access to `ullebets_v2` profiles.
+- Replaced sequential Cosmos matchup writes with 100-row unordered batches and
+  added the supporting league/profile index.
+- Added the visible `Form 12` card marker and stabilised `npm run test` on the
+  single forked worker configuration used by this machine.
+
+Tests:
+
+- `python -m pytest tests/v2 -q` -> `432 passed`.
+- `cd frontend; npm run test` -> `14 files, 52 tests passed`.
+- `cd frontend; npm run typecheck; npm run lint; npm run build` -> all passed.
+- `python scripts/forward_v2/build_matchups_score.py --date 2026-08-17 --dry-run`
+  -> 9 fixtures, 88 full-league profiles, 1,278 entries, all form window 12.
+- Production rebuilds: `matchups_score` run
+  `f739f98a6e7644c58f33987d02406d7b` and `matchups_league_avg` run
+  `4cb7278827e8419d851cf1496b098243` both `succeeded`.
+- Read API audit -> 40 cards: 20 OVER plus 20 UNDER, both ranked continuously
+  1-20; each collection has 1,278 unique entry keys and no duplicate rows.
+
+Insight:
+
+The old global rank filter could hide valid current cards when deleted or
+rescheduled fixtures had occupied earlier positions. The new build and read
+contracts make current-day ranking self-contained. A sequential rewrite took
+long enough to exceed the local operator timeout after 1,045 writes; the run
+was explicitly marked failed and the batch rerun completed successfully.
+
+Remaining:
+
+- Real Racing Club - Villarreal is excluded because the V2 database has no
+  verified Real Racing Club home profile. Do not fabricate this mapping.
+- Output parity against the old repository and matchup outcome settlement over
+  finished dates remain unproven.
+
+Next:
+
+- Repair the source/support mapping that produces the missing home profile,
+  then rerun only the affected matchup acceptance audit.
+
 ### 2026-08-14 - Vercel production MongoDB configuration
 
 Status: `VERIFIED` for the deployed read-only V2 API. This does not prove the
