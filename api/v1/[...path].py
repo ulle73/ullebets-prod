@@ -4,6 +4,7 @@ from gzip import compress as gzip_compress
 from hashlib import sha256
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
+import json
 from pathlib import Path
 import sys
 from typing import Any
@@ -13,15 +14,18 @@ from urllib.parse import parse_qs, urlparse
 # Vercel executes the function from the project root, while local import-based
 # tests execute it from the repository checkout. Support both execution models.
 REPOSITORY_ROOT = Path.cwd()
-SOURCE_ROOT = REPOSITORY_ROOT / "src"
-if not SOURCE_ROOT.exists():
-    SOURCE_ROOT = Path(__file__).resolve().parents[2] / "src"
-if str(SOURCE_ROOT) not in sys.path:
-    sys.path.insert(0, str(SOURCE_ROOT))
 
-from ullebets_v2.config import V2Config  # noqa: E402
-from ullebets_v2.read_api.http import _cache_policy, _json_bytes, _semantic_etag_body, dispatch_get  # noqa: E402
-from ullebets_v2.storage.mongo import get_database  # noqa: E402
+
+def _configure_source_path() -> None:
+    candidates = [REPOSITORY_ROOT / "src"]
+    candidates.extend(parent / "src" for parent in Path(__file__).resolve().parents)
+    for candidate in candidates:
+        if candidate.exists() and str(candidate) not in sys.path:
+            sys.path.insert(0, str(candidate))
+            return
+
+
+_configure_source_path()
 
 
 _database: Any | None = None
@@ -30,13 +34,32 @@ _database: Any | None = None
 def _get_database() -> Any:
     global _database
     if _database is None:
+        from ullebets_v2.config import V2Config
+        from ullebets_v2.storage.mongo import get_database
+
         # get_database enforces the ullebets_v2-only write boundary even though
         # this function itself exposes only read methods.
         _database = get_database(V2Config.from_env(REPOSITORY_ROOT))
     return _database
 
 
+def _json_bytes(payload: Any) -> bytes:
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+
+
+def _semantic_etag_body(body: bytes) -> bytes:
+    try:
+        payload = json.loads(body)
+    except (TypeError, ValueError):
+        return body
+    if not isinstance(payload, dict) or "generatedAt" not in payload:
+        return body
+    return _json_bytes({key: value for key, value in payload.items() if key != "generatedAt"})
+
+
 def _edge_cache_control(path: str) -> str:
+    from ullebets_v2.read_api.http import _cache_policy
+
     policy = _cache_policy(path)
     if policy is None:
         return "no-store"
@@ -82,9 +105,11 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         try:
+            from ullebets_v2.read_api.http import dispatch_get
+
             status, payload = dispatch_get(_get_database(), parsed.path, parse_qs(parsed.query))
-        except Exception:  # pragma: no cover - production transport safety net
-            self.log_error("V2 read API request failed")
+        except Exception as exc:  # pragma: no cover - production transport safety net
+            self.log_error("V2 read API request failed: %s", type(exc).__name__)
             self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "read_api_failure"})
             return
 

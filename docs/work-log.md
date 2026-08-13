@@ -227,13 +227,24 @@ Tests:
   before runtime with `unused_function`: Vercel requires a glob key under
   `functions`, not the literal dynamic route filename. The configuration now
   uses the valid `api/**/*.py` glob and must be deployed again.
+- The second deploy `dpl_DVg36LZehjz2AW71HsB5f6U9REQ9` repeated the same
+  build failure because the deployment upload omitted `[...path].py`: the
+  PowerShell uploader treated its brackets as a wildcard. The next upload uses
+  `-LiteralPath` and verifies that the function is present before deployment.
+- The third deploy `dpl_4hDwUCGwXXkc8f6ibi7KSmW5fRE8` built and published the
+  Python function and SPA successfully. The public SPA route returned `200`,
+  but API calls returned Vercel's pre-handler `FUNCTION_INVOCATION_FAILED`.
+  The adapter now defers V2 imports until request handling and searches both
+  function and repository source roots; this makes the next runtime attempt
+  diagnosable without exposing internal errors to clients.
 
 New insight: static Vite hosting alone cannot work because local development
 depends on the port `8787` proxy. The API must be deployed on the same public
 origin; the new serverless adapter makes that boundary explicit and keeps
 MongoDB credentials server-only.
 
-Unproven: the Vercel project still needs `MONGODB_URI` and
+Unproven: the next production deployment must prove that the V2 sources load
+inside the function. The Vercel project then still needs `MONGODB_URI` and
 `MONGODB_DB=ullebets_v2` configured, followed by an external health,
 dashboard, SPA-route, and write-rejection test.
 
