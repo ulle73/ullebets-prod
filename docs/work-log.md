@@ -192,6 +192,51 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-13 - Vercel production adapter for the V2 read surface
+
+Status: `PARTIAL`. The deployable source and its local gates are verified; the
+public production deployment and its private MongoDB environment are the
+remaining runtime gate.
+
+Objective: host the existing Style-1 frontend without exposing MongoDB to the
+browser and without replacing the existing V2 read contract.
+
+Changes:
+
+- Added `api/v1/[...path].py`, a Vercel Python adapter that delegates every
+  read request to the existing `dispatch_get` contract and keeps one process
+  scoped Mongo client.
+- The adapter only accepts `GET` and `HEAD`, preserves ETags, gzip for large
+  payloads, no-store error/health responses, and uses bounded edge-cache
+  headers for safe read endpoints.
+- Added `vercel.json` to build `frontend/`, retain `/api/v1/*` as functions,
+  and route non-API SPA paths to `index.html`.
+- Added a minimal Vercel runtime dependency manifest and documented the two
+  required private production variables in `README.md`.
+
+Tests:
+
+- `python -m pytest tests/v2/test_vercel_read_api.py tests/v2/test_read_api_cache.py -q`
+  -> `6 passed`.
+- `cd frontend; npm run typecheck; npm run lint; npm run build` -> all passed.
+- `Get-Content vercel.json -Raw | ConvertFrom-Json` -> valid JSON.
+- Existing Vercel project `ullebets-prod-preview` was inspected before this
+  change: it was `READY` but `/api/v1/health` returned `404`, proving it was a
+  static-only deploy rather than a working product deployment.
+
+New insight: static Vite hosting alone cannot work because local development
+depends on the port `8787` proxy. The API must be deployed on the same public
+origin; the new serverless adapter makes that boundary explicit and keeps
+MongoDB credentials server-only.
+
+Unproven: the Vercel project still needs `MONGODB_URI` and
+`MONGODB_DB=ullebets_v2` configured, followed by an external health,
+dashboard, SPA-route, and write-rejection test.
+
+Next justified test: deploy this exact source to `ullebets-prod-preview`, set
+only the two server-side production variables, and run the public acceptance
+requests.
+
 ### 2026-08-13 - Cloud/local reconciliation and read-surface contract repair
 
 Status: `VERIFIED` for the reconciled local `style-1` branch. This does not

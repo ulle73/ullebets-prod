@@ -1,0 +1,116 @@
+from __future__ import annotations
+
+from gzip import compress as gzip_compress
+from hashlib import sha256
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler
+from pathlib import Path
+import sys
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
+
+# Vercel executes the function from the project root, while local import-based
+# tests execute it from the repository checkout. Support both execution models.
+REPOSITORY_ROOT = Path.cwd()
+SOURCE_ROOT = REPOSITORY_ROOT / "src"
+if not SOURCE_ROOT.exists():
+    SOURCE_ROOT = Path(__file__).resolve().parents[2] / "src"
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
+
+from ullebets_v2.config import V2Config  # noqa: E402
+from ullebets_v2.read_api.http import _cache_policy, _json_bytes, _semantic_etag_body, dispatch_get  # noqa: E402
+from ullebets_v2.storage.mongo import get_database  # noqa: E402
+
+
+_database: Any | None = None
+
+
+def _get_database() -> Any:
+    global _database
+    if _database is None:
+        # get_database enforces the ullebets_v2-only write boundary even though
+        # this function itself exposes only read methods.
+        _database = get_database(V2Config.from_env(REPOSITORY_ROOT))
+    return _database
+
+
+def _edge_cache_control(path: str) -> str:
+    policy = _cache_policy(path)
+    if policy is None:
+        return "no-store"
+    return (
+        "public, max-age=0, "
+        f"s-maxage={policy.max_age}, stale-while-revalidate={policy.stale_while_revalidate}"
+    )
+
+
+class handler(BaseHTTPRequestHandler):
+    """Read-only Vercel adapter for the existing V2 HTTP routing contract."""
+
+    server_version = "UllebetsVercelReadAPI/1.0"
+
+    def _write_body(self, status: HTTPStatus, body: bytes, *, cache_control: str, etag: str | None = None) -> None:
+        response_body = body
+        content_encoding = None
+        if (
+            status != HTTPStatus.NOT_MODIFIED
+            and len(body) >= 1024
+            and "gzip" in self.headers.get("Accept-Encoding", "").lower()
+        ):
+            response_body = gzip_compress(body, compresslevel=5)
+            content_encoding = "gzip"
+
+        self.send_response(status.value)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(response_body)))
+        self.send_header("Cache-Control", cache_control)
+        self.send_header("Vary", "Accept-Encoding")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        if content_encoding:
+            self.send_header("Content-Encoding", content_encoding)
+        if etag:
+            self.send_header("ETag", etag)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(response_body)
+
+    def _write_json(self, status: HTTPStatus, payload: Any, *, cache_control: str = "no-store") -> None:
+        self._write_body(status, _json_bytes(payload), cache_control=cache_control)
+
+    def do_GET(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        try:
+            status, payload = dispatch_get(_get_database(), parsed.path, parse_qs(parsed.query))
+        except Exception:  # pragma: no cover - production transport safety net
+            self.log_error("V2 read API request failed")
+            self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "read_api_failure"})
+            return
+
+        body = _json_bytes(payload)
+        etag = f'W/"{sha256(_semantic_etag_body(body)).hexdigest()}"'
+        cache_control = _edge_cache_control(self.path) if status == HTTPStatus.OK else "no-store"
+        if self.headers.get("If-None-Match") == etag:
+            self._write_body(HTTPStatus.NOT_MODIFIED, b"", cache_control=cache_control, etag=etag)
+            return
+        self._write_body(status, body, cache_control=cache_control, etag=etag)
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        self.do_GET()
+
+    def _method_not_allowed(self) -> None:
+        self.send_response(HTTPStatus.METHOD_NOT_ALLOWED.value)
+        self.send_header("Allow", "GET, HEAD")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        body = _json_bytes({"error": "read_only_api"})
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    do_POST = _method_not_allowed  # type: ignore[assignment]
+    do_PUT = _method_not_allowed  # type: ignore[assignment]
+    do_PATCH = _method_not_allowed  # type: ignore[assignment]
+    do_DELETE = _method_not_allowed  # type: ignore[assignment]

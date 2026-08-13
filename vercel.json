@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm --prefix frontend ci && npm --prefix frontend run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/v1/[...path].py": {
+      "maxDuration": 10,
+      "memory": 512,
+      "includeFiles": "src/**",
+      "excludeFiles": "{tests/**,data/**,docs/**,frontend/**,.github/**}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/:path((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

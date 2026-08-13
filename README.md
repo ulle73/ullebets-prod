@@ -1,7 +1,9 @@
 # Ullebets V2 Backend
 
 Det här repot är V2-backend-replacementen för `C:/dev/frontend/ullebets-vecel`.
-Frontend ingår inte här. Fokus är raw-first ingest, canonical mapping, audits, parity reports, `job_runs` och säkra CLI-jobb runt `ullebets_v2`.
+Det innehåller även den fristående `frontend/`-klienten och ett strikt read-only
+API för produktvyn. Fokus är raw-first ingest, canonical mapping, audits,
+parity reports, `job_runs` och säkra CLI-jobb runt `ullebets_v2`.
 
 ## Börja här
 
@@ -51,6 +53,22 @@ No-side-effect healthcheck:
 python scripts/forward_v2/healthcheck_v2.py
 python scripts/forward_v2/healthcheck_v2.py --check-connectivity --ping-db --check-fixture-db
 ```
+
+## Vercel-hosting
+
+`vercel.json` bygger `frontend/` som en SPA och exponerar samma read-only
+`/api/v1/*`-kontrakt som används lokalt genom Python-funktionen
+`api/v1/[...path].py`. Klienten ansluter därmed till API:t på samma origin och
+databasanslutningen lämnar aldrig webbläsaren.
+
+Vercel-projektet ska ha följande **Production**-miljövariabler:
+
+- `MONGODB_URI` - den privata anslutningen till Cosmos/MongoDB
+- `MONGODB_DB=ullebets_v2` - andra databasnamn stoppas av V2:s säkerhetsguard
+
+Sätt aldrig `MONGODB_URI` som en `VITE_*`-variabel och kopiera inte
+`.env.local` till Vercel. Python-funktionen tillåter endast `GET` och `HEAD`;
+alla skrivmetoder får `405`.
 
 Indexplan:
 
