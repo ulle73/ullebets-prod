@@ -248,6 +248,12 @@ Tests:
   configured environment is not simply missing `MONGODB_URI`; the next
   adapter revision distinguishes an unsafe database target from a PyMongo
   connection failure and records only the exception class in server logs.
+- The sixth deploy `dpl_D8NRsedoxnLdsZ75H2RVReW3sPxx` exposed a Python
+  exception-handler scoping problem in that classification attempt and
+  returned Vercel's pre-handler `FUNCTION_INVOCATION_FAILED`. The next
+  revision removes that import-dependent exception branch; it classifies
+  PyMongo failures from the caught exception module inside the already-proven
+  generic safety handler.
 
 New insight: static Vite hosting alone cannot work because local development
 depends on the port `8787` proxy. The API must be deployed on the same public
