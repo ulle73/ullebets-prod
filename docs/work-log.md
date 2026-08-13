@@ -223,6 +223,10 @@ Tests:
 - Existing Vercel project `ullebets-prod-preview` was inspected before this
   change: it was `READY` but `/api/v1/health` returned `404`, proving it was a
   static-only deploy rather than a working product deployment.
+- The first production deploy `dpl_Eoe8D4dR6bK1sFPmnL7ymCwMxaMS` was rejected
+  before runtime with `unused_function`: Vercel requires a glob key under
+  `functions`, not the literal dynamic route filename. The configuration now
+  uses the valid `api/**/*.py` glob and must be deployed again.
 
 New insight: static Vite hosting alone cannot work because local development
 depends on the port `8787` proxy. The API must be deployed on the same public
