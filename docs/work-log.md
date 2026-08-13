@@ -237,14 +237,19 @@ Tests:
   The adapter now defers V2 imports until request handling and searches both
   function and repository source roots; this makes the next runtime attempt
   diagnosable without exposing internal errors to clients.
+- The fourth deploy `dpl_8xdsKDnPFvgrvzP3aAM6adghF2vN` proved the function
+  loads and reaches its own request handler: `/api/v1/health` returned the
+  V2-controlled `read_api_failure` response instead of a Vercel crash. This
+  isolates the remaining failure to server configuration/database access.
+  Missing `MONGODB_URI` now returns the explicit but non-sensitive `503`
+  `read_api_unconfigured` response; a regression test covers that guard.
 
 New insight: static Vite hosting alone cannot work because local development
 depends on the port `8787` proxy. The API must be deployed on the same public
 origin; the new serverless adapter makes that boundary explicit and keeps
 MongoDB credentials server-only.
 
-Unproven: the next production deployment must prove that the V2 sources load
-inside the function. The Vercel project then still needs `MONGODB_URI` and
+Unproven: the Vercel project still needs `MONGODB_URI` and
 `MONGODB_DB=ullebets_v2` configured, followed by an external health,
 dashboard, SPA-route, and write-rejection test.
 

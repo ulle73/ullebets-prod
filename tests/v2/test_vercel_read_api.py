@@ -4,6 +4,7 @@ from http.server import ThreadingHTTPServer
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from threading import Thread
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -66,6 +67,24 @@ def test_vercel_read_adapter_rejects_writes() -> None:
         assert response.status == 405
         assert response.headers["Allow"] == "GET, HEAD"
         assert response.read() == b'{"error":"read_only_api"}'
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_vercel_read_adapter_reports_missing_database_configuration_without_details() -> None:
+    module = _load_function_module()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), module.handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        with patch.object(module, "_get_database", side_effect=module.ReadApiConfigurationError("private details")):
+            response = _request(f"http://127.0.0.1:{server.server_port}/api/v1/health")
+
+        assert response.status == 503
+        assert response.read() == b'{"error":"read_api_unconfigured"}'
     finally:
         server.shutdown()
         server.server_close()

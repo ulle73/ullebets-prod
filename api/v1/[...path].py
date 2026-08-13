@@ -31,15 +31,22 @@ _configure_source_path()
 _database: Any | None = None
 
 
+class ReadApiConfigurationError(RuntimeError):
+    """Raised when the serverless read API has no safe database target."""
+
+
 def _get_database() -> Any:
     global _database
     if _database is None:
         from ullebets_v2.config import V2Config
         from ullebets_v2.storage.mongo import get_database
 
+        config = V2Config.from_env(REPOSITORY_ROOT)
+        if not config.mongo_uri:
+            raise ReadApiConfigurationError("MONGODB_URI is not configured")
         # get_database enforces the ullebets_v2-only write boundary even though
         # this function itself exposes only read methods.
-        _database = get_database(V2Config.from_env(REPOSITORY_ROOT))
+        _database = get_database(config)
     return _database
 
 
@@ -108,6 +115,9 @@ class handler(BaseHTTPRequestHandler):
             from ullebets_v2.read_api.http import dispatch_get
 
             status, payload = dispatch_get(_get_database(), parsed.path, parse_qs(parsed.query))
+        except ReadApiConfigurationError:  # pragma: no cover - Vercel environment guard
+            self._write_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "read_api_unconfigured"})
+            return
         except Exception as exc:  # pragma: no cover - production transport safety net
             self.log_error("V2 read API request failed: %s", type(exc).__name__)
             self._write_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "read_api_failure"})
