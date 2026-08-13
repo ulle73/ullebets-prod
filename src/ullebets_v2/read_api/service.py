@@ -135,7 +135,7 @@ def _normalize_match_state(status: Any, result: dict[str, Any] | None) -> str:
 
 
 def _latest_results(database: Any, match_keys: list[str]) -> dict[str, dict[str, Any]]:
-    if not match_keys:
+    if not match_keys or (isinstance(database, dict) and MATCH_RESULTS_CANONICAL not in database):
         return {}
     rows = _find_rows(
         database,
@@ -271,15 +271,29 @@ def _load_matchups(
     source_date: str,
     *,
     now: datetime | None = None,
+    rank_limit: int | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
     match_keys = [str(row.get("match_key")) for row in fixtures if row.get("match_key")]
     if not match_keys:
         return [], "missing"
-    persisted = _find_rows(
-        database,
-        MATCHUPS_SCORE,
-        {"snapshot_date": source_date, "match_key": {"$in": match_keys}},
-    )
+    persisted_query = {"snapshot_date": source_date, "match_key": {"$in": match_keys}}
+    persisted: list[dict[str, Any]] = []
+    if rank_limit is not None:
+        persisted = _find_rows(
+            database,
+            MATCHUPS_SCORE,
+            {
+                **persisted_query,
+                "condition": {"$in": ["over", "under"]},
+                "rank_position": {"$lte": rank_limit},
+            },
+            sort=[("condition", 1), ("rank_position", 1), ("score", -1)],
+        )
+        present_conditions = {str(row.get("condition") or "").lower() for row in persisted}
+        if present_conditions != {"over", "under"}:
+            persisted = []
+    if not persisted:
+        persisted = _find_rows(database, MATCHUPS_SCORE, persisted_query)
     if persisted:
         return persisted, "persisted"
     captured_at = now or utc_now()
@@ -316,6 +330,20 @@ def _ranked_matchups(matchup_rows: list[dict[str, Any]], *, limit_per_condition:
     return selected
 
 
+def _source_generated_at(rows: list[dict[str, Any]]) -> str | None:
+    timestamps = [
+        timestamp
+        for row in rows
+        for timestamp in (
+            _as_utc(row.get("captured_at")),
+            _as_utc(row.get("updated_at")),
+            _as_utc(row.get("fetched_at")),
+        )
+        if timestamp is not None
+    ]
+    return _iso(max(timestamps)) if timestamps else _iso(utc_now())
+
+
 def read_dashboard(
     database: Any,
     *,
@@ -333,13 +361,19 @@ def read_dashboard(
     )
     match_keys = [str(row.get("match_key")) for row in fixtures if row.get("match_key")]
     results = _latest_results(database, match_keys)
-    matchup_rows, matchup_source = _load_matchups(database, fixtures, selected_date, now=captured_at)
+    matchup_rows, matchup_source = _load_matchups(
+        database,
+        fixtures,
+        selected_date,
+        now=captured_at,
+        rank_limit=limit_per_condition,
+    )
     selected_matchups = _ranked_matchups(matchup_rows, limit_per_condition=limit_per_condition)
     fixture_by_key = {str(row.get("match_key")): row for row in fixtures if row.get("match_key")}
     return {
         "selectedDate": selected_date,
         "timezone": PRODUCT_TIMEZONE,
-        "generatedAt": _iso(captured_at),
+        "generatedAt": _source_generated_at(fixtures),
         "matches": [_match_summary(row, results.get(str(row.get("match_key")))) for row in fixtures],
         "matchups": [
             _matchup_summary(row, fixture_by_key.get(str(row.get("match_key"))))
@@ -479,12 +513,7 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
     if fixture is None:
         return None
     source_date = str(fixture.get("source_date") or "")
-    date_fixtures = (
-        _find_rows(database, FIXTURES_CANONICAL, {"source_date": source_date}, sort=[("start_time", 1)])
-        if source_date
-        else [fixture]
-    )
-    date_matchups, matchup_source = _load_matchups(database, date_fixtures, source_date) if source_date else ([], "missing")
+    date_matchups, matchup_source = _load_matchups(database, [fixture], source_date) if source_date else ([], "missing")
     matchup_rows = [row for row in date_matchups if str(row.get("match_key") or "") == match_key]
     league_avg_rows = (
         _find_rows(database, MATCHUPS_LEAGUE_AVG, {"match_key": match_key, "snapshot_date": source_date})
@@ -546,6 +575,20 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
     match["homeTeamImageUrl"] = team_images.get(home_key)
     match["awayTeamImageUrl"] = team_images.get(away_key)
 
+    forward_bet_rows = _find_rows(database, FORWARD_BETS, {"match_key": match_key})
+    canonical_forward_bets, _ = canonicalize_forward_bet_docs(forward_bet_rows)
+    forward_result_by_selection = _forward_result_lookup(database, canonical_forward_bets)
+    forward_selections = [
+        _forward_selection_read_model(
+            row,
+            fixture,
+            forward_result_by_selection.get(_forward_selection_key(row) or "", {}),
+        )
+        for row in canonical_forward_bets
+    ]
+    forward_result_rows = _find_rows(database, FORWARD_RESULTS, {"match_key": match_key})
+    canonical_forward_results, _ = canonicalize_forward_bet_docs(forward_result_rows)
+
     return {
         "match": match,
         "matchups": [
@@ -563,6 +606,8 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
             "home": _profile_summary(home_profile),
             "away": _profile_summary(away_profile),
         },
+        "forwardSelections": forward_selections,
+        "forwardResults": [_result_read_model(row, fixture) for row in canonical_forward_results],
     }
 
 
@@ -757,6 +802,52 @@ def _forward_result_lookup(database: Any, rows: list[dict[str, Any]]) -> dict[st
     return lookup
 
 
+def _forward_selection_read_model(
+    row: dict[str, Any],
+    fixture: dict[str, Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    selected_odds = row.get("selected_odds") if row.get("selected_odds") is not None else row.get("saved_odds")
+    return {
+        "selectionKey": _forward_selection_key(row),
+        "predictionKey": row.get("prediction_key"),
+        "matchKey": row.get("match_key"),
+        "leagueKey": fixture.get("league_key"),
+        "leagueName": fixture.get("league_name") or row.get("league_name"),
+        "homeTeamKey": fixture.get("home_team_key"),
+        "awayTeamKey": fixture.get("away_team_key"),
+        "homeTeamName": fixture.get("home_team_name") or row.get("home_team_name"),
+        "awayTeamName": fixture.get("away_team_name") or row.get("away_team_name"),
+        "statKey": row.get("stat_key"),
+        "period": row.get("period"),
+        "scope": row.get("scope"),
+        "direction": row.get("direction"),
+        "lineValue": row.get("line_value"),
+        "selectedOdds": selected_odds,
+        "predictedWinProbability": row.get("predicted_win_probability"),
+        "expectedRoiUnits": row.get("expected_roi_units"),
+        "modelId": row.get("model_id"),
+        "modelStatus": row.get("model_status"),
+        "policyId": row.get("selection_policy_id"),
+        "policyStatus": row.get("selection_policy_status"),
+        "snapshotKey": row.get("snapshot_key"),
+        "offerKey": row.get("offer_key"),
+        "oddsSnapshotTime": _iso(row.get("odds_snapshot_time")),
+        "predictionCreatedAt": _iso(row.get("prediction_created_at")),
+        "matchStartTime": _iso(row.get("match_start_time")),
+        "validForForwardEvaluation": row.get("valid_for_forward_evaluation"),
+        "invalidForModel": bool(row.get("invalid_for_model")),
+        "selectionFamily": forward_selection_family(row),
+        "resultStatus": result.get("result_loop_status"),
+        "settlementStatus": result.get("settlement_status"),
+        "settlementResult": result.get("settlement_result"),
+        "actualValue": result.get("actual_value"),
+        "pnlUnits": result.get("pnl_units"),
+        "stakeUnits": result.get("stake_units"),
+        "validForPerformance": result.get("valid_for_performance"),
+    }
+
+
 def read_auto(
     database: Any,
     *,
@@ -810,47 +901,7 @@ def read_auto(
         fixture = fixtures.get(str(row.get("match_key") or ""), {})
         selection_key = _forward_selection_key(row)
         result = results.get(selection_key or "", {})
-        selected_odds = row.get("selected_odds") if row.get("selected_odds") is not None else row.get("saved_odds")
-        selections.append(
-            {
-                "selectionKey": selection_key,
-                "predictionKey": row.get("prediction_key"),
-                "matchKey": row.get("match_key"),
-                "leagueKey": fixture.get("league_key"),
-                "leagueName": fixture.get("league_name") or row.get("league_name"),
-                "homeTeamKey": fixture.get("home_team_key"),
-                "awayTeamKey": fixture.get("away_team_key"),
-                "homeTeamName": fixture.get("home_team_name") or row.get("home_team_name"),
-                "awayTeamName": fixture.get("away_team_name") or row.get("away_team_name"),
-                "statKey": row.get("stat_key"),
-                "period": row.get("period"),
-                "scope": row.get("scope"),
-                "direction": row.get("direction"),
-                "lineValue": row.get("line_value"),
-                "selectedOdds": selected_odds,
-                "predictedWinProbability": row.get("predicted_win_probability"),
-                "expectedRoiUnits": row.get("expected_roi_units"),
-                "modelId": row.get("model_id"),
-                "modelStatus": row.get("model_status"),
-                "policyId": row.get("selection_policy_id"),
-                "policyStatus": row.get("selection_policy_status"),
-                "snapshotKey": row.get("snapshot_key"),
-                "offerKey": row.get("offer_key"),
-                "oddsSnapshotTime": _iso(row.get("odds_snapshot_time")),
-                "predictionCreatedAt": _iso(row.get("prediction_created_at")),
-                "matchStartTime": _iso(row.get("match_start_time")),
-                "validForForwardEvaluation": row.get("valid_for_forward_evaluation"),
-                "invalidForModel": bool(row.get("invalid_for_model")),
-                "selectionFamily": forward_selection_family(row),
-                "resultStatus": result.get("result_loop_status"),
-                "settlementStatus": result.get("settlement_status"),
-                "settlementResult": result.get("settlement_result"),
-                "actualValue": result.get("actual_value"),
-                "pnlUnits": result.get("pnl_units"),
-                "stakeUnits": result.get("stake_units"),
-                "validForPerformance": result.get("valid_for_performance"),
-            }
-        )
+        selections.append(_forward_selection_read_model(row, fixture, result))
     return {
         "count": exposure_audit["canonical_count"],
         "rawCount": exposure_audit["raw_count"],
@@ -953,8 +1004,18 @@ def read_results(
         "summary": {
             "rows": len(canonical_rows),
             "settled": len(valid_settled),
-            "wins": sum(1 for row in valid_settled if row.get("settlement_result") == "win"),
-            "losses": sum(1 for row in valid_settled if row.get("settlement_result") == "loss"),
+            "wins": sum(
+                1
+                for row in valid_settled
+                if row.get("settlement_result") == "win"
+                or (row.get("settlement_result") is None and row.get("win") is True)
+            ),
+            "losses": sum(
+                1
+                for row in valid_settled
+                if row.get("settlement_result") == "loss"
+                or (row.get("settlement_result") is None and row.get("win") is False)
+            ),
             "pushes": sum(1 for row in valid_settled if row.get("settlement_result") == "push"),
             "excluded": sum(1 for row in canonical_rows if row.get("valid_for_performance") is False),
         },
@@ -976,11 +1037,15 @@ def read_model(database: Any) -> dict[str, Any]:
     forward = database[FORWARD_BETS]
     model_ids = sorted(str(value) for value in scores.distinct("model_id") if value)
     policy_ids = sorted(str(value) for value in forward.distinct("selection_policy_id") if value)
+    model_statuses = sorted(str(value) for value in forward.distinct("model_status") if value)
+    policy_statuses = sorted(str(value) for value in forward.distinct("selection_policy_status") if value)
     canonical_forward, _ = canonicalize_forward_bet_docs(_find_rows(database, FORWARD_BETS, {}))
     canonical_results, _ = canonicalize_forward_bet_docs(_find_rows(database, FORWARD_RESULTS, {}))
     return {
         "modelIds": model_ids,
         "policyIds": policy_ids,
+        "modelStatuses": model_statuses,
+        "policyStatuses": policy_statuses,
         "scoreCount": scores.count_documents({}),
         "forwardSelectionCount": len(canonical_forward),
         "settledForwardCount": sum(

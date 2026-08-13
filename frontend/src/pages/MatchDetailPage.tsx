@@ -4,6 +4,7 @@ import { CheckpointTimeline } from '../components/CheckpointTimeline';
 import { SignalCard } from '../components/SignalCard';
 import { StateNotice } from '../components/StateNotice';
 import { useMatchDetail } from '../data/queries';
+import { formatClv, formatExpectedRoi, formatOdds, formatProbability } from '../domain/formatters';
 import { FirstGoalPanel } from './match-detail/FirstGoalPanel';
 import { MatchHeader } from './match-detail/MatchHeader';
 import { ShotTempo } from './match-detail/ShotTempo';
@@ -40,7 +41,11 @@ export function MatchDetailPage() {
 
   const data = detail.data;
   const match = data.match;
-  const statRows = buildStatComparison(data, period);
+  const teamProfiles = data.teamProfiles ?? { home: null, away: null };
+  const analyticsData = data.teamProfiles ? data : { ...data, teamProfiles };
+  const forwardSelections = data.forwardSelections ?? [];
+  const forwardResults = data.forwardResults ?? [];
+  const statRows = buildStatComparison(analyticsData, period);
   const homeShort = abbreviation(match.homeTeamName, 'HEM');
   const awayShort = abbreviation(match.awayTeamName, 'BOR');
 
@@ -63,8 +68,8 @@ export function MatchDetailPage() {
 
       <MatchHeader
         match={match}
-        homeProfile={data.teamProfiles.home}
-        awayProfile={data.teamProfiles.away}
+        homeProfile={teamProfiles.home}
+        awayProfile={teamProfiles.away}
         period={period}
         onPeriodChange={setPeriod}
       />
@@ -72,9 +77,46 @@ export function MatchDetailPage() {
       {tab === 'statistics' ? (
         <div className="analytics-sections" role="tabpanel" aria-label="Statistik">
           {statRows.length ? <StatComparison rows={statRows} homeName={match.homeTeamName} awayName={match.awayTeamName} /> : <StateNotice state="empty" title="Statistik saknas för perioden" detail="Frontend fyller inte i saknade profilvärden." />}
-          <ShotTempo states={buildShotTempoView(data)} homeLabel={homeShort} awayLabel={awayShort} />
-          <TenMinuteChart view={buildTenMinuteView(data)} homeName={match.homeTeamName ?? homeShort} awayName={match.awayTeamName ?? awayShort} />
-          <FirstGoalPanel view={buildFirstGoalView(data)} homeName={match.homeTeamName ?? homeShort} awayName={match.awayTeamName ?? awayShort} />
+          <ShotTempo states={buildShotTempoView(analyticsData)} homeLabel={homeShort} awayLabel={awayShort} />
+          <TenMinuteChart view={buildTenMinuteView(analyticsData)} homeName={match.homeTeamName ?? homeShort} awayName={match.awayTeamName ?? awayShort} />
+          <FirstGoalPanel view={buildFirstGoalView(analyticsData)} homeName={match.homeTeamName ?? homeShort} awayName={match.awayTeamName ?? awayShort} />
+          <section className="analytics-panel analytics-panel--padded">
+            <header className="analytics-section-title"><h2>Marknadsodds</h2><span>{data.marketOffers.length} linor</span></header>
+            {data.marketOffers.length ? (
+              <div className="analytics-market-table">
+                <div className="analytics-market-row analytics-market-row--head"><span>MARKNAD</span><span>LINA</span><span>OVER</span><span>UNDER</span></div>
+                {data.marketOffers.map((offer, index) => (
+                  <div className="analytics-market-row" key={offer.offerKey ?? `${offer.statKey}:${offer.scope}:${offer.period}:${offer.line}:${index}`}>
+                    <strong>{[offer.statKey, offer.scope, offer.period].filter(Boolean).join(' · ') || 'Marknad saknas'}</strong>
+                    <span>{offer.line?.toLocaleString('sv-SE') ?? '—'}</span>
+                    <span>{formatOdds(offer.overOdds)}</span>
+                    <span>{formatOdds(offer.underOdds)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <StateNotice state="empty" title="Inga marknadsodds" detail="V2 returnerade inga normaliserade erbjudanden för matchen." />}
+          </section>
+          <section className="analytics-panel analytics-panel--padded">
+            <header className="analytics-section-title"><h2>Utfall & forward-evidens</h2><span>{forwardSelections.length + forwardResults.length} rader</span></header>
+            {forwardSelections.length || forwardResults.length ? (
+              <div className="analytics-evidence-list">
+                {forwardSelections.map((selection, index) => (
+                  <article className="analytics-evidence-row" key={selection.selectionKey ?? selection.predictionKey ?? `selection:${index}`}>
+                    <div><strong>{selection.direction?.toLocaleUpperCase('sv-SE') ?? '—'} {selection.statKey ?? 'Stat'} · {selection.scope ?? '—'} · {selection.period ?? '—'}</strong><small>Lina {selection.lineValue?.toLocaleString('sv-SE') ?? '—'} · odds {formatOdds(selection.selectedOdds)}</small></div>
+                    <span>Modell P {formatProbability(selection.predictedWinProbability)}</span>
+                    <span>EV {formatExpectedRoi(selection.expectedRoiUnits)}</span>
+                  </article>
+                ))}
+                {forwardResults.map((result, index) => (
+                  <article className="analytics-evidence-row analytics-evidence-row--settled" key={result.resultLoopKey ?? result.predictionKey ?? `result:${index}`}>
+                    <div><strong>{result.settlementResult?.toLocaleUpperCase('sv-SE') ?? result.resultLoopStatus ?? 'RESULTAT'}</strong><small>Utfall {result.actualValue?.toLocaleString('sv-SE') ?? '—'} · PnL {result.pnlUnits === null ? '—' : `${result.pnlUnits > 0 ? '+' : ''}${result.pnlUnits.toLocaleString('sv-SE')} u`}</small></div>
+                    <span>{result.officialClv ? `CLV ${formatClv(result.clvPct)}` : 'CLV saknas'}</span>
+                    <span>{result.closingOdds === null ? 'Closing saknas' : `Close ${formatOdds(result.closingOdds)}`}</span>
+                  </article>
+                ))}
+              </div>
+            ) : <StateNotice state="empty" title="Ingen registrerad forward-evidens" detail="Matchup-ranking är analysdata och visas inte som ett registrerat spel." />}
+          </section>
         </div>
       ) : null}
 

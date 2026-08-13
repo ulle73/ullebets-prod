@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from gzip import compress as gzip_compress
 from hashlib import sha256
 from http import HTTPStatus
@@ -29,6 +28,17 @@ from ullebets_v2.read_api.service import (
 
 def _json_bytes(payload: Any) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+
+
+def _semantic_etag_body(body: bytes) -> bytes:
+    try:
+        payload = json.loads(body)
+    except (TypeError, ValueError):
+        return body
+    if not isinstance(payload, dict) or "generatedAt" not in payload:
+        return body
+    # Response-generation time should not invalidate otherwise identical read data.
+    return _json_bytes({key: value for key, value in payload.items() if key != "generatedAt"})
 
 
 def _first(query: dict[str, list[str]], key: str) -> str | None:
@@ -94,7 +104,7 @@ class _ResponseCache:
         expires_at = monotonic() + policy.max_age
         entry = _CachedResponse(
             body=body,
-            etag=f'W/"{sha256(body).hexdigest()}"',
+            etag=f'W/"{sha256(_semantic_etag_body(body)).hexdigest()}"',
             expires_at=expires_at,
             stale_until=expires_at + policy.stale_while_revalidate,
             cache_control=(
@@ -125,9 +135,6 @@ def _cache_policy(path_with_query: str) -> _CachePolicy | None:
     parsed = urlparse(path_with_query)
     path = parsed.path.rstrip("/") or "/"
     if path == "/api/v1/dashboard":
-        requested_date = parse_qs(parsed.query).get("date", [None])[0]
-        if requested_date and requested_date < datetime.now(tz=UTC).date().isoformat():
-            return _CachePolicy(max_age=3600, stale_while_revalidate=3600)
         return _CachePolicy(max_age=30, stale_while_revalidate=300)
     if path == "/api/v1/system":
         return _CachePolicy(max_age=10, stale_while_revalidate=30)
@@ -138,6 +145,56 @@ def _cache_policy(path_with_query: str) -> _CachePolicy | None:
     if path.startswith("/api/v1/matches/"):
         return _CachePolicy(max_age=30, stale_while_revalidate=120)
     return None
+
+
+def dispatch_get(database: Any, path: str, query: dict[str, list[str]]) -> tuple[HTTPStatus, Any]:
+    normalized_path = path.rstrip("/") or "/"
+    if normalized_path == "/api/v1/health":
+        database.command("ping")
+        return HTTPStatus.OK, {"status": "ok"}
+    if normalized_path == "/api/v1/dashboard":
+        return HTTPStatus.OK, read_dashboard(database, source_date=_first(query, "date"))
+    if normalized_path == "/api/v1/matches":
+        return HTTPStatus.OK, read_matches(database, match_keys=_match_keys(query))
+    if normalized_path == "/api/v1/auto":
+        return HTTPStatus.OK, read_auto(
+            database,
+            limit=_positive_int(query, "limit", DEFAULT_PAGE_LIMIT, minimum=1),
+            offset=_positive_int(query, "offset", 0),
+            stat_key=_first(query, "stat"),
+            period=_first(query, "period"),
+            scope=_first(query, "scope"),
+            direction=_first(query, "direction"),
+            model_id=_first(query, "model"),
+            policy_id=_first(query, "policy"),
+            league_key=_first(query, "league"),
+        )
+    if normalized_path == "/api/v1/results":
+        return HTTPStatus.OK, read_results(
+            database,
+            limit=_positive_int(query, "limit", DEFAULT_PAGE_LIMIT, minimum=1),
+            offset=_positive_int(query, "offset", 0),
+            status=_first(query, "status"),
+            stat_key=_first(query, "stat"),
+            period=_first(query, "period"),
+            scope=_first(query, "scope"),
+            direction=_first(query, "direction"),
+            league_key=_first(query, "league"),
+        )
+    if normalized_path == "/api/v1/model":
+        return HTTPStatus.OK, read_model(database)
+    if normalized_path == "/api/v1/system":
+        return HTTPStatus.OK, read_system_status(database)
+    if normalized_path.startswith("/api/v1/matches/"):
+        payload = read_match_detail(database, unquote(normalized_path.removeprefix("/api/v1/matches/")))
+        return (HTTPStatus.OK, payload) if payload is not None else (HTTPStatus.NOT_FOUND, {"error": "match_not_found"})
+    if normalized_path.startswith("/api/v1/teams/"):
+        payload = read_team(database, unquote(normalized_path.removeprefix("/api/v1/teams/")))
+        return (HTTPStatus.OK, payload) if payload is not None else (HTTPStatus.NOT_FOUND, {"error": "team_not_found"})
+    if normalized_path.startswith("/api/v1/leagues/"):
+        payload = read_league(database, unquote(normalized_path.removeprefix("/api/v1/leagues/")))
+        return (HTTPStatus.OK, payload) if payload is not None else (HTTPStatus.NOT_FOUND, {"error": "league_not_found"})
+    return HTTPStatus.NOT_FOUND, {"error": "not_found"}
 
 
 def build_handler(database: Any) -> type[BaseHTTPRequestHandler]:
@@ -195,58 +252,7 @@ def build_handler(database: Any) -> type[BaseHTTPRequestHandler]:
 
         def _dispatch_get(self) -> tuple[HTTPStatus, Any]:
             parsed = urlparse(self.path)
-            path = parsed.path.rstrip("/") or "/"
-            query = parse_qs(parsed.query)
-
-            if path == "/api/v1/health":
-                database.command("ping")
-                return HTTPStatus.OK, {"status": "ok"}
-            if path == "/api/v1/dashboard":
-                return HTTPStatus.OK, read_dashboard(database, source_date=_first(query, "date"))
-            if path == "/api/v1/matches":
-                return HTTPStatus.OK, read_matches(database, match_keys=_match_keys(query))
-            if path == "/api/v1/auto":
-                return HTTPStatus.OK, read_auto(
-                    database,
-                    limit=_positive_int(query, "limit", DEFAULT_PAGE_LIMIT, minimum=1),
-                    offset=_positive_int(query, "offset", 0),
-                    stat_key=_first(query, "stat"),
-                    period=_first(query, "period"),
-                    scope=_first(query, "scope"),
-                    direction=_first(query, "direction"),
-                    model_id=_first(query, "model"),
-                    policy_id=_first(query, "policy"),
-                    league_key=_first(query, "league"),
-                )
-            if path == "/api/v1/results":
-                return HTTPStatus.OK, read_results(
-                    database,
-                    limit=_positive_int(query, "limit", DEFAULT_PAGE_LIMIT, minimum=1),
-                    offset=_positive_int(query, "offset", 0),
-                    status=_first(query, "status"),
-                    stat_key=_first(query, "stat"),
-                    period=_first(query, "period"),
-                    scope=_first(query, "scope"),
-                    direction=_first(query, "direction"),
-                    league_key=_first(query, "league"),
-                )
-            if path == "/api/v1/model":
-                return HTTPStatus.OK, read_model(database)
-            if path == "/api/v1/system":
-                return HTTPStatus.OK, read_system_status(database)
-            if path.startswith("/api/v1/matches/"):
-                match_key = unquote(path.removeprefix("/api/v1/matches/"))
-                payload = read_match_detail(database, match_key)
-                return (HTTPStatus.OK, payload) if payload is not None else (HTTPStatus.NOT_FOUND, {"error": "match_not_found"})
-            if path.startswith("/api/v1/teams/"):
-                team_key = unquote(path.removeprefix("/api/v1/teams/"))
-                payload = read_team(database, team_key)
-                return (HTTPStatus.OK, payload) if payload is not None else (HTTPStatus.NOT_FOUND, {"error": "team_not_found"})
-            if path.startswith("/api/v1/leagues/"):
-                league_key = unquote(path.removeprefix("/api/v1/leagues/"))
-                payload = read_league(database, league_key)
-                return (HTTPStatus.OK, payload) if payload is not None else (HTTPStatus.NOT_FOUND, {"error": "league_not_found"})
-            return HTTPStatus.NOT_FOUND, {"error": "not_found"}
+            return dispatch_get(database, parsed.path, parse_qs(parsed.query))
 
         def do_GET(self) -> None:  # noqa: N802
             policy = _cache_policy(self.path)

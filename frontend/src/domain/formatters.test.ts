@@ -17,6 +17,7 @@ describe('frontend truth formatters', () => {
 
   it('keeps missing CLV unavailable and distinguishes fallback from official closing', () => {
     expect(formatClv(null)).toBe('CLV saknas');
+    expect(formatClv(5.5)).toBe('+5,5 %');
     expect(formatClosingQuality('t30_fallback')).toBe('T-30 fallback');
     expect(formatClosingQuality('t10')).toBe('Officiell T-10');
   });

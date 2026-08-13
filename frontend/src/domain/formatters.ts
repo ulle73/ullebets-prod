@@ -45,7 +45,8 @@ export function formatExpectedRoi(value: number | null): string {
 
 export function formatClv(value: number | null): string {
   if (value === null) return 'CLV saknas';
-  const formatted = decimalPercent(value);
+  // V2 stores clv_pct in percentage points, unlike model probabilities and EV.
+  const formatted = value.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return `${value > 0 ? '+' : ''}${formatted} %`;
 }
 

@@ -30,7 +30,8 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `434/434`.
+- `VERIFIED`: the full V2 Python test suite currently passes, `449/449` in
+  the current reconciled `style-1` checkout.
 
 ### Backend
 
@@ -190,6 +191,54 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-13 - Cloud/local reconciliation and read-surface contract repair
+
+Status: `VERIFIED` for the reconciled local `style-1` branch. This does not
+change independent production, live-closing, or in-domain forward-model
+readiness gates.
+
+Objective: reconcile the cloud `style-1` frontend/read-surface work with the
+preserved local V2 forward-ledger and match-analytics changes without losing
+either side's behavior.
+
+Changes:
+
+- Rebased the three preserved local commits on top of `origin/style-1`, whose
+  base already contains the cloud merge into `origin/main`.
+- Restored the complete read contract in the merged V2 API: cache-safe public
+  dispatch, stable semantic ETags, bounded dashboard matchup reads, canonical
+  Auto/Results exposure rows, and match-detail forward selections/results.
+- Restored URL-driven Auto filters and server pagination, league/team/match
+  navigation, and an accessible mobile dialog shell while keeping the match
+  rail lazy-loaded.
+- Made the new analytics view accept older V2 match-detail responses without
+  profiles, and display persisted normalized market offers, settlement rows,
+  and forward evidence when available.
+- Corrected CLV presentation to use V2's stored percentage-point unit; for
+  example, `5.5` is rendered as `+5.5 %`, not `+550 %`.
+- Added a regression proving match detail returns canonical V6 selection,
+  settlement, and CLV evidence from V2 collections.
+
+Tests:
+
+- `python -m compileall -q src; python -m pytest -q` -> `449 passed`.
+- `npm test -- --run` -> `14` files / `52` tests passed.
+- `npm run lint` -> passed with zero warnings.
+- `npm run build` -> Vite production build passed.
+- `git diff --check` -> passed.
+
+New insight: the merge conflict was not merely visual. It exposed two
+production-facing contract defects: an older API response could crash the
+analytics page, and the generic fractional-percent formatter could inflate
+stored V2 CLV percentage points by 100. Both are now regression-tested.
+
+Unproven: hosted CI/deployment of this new commit, live T-30/T-10/closing
+capture, closing-based CLV, and in-domain V6 forward settlement remain
+separate runtime gates.
+
+Next justified test: verify the hosted CI run after the reconciled branch is
+pushed; merge to `main` only through the normal reviewed branch flow.
 
 ### 2026-08-13 - Style-1 frontend and read-only product surface
 

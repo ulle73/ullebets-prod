@@ -168,6 +168,8 @@ export interface MatchDetailResponse {
     home: TeamProfileSummary | null;
     away: TeamProfileSummary | null;
   };
+  forwardSelections?: AutoSelection[];
+  forwardResults?: ForwardResult[];
 }
 
 export interface LeagueSummary {
@@ -378,6 +380,8 @@ export interface ResultsResponse {
 export interface ModelResponse {
   modelIds: string[];
   policyIds: string[];
+  modelStatuses: string[];
+  policyStatuses: string[];
   scoreCount: number;
   forwardSelectionCount: number;
   settledForwardCount: number;

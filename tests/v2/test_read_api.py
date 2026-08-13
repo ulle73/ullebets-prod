@@ -402,6 +402,69 @@ def test_match_detail_only_loads_matchups_for_requested_match() -> None:
     assert matchups.last_query.get("match_key") == {"$in": ["sofascore:123"]}
 
 
+def test_match_detail_exposes_canonical_forward_selection_and_settlement_evidence() -> None:
+    database = FakeDatabase(
+        fixtures_canonical=FakeCollection([fixture_row()]),
+        matchups_score=FakeCollection([]),
+        matchups_league_avg=FakeCollection([]),
+        market_snapshots=FakeCollection([]),
+        teamprofiles=FakeCollection([]),
+        forward_bets=FakeCollection(
+            [
+                {
+                    "prediction_key": "prediction-1",
+                    "match_key": "sofascore:123",
+                    "stat_key": "cornerKicks",
+                    "scope": "away",
+                    "period": "ALL",
+                    "direction": "over",
+                    "line_value": 4.5,
+                    "selected_odds": 2.0,
+                    "predicted_win_probability": 0.6,
+                    "expected_roi_units": 0.2,
+                    "model_id": "v6",
+                    "prediction_type": "ev_registered_score_policy",
+                    "selection_policy_id": "v6_corners",
+                    "valid_for_forward_evaluation": True,
+                    "match_start_time": datetime(2026, 8, 9, 18, tzinfo=UTC),
+                    "prediction_created_at": datetime(2026, 8, 9, 12, tzinfo=UTC),
+                    "odds_snapshot_time": datetime(2026, 8, 9, 11, tzinfo=UTC),
+                }
+            ]
+        ),
+        forward_results=FakeCollection(
+            [
+                {
+                    "result_loop_key": "prediction-1",
+                    "prediction_key": "prediction-1",
+                    "match_key": "sofascore:123",
+                    "stat_key": "cornerKicks",
+                    "scope": "away",
+                    "period": "ALL",
+                    "direction": "over",
+                    "line_value": 4.5,
+                    "settlement_status": "settled",
+                    "settlement_result": "win",
+                    "actual_value": 6,
+                    "pnl_units": 1.0,
+                    "stake_units": 1.0,
+                    "valid_for_performance": True,
+                    "official_clv": True,
+                    "clv_pct": 5.5,
+                }
+            ]
+        ),
+    )
+
+    payload = read_match_detail(database, "sofascore:123")
+
+    assert payload is not None
+    assert payload["forwardSelections"][0]["selectionFamily"] == "v6"
+    assert payload["forwardSelections"][0]["settlementResult"] == "win"
+    assert payload["forwardResults"][0]["actualValue"] == 6
+    assert payload["forwardResults"][0]["clvPct"] == 5.5
+
+
 def test_auto_count_covers_full_collection_even_when_rows_are_limited() -> None:
     database = FakeDatabase(
         forward_bets=FakeCollection(
@@ -466,7 +529,7 @@ def test_auto_joins_settlement_and_classifies_v6_from_frozen_provenance() -> Non
 
     payload = read_auto(database)
 
-    assert payload["selections"][0] == {
+    expected = {
         "selectionKey": "prediction-v6",
         "matchKey": "sofascore:123",
         "homeTeamName": "Home FC",
@@ -495,6 +558,8 @@ def test_auto_joins_settlement_and_classifies_v6_from_frozen_provenance() -> Non
         "stakeUnits": 1.0,
         "validForPerformance": True,
     }
+    selection = payload["selections"][0]
+    assert {key: selection[key] for key in expected} == expected
 
 
 def test_auto_excludes_combo_legs_and_collapses_replayed_legacy_exposure() -> None:

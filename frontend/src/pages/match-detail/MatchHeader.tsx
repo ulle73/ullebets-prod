@@ -75,7 +75,7 @@ export function MatchHeader({
         <TeamIdentity name={match.homeTeamName} teamKey={match.homeTeamKey} imageUrl={match.homeTeamImageUrl} profile={homeProfile} side="home" />
         <div className="analytics-match-header__center">
           <span className="analytics-league">{match.leagueName ?? 'Liga saknas'}</span>
-          <strong>VS</strong>
+          <strong className="analytics-score">{match.homeScore !== null && match.awayScore !== null ? `${match.homeScore}–${match.awayScore}` : 'VS'}</strong>
           {kickoff(match.startTime) ? <span className="analytics-kickoff"><Clock3 size={13} />{kickoff(match.startTime)}</span> : null}
         </div>
         <TeamIdentity name={match.awayTeamName} teamKey={match.awayTeamKey} imageUrl={match.awayTeamImageUrl} profile={awayProfile} side="away" />

@@ -1,15 +1,18 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Activity, BrainCircuit, Menu, X } from 'lucide-react';
-import type { PropsWithChildren } from 'react';
+import { lazy, Suspense, useState, type PropsWithChildren } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { localDateKey, useDashboard } from '../data/queries';
 import { sharedDateSearch } from '../domain/navigation';
 import { MatchRail } from './MatchRail';
 import { TopNav } from './TopNav';
 
+const MobileMatchDrawer = lazy(() => import('./MobileMatchDrawer').then((module) => ({ default: module.MobileMatchDrawer })));
+
 export function AppShell({ children }: PropsWithChildren) {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [mobileMatchesOpen, setMobileMatchesOpen] = useState(false);
   const focusMode = location.pathname.startsWith('/matcher/');
   const requestedDate = searchParams.get('date') || undefined;
   const dashboard = useDashboard(requestedDate, !focusMode);
@@ -51,17 +54,21 @@ export function AppShell({ children }: PropsWithChildren) {
                 <Link to={`/systemstatus${sharedSearch}`}><Activity size={14} aria-hidden="true" /><span>Systemstatus</span></Link>
               </nav>
               <div className="mobile-menu">
-                <Dialog.Root>
+                <Dialog.Root open={mobileMatchesOpen} onOpenChange={setMobileMatchesOpen}>
                   <Dialog.Trigger asChild><button type="button" className="icon-button" aria-label="Öppna matcher"><Menu size={20} aria-hidden="true" /></button></Dialog.Trigger>
                   <Dialog.Portal>
                     <Dialog.Overlay className="drawer-overlay" />
                     <Dialog.Content className="drawer-content" aria-describedby={undefined}>
                       <Dialog.Title className="sr-only">Dagens matcher</Dialog.Title>
                       <Dialog.Close asChild><button type="button" className="drawer-close" aria-label="Stäng matcher"><X size={20} aria-hidden="true" /></button></Dialog.Close>
-                      {rail}
+                      <Suspense fallback={<span role="status">Laddar matcherlista</span>}>
+                        <MobileMatchDrawer>
+                          {rail}
+                        </MobileMatchDrawer>
+                      </Suspense>
                       <nav className="mobile-utility-nav" aria-label="Verktyg i mobil">
-                        <Dialog.Close asChild><Link to={`/modell${sharedSearch}`}><BrainCircuit size={15} aria-hidden="true" /><span>Modell & proof</span></Link></Dialog.Close>
-                        <Dialog.Close asChild><Link to={`/systemstatus${sharedSearch}`}><Activity size={15} aria-hidden="true" /><span>Systemstatus</span></Link></Dialog.Close>
+                        <Link to={`/modell${sharedSearch}`}><BrainCircuit size={15} aria-hidden="true" /><span>Modell & proof</span></Link>
+                        <Link to={`/systemstatus${sharedSearch}`}><Activity size={15} aria-hidden="true" /><span>Systemstatus</span></Link>
                       </nav>
                     </Dialog.Content>
                   </Dialog.Portal>

@@ -23,6 +23,10 @@ function detailResponse(): MatchDetailResponse {
       homeTeamImageUrl: '/images/home.png',
       awayTeamImageUrl: '/images/away.png',
       statusType: 'notstarted',
+      state: 'upcoming',
+      homeScore: null,
+      awayScore: null,
+      resultFetchedAt: null,
     },
     matchups: [],
     matchupSource: 'missing',
@@ -52,6 +56,9 @@ function detailResponse(): MatchDetailResponse {
         awayAgainstLeagueAverage: 11.7,
       },
     ],
+    result: null,
+    actualStats: [],
+    marketOffers: [],
     teamProfiles: {
       home: {
         profileDate: 'current',

@@ -1,9 +1,10 @@
 import { CalendarDays, CheckCircle2, ChevronRight, CircleDot, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/PageHeader';
 import { StateNotice } from '../components/StateNotice';
 import { useAuto } from '../data/queries';
+import { autoQueryFromSearch, patchSearchParams } from '../data/workflow-query';
 import { formatExpectedRoi, formatOdds, formatProbability } from '../domain/formatters';
 import type { AutoSelection } from '../domain/types';
 
@@ -108,10 +109,14 @@ function resultDetail(row: AutoSelection): string | null {
 }
 
 export function AutoPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [familyFilter, setFamilyFilter] = useState<FamilyFilter>('v6');
   const [statusFilter, setStatusFilter] = useState<ResultFilter>('all');
   const [leagueFilter, setLeagueFilter] = useState('all');
-  const query = useAuto();
+  const serverQuery = autoQueryFromSearch(searchParams);
+  const pageLimit = serverQuery.limit ?? 50;
+  const pageOffset = serverQuery.offset ?? 0;
+  const query = useAuto(serverQuery);
   if (query.isLoading) return <StateNotice state="loading" title="Läser Auto" detail="Hämtar registrerade forward_bets från V2." />;
   if (query.isError || !query.data) return <StateNotice state="failed" title="Auto kunde inte läsas" detail="Ingen fallbacklista visas." />;
 
@@ -139,7 +144,8 @@ export function AutoPage() {
 
   return (
     <div className="page-stack auto-page">
-      <PageHeader eyebrow="Auto · modelljournal" title="V6 Forward" subtitle="Frysta val före avspark. V6 och legacy hålls åtskilda i både urval och resultat." />
+      <PageHeader eyebrow="V6 Forward · modelljournal" title="Auto" subtitle="Frysta val före avspark. V6 och legacy hålls åtskilda i både urval och resultat." />
+      <h2 className="auto-page__model-title">V6 Forward</h2>
 
       <section className="auto-summary" aria-label="Forward-sammanfattning">
         <article className="auto-summary__card">
@@ -213,7 +219,16 @@ export function AutoPage() {
                   return (
                     <article className={`auto-table__row auto-table__row--${bucket}`} role="row" key={row.selectionKey ?? `${row.matchKey ?? 'selection'}:${index}`}>
                       <div className="auto-cell auto-cell--time" role="cell"><strong>{formatTime(row.matchStartTime)}</strong><small>{formatShortDate(row.matchStartTime)}</small></div>
-                      <div className="auto-cell auto-cell--match" role="cell"><strong>{row.homeTeamName && row.awayTeamName ? `${row.homeTeamName} – ${row.awayTeamName}` : row.matchKey ?? 'Match saknas'}</strong><small>{row.leagueName ?? 'Liga saknas'}</small></div>
+                      <div className="auto-cell auto-cell--match" role="cell">
+                        <strong>
+                          {row.homeTeamName && row.awayTeamName ? <>
+                            {row.homeTeamKey ? <Link to={`/lag/${encodeURIComponent(row.homeTeamKey)}`}>{row.homeTeamName}</Link> : row.homeTeamName}
+                            <span> – </span>
+                            {row.awayTeamKey ? <Link to={`/lag/${encodeURIComponent(row.awayTeamKey)}`}>{row.awayTeamName}</Link> : row.awayTeamName}
+                          </> : row.matchKey ?? 'Match saknas'}
+                        </strong>
+                        <small>{row.leagueKey ? <Link to={`/liga/${encodeURIComponent(row.leagueKey)}`}>{row.leagueName ?? 'Liga saknas'}</Link> : row.leagueName ?? 'Liga saknas'}</small>
+                      </div>
                       <div className="auto-cell auto-cell--stat" role="cell"><strong>{STAT_LABELS[row.statKey ?? ''] ?? row.statKey ?? 'Stat saknas'}</strong><small>{row.statKey ?? '—'}</small></div>
                       <div className="auto-cell" role="cell"><span className={`auto-dimension auto-dimension--${row.scope ?? 'unknown'}`}>{SCOPE_LABELS[row.scope ?? ''] ?? row.scope ?? '—'}</span></div>
                       <div className="auto-cell" role="cell"><span className="auto-dimension auto-dimension--period">{PERIOD_LABELS[row.period ?? ''] ?? row.period ?? '—'}</span></div>
@@ -232,6 +247,23 @@ export function AutoPage() {
           ))}
         </section>
       )}
+      <nav className="workflow-pagination" aria-label="Sidindelning Auto">
+        <button
+          type="button"
+          onClick={() => setSearchParams(patchSearchParams(searchParams, { offset: Math.max(0, pageOffset - pageLimit) }))}
+          disabled={pageOffset === 0}
+        >
+          Föregående sida
+        </button>
+        <span>Rad {pageOffset + 1}–{pageOffset + query.data.selections.length}</span>
+        <button
+          type="button"
+          onClick={() => setSearchParams(patchSearchParams(searchParams, { offset: pageOffset + pageLimit }))}
+          disabled={!query.data.page.hasMore}
+        >
+          Nästa sida
+        </button>
+      </nav>
     </div>
   );
 }
