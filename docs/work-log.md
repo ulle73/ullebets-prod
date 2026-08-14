@@ -242,6 +242,11 @@ Remaining:
   verified Real Racing Club home profile. Do not fabricate this mapping.
 - Output parity against the old repository and matchup outcome settlement over
   finished dates remain unproven.
+- The current Vercel alias correctly reads the rebuilt 40-card ranking, but
+  still runs the prior read adapter and therefore cannot display `Form 12`.
+  Source commit `3786f64` is on `main`; the project is not Git-linked and the
+  local Vercel CLI session lacks access to the hosting team, so this requires
+  the existing Vercel deployment path rather than a code or database rerun.
 
 Next:
 

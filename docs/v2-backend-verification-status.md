@@ -38,9 +38,18 @@ fixtures, Real Racing Club - Villarreal, remains excluded because it lacks a
 verified Real Racing Club home profile. This is correct fail-closed behavior,
 not a ranking fallback.
 
+The current Vercel alias was also queried directly after the database rebuild.
+It returns the same 40 correctly ranked persisted cards, but its older deployed
+read adapter does not yet serialize the new form fields, so the `Form 12` UI
+tag is not live. Source commit `3786f64` is pushed to `main`; the Vercel
+project has no Git connection and the local CLI account has no access to its
+team scope, so publishing the new frontend adapter requires the existing Vercel
+project deployment path rather than another database run.
+
 Status: `PARTIAL`. V2 build, deduplication, current-fixture ranking, and form
 metadata are database-verified. Old-repository output parity and the missing
-home-profile mapping remain unproven.
+home-profile mapping remain unproven. The Vercel `Form 12` presentation update
+is also pending deployment.
 
 ## Vercel Read API Production Acceptance On 2026-08-14
 
