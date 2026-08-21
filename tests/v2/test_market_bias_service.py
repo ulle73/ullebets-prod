@@ -22,8 +22,10 @@ class FakeCollection:
         self.docs: list[dict] = []
         self.write_count = 0
         self.find_queries: list[dict] = []
+        self.find_one_queries: list[dict] = []
 
     def find_one(self, query: dict, projection: dict | None = None):  # noqa: ARG002
+        self.find_one_queries.append(query)
         return next((dict(doc) for doc in self.docs if all(doc.get(key) == value for key, value in query.items())), None)
 
     def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
@@ -206,6 +208,7 @@ def test_run_market_bias_refresh_merges_existing_history_without_dry_run_writes(
 
 def test_existing_history_queries_are_bounded_to_cosmos_safe_context_batches() -> None:
     database = FakeDatabase()
+    database["market_bias_observations"].docs.append({**_observation(999), "team_key": "unrelated"})
     incoming = tuple(
         {**_observation(index), "team_key": f"team-{index}"}
         for index in range(101)
@@ -224,6 +227,24 @@ def test_existing_history_queries_are_bounded_to_cosmos_safe_context_batches() -
     queries = database["market_bias_observations"].find_queries
     assert len(queries) == 2
     assert all(len(query["$or"]) <= 100 for query in queries)
+
+
+def test_empty_existing_history_skips_all_context_queries() -> None:
+    database = FakeDatabase()
+
+    run_market_bias_refresh(
+        source_workflow="test.yml",
+        source_kind="v2_forward",
+        candidates=[MarketBiasCandidate(observation_docs=tuple(_observation(index) for index in range(101)))],
+        as_of=datetime(2026, 8, 21, 18, 0, tzinfo=UTC),
+        profile_date="2026-08-21",
+        database=database,
+        dry_run=True,
+    )
+
+    collection = database["market_bias_observations"]
+    assert collection.find_one_queries == [{}]
+    assert collection.find_queries == []
 
 
 def test_metrics_only_candidate_keeps_rejection_audit_without_counting_as_source_row() -> None:
@@ -274,3 +295,25 @@ def test_run_market_bias_refresh_persists_one_job_run_lifecycle() -> None:
     run_id = database["job_runs"].docs[0]["run_id"]
     assert {row["run_id"] for row in database["market_bias_observations"].docs} == {run_id}
     assert {row["run_id"] for row in database["market_bias_profiles"].docs} == {run_id}
+
+
+def test_write_mode_marks_job_run_failed_when_interrupted(monkeypatch: pytest.MonkeyPatch) -> None:
+    database = FakeDatabase()
+    monkeypatch.setattr(
+        "ullebets_v2.market_bias.service._run_refresh",
+        lambda **_kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        run_market_bias_refresh(
+            source_workflow="test.yml",
+            source_kind="v2_forward",
+            candidates=[MarketBiasCandidate(observation_docs=(_observation(),))],
+            as_of=datetime(2026, 8, 21, 18, 0, tzinfo=UTC),
+            profile_date="2026-08-21",
+            database=database,
+            dry_run=False,
+        )
+
+    assert database["job_runs"].docs[0]["status"] == "failed"
+    assert database["job_runs"].docs[0]["error"]["type"] == "KeyboardInterrupt"

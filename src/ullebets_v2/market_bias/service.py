@@ -68,6 +68,9 @@ def _load_existing_observations(
     if database is None or not incoming:
         return []
     collection = database[MARKET_BIAS_OBSERVATIONS]
+    # An empty collection has no history to merge; avoid thousands of Cosmos $or clauses.
+    if collection.find_one({}, projection={"_id": 1}) is None:
+        return []
     contexts = sorted({_context_key(observation) for observation in incoming})
     fields = ("team_key", "league_key", "venue_context", "market_scope", "stat_key", "period")
     rows: list[dict[str, Any]] = []
@@ -135,7 +138,7 @@ def run_market_bias_refresh(
             {"run_id": run_doc["run_id"]},
             build_job_run_finished_update(status="succeeded", metrics={key: value for key, value in summary.items() if key not in {"observation_docs", "profile_docs", "audit_rows", "health_rows"}}),
         )
-    except Exception as exc:
+    except BaseException as exc:
         database["job_runs"].update_one(
             {"run_id": run_doc["run_id"]},
             build_job_run_finished_update(status="failed", metrics={"source_row_count": len(candidate_rows)}, error={"type": type(exc).__name__, "message": str(exc)}),

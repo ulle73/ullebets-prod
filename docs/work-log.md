@@ -247,6 +247,9 @@ chosen OVER price, not a match-level row. Its line-independent context grouping
 now chooses only one main line per market context.
 Existing observation replay is bounded to `100` exact-context clauses per
 Cosmos `$or` query, verified with a `101`-context service regression test.
+An empty `market_bias_observations` collection now exits after one projected
+`find_one` instead of issuing context queries; interrupted write-mode refreshes
+mark their `job_run` as failed before re-raising.
 
 Remaining:
 - `UNPROVEN`: a deliberate bootstrap write and its immutable persistence
