@@ -12,7 +12,7 @@ from ullebets_v2.market_bias.reports import build_market_bias_audit_rows, build_
 from ullebets_v2.storage.collections import MARKET_BIAS_OBSERVATIONS
 
 
-EXISTING_OBSERVATION_QUERY_BATCH_SIZE = 5_000
+EXISTING_OBSERVATION_QUERY_BATCH_SIZE = 100
 
 
 @dataclass(frozen=True)

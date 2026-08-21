@@ -21,12 +21,14 @@ class FakeCollection:
     def __init__(self) -> None:
         self.docs: list[dict] = []
         self.write_count = 0
+        self.find_queries: list[dict] = []
 
     def find_one(self, query: dict, projection: dict | None = None):  # noqa: ARG002
         return next((dict(doc) for doc in self.docs if all(doc.get(key) == value for key, value in query.items())), None)
 
     def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
         query = query or {}
+        self.find_queries.append(query)
         if "$or" in query:
             return [
                 dict(doc)
@@ -200,6 +202,28 @@ def test_run_market_bias_refresh_merges_existing_history_without_dry_run_writes(
     assert summary["profile_docs"][0]["sample_size"] == 7
     assert len(summary["observation_docs"]) == 1
     assert all(collection.write_count == 0 for collection in database.values())
+
+
+def test_existing_history_queries_are_bounded_to_cosmos_safe_context_batches() -> None:
+    database = FakeDatabase()
+    incoming = tuple(
+        {**_observation(index), "team_key": f"team-{index}"}
+        for index in range(101)
+    )
+
+    run_market_bias_refresh(
+        source_workflow="test.yml",
+        source_kind="v2_forward",
+        candidates=[MarketBiasCandidate(observation_docs=incoming)],
+        as_of=datetime(2026, 8, 21, 18, 0, tzinfo=UTC),
+        profile_date="2026-08-21",
+        database=database,
+        dry_run=True,
+    )
+
+    queries = database["market_bias_observations"].find_queries
+    assert len(queries) == 2
+    assert all(len(query["$or"]) <= 100 for query in queries)
 
 
 def test_metrics_only_candidate_keeps_rejection_audit_without_counting_as_source_row() -> None:

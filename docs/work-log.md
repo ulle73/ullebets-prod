@@ -208,7 +208,7 @@ Results:
 - Exact source IDs resolved `25,286` team identities; no name fallback or
   configured alias was needed. The compact local audit records the accepted distributions and
   bounded metrics without embedding observation/profile documents.
-- Focused adapter suites passed `42/42` in `5.59s`; full V2 suite passed `464/464` in
+- Focused adapter suites passed `43/43` in `5.97s`; full V2 suite passed `464/464` in
   `61.97s`; `python -m compileall -q src scripts`, `git diff --check`, and
   `codegraph sync` passed.
 
@@ -216,6 +216,8 @@ Insight:
 The source adapter must select an exact `match_id + bet_key` outcome for the
 chosen OVER price, not a match-level row. Its line-independent context grouping
 now chooses only one main line per market context.
+Existing observation replay is bounded to `100` exact-context clauses per
+Cosmos `$or` query, verified with a `101`-context service regression test.
 
 Remaining:
 - `UNPROVEN`: a deliberate bootstrap write and its immutable persistence
