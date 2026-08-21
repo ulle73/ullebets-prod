@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -72,7 +72,7 @@ def build_bootstrap_candidates(directory: Path, *, support_docs: dict[str, Any],
         if selected is None:
             audit["qualifying_line_failure_count"] += 1
             continue
-        docs = build_observation_docs(selected=selected, actual_value=float(line["actual_value"]), fixture={"match_key": f"offline:{match_id}", "source_match_id": match_id, "league_key": league_key, "home_team_key": home["team_key"], "away_team_key": away["team_key"], "match_start_time": kickoff}, outcome_available_at=kickoff.replace(hour=(kickoff.hour + 3) % 24), source_kind="offline_v1_bootstrap", source_record_key=f"offline:{match_id}:{stat}:{scope}:{period}", source_payload_hash=sha256(repr(sorted(line.items())).encode()).hexdigest(), run_id=run_id)
+        docs = build_observation_docs(selected=selected, actual_value=float(line["actual_value"]), fixture={"match_key": f"offline:{match_id}", "source_match_id": match_id, "league_key": league_key, "home_team_key": home["team_key"], "away_team_key": away["team_key"], "match_start_time": kickoff}, outcome_available_at=kickoff + timedelta(hours=3), source_kind="offline_v1_bootstrap", source_record_key=f"offline:{match_id}:{stat}:{scope}:{period}", source_payload_hash=sha256(repr(sorted(line.items())).encode()).hexdigest(), run_id=run_id)
         candidates.append(MarketBiasCandidate(observation_docs=tuple(docs)))
         audit["accepted_observation_count"] += len(docs)
     return candidates, audit
