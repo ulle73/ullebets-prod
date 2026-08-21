@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-14
+Last updated: 2026-08-21
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -83,6 +83,11 @@ Status details and evidence:
   41/41 matches have raw statistics, incidents, shotmaps, results, scored
   canonical results, and exactly 27 primary-stat rows each.
 - [x] Teamprofiles can be rebuilt from canonical history.
+- [x] Historical Unibet main-line bias is materialized as 16,528 immutable
+  observations and 2,112 leakage-safe rolling profiles. The immediate rerun
+  inserted zero rows and replayed all 16,528 hashes without conflict.
+- [ ] `UNPROVEN` Observe the first scheduled completed-match V2 forward bias
+  refresh; the historical bootstrap does not prove live refresh operation.
 - [x] A full V2 database teamprofile build completed after the 2026-08-12
   Cosmos repairs: 585 matches, 147,408 stats, 1,107 incidents, 1,105
   shotmaps, 265 profiles, and `ok` audit/health reports.
@@ -247,6 +252,9 @@ Current acceptance window:
 - [x] `VERIFIED` The complete `style-1` frontend is implemented across the five primary destinations plus match, team, league, model, system-status, and real not-found routes.
 - [x] `VERIFIED` Today's/upcoming matches and match detail are rendered from read contracts, including available scores, market offers, actuals, checkpoints, team comparison, and forward evidence.
 - [x] `VERIFIED` Team statistics are explorable by home/away context, FOR/AGAINST orientation, period, rank, and league-relative deviation; league stat rankings are also available.
+- [x] `VERIFIED` Matchup cards expose available market-bias profiles as a
+  compact UNDER/OVER rail with signed residual, over/non-push sample,
+  confidence segments, explicit thin-data state, and accessible Swedish text.
 - [x] `VERIFIED` Registered forward selections expose offered odds, model probability, expected ROI field, model/policy identities, and persisted runtime status without presenting observation counts as proof.
 - [x] `VERIFIED` Settled forward-result rows can show persisted ROI/PnL, closing odds, official CLV status/value, settlement state, exclusions, and linked match/team/league entities. This verifies the product surface, not positive forward efficacy.
 - [ ] `PARTIAL` Data freshness, missing-data, exclusion, health, and audit states are shown on the relevant surfaces, but uniform freshness metadata across every product section still depends on the source/read contract carrying it.

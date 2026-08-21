@@ -1,11 +1,43 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-14
-Branch: `main`
+Last updated: 2026-08-21
+Branch: `codex/market-bias-v2`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Market Bias Bootstrap And Matchup Attachment On 2026-08-21
+
+V2 now stores an independent, presentation-only measure of team performance
+against comparable Unibet prematch main lines. It uses exact
+team/league/stat/scope/period contexts, latest 12 observations, 45-day
+recency weighting, Beta shrinkage, residual shrinkage, and strict prematch and
+outcome-availability cutoffs. It does not alter matchup rankings, V6,
+selection, ROI, or CLV.
+
+The real write acceptance uncovered and fixed N+1 Cosmos reads plus two
+nondeterministic legacy duplicate paths. The final adapter was run twice over
+the full source before persistence and produced identical 16,528 observation
+keys, source hashes, and prices. Production database evidence:
+
+- first accepted run `6821fc78adbf42ff9e26bb994f527853`: 16,528 inserts,
+  2,112 profile upserts, and zero mapping/timing/duplicate/hash failures;
+- immediate rerun `6267c0b6141b41669ee400fcaf0f986a`: zero inserts,
+  16,528 immutable replays, zero profile upserts, and zero conflicts;
+- collections: 16,528 observations and 2,112 profiles with unique and context
+  indexes; zero running refresh jobs;
+- 2026-08-22 matchup rebuilds: 3,222 rows per output, including 1,080
+  primary-stat rows and 520 exact bias attachments per output;
+- fresh read API smoke: HTTP 200, 26 matches, 40 top cards, and typed camelCase
+  summaries without private lineage fields;
+- tests: 475 backend tests and 54 frontend tests passed; compileall, TypeScript,
+  lint, production build, and diff check passed.
+
+Status: `VERIFIED` for historical bootstrap, immutable replay, matchup/API/UI
+attachment, and no ranking/model side effects. `UNPROVEN` for the first
+scheduled completed-match `v2_forward` refresh. Missing exact contexts render
+no bias rather than falling back or guessing.
 
 ## Matchup Form And Current-Fixture Ranking On 2026-08-14
 

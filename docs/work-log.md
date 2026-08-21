@@ -192,6 +192,76 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-21 - V2 market bias production bootstrap and matchup UI
+
+Status: `VERIFIED` for the historical bootstrap, immutable replay, persisted
+matchup attachment, read API, and frontend contract. `UNPROVEN` for the first
+scheduled completed-match forward refresh.
+
+Objective:
+Build an auditable, presentation-only indicator of how each team has performed
+against comparable Unibet prematch main lines without changing matchup ranks,
+V6, selections, ROI, or CLV.
+
+Changes and findings:
+- Added immutable `market_bias_observations`, reproducible rolling
+  `market_bias_profiles`, database indexes, audits, health rows, offline
+  bootstrap, and V2-only completed-match refresh automation.
+- The real bootstrap exposed and fixed three production defects before final
+  acceptance: N+1 Cosmos existence reads, nondeterministic duplicate legacy
+  line selection, and a final join that could reintroduce a non-selected price.
+- Full bootstrap now chooses one deterministic latest authoritative line and
+  one direction price nearest even odds before calculating the observation.
+  Two independent full source builds produced identical 16,528 keys, hashes,
+  and odds with `diff_count=0`.
+- Failed partial bootstrap rows were deleted only after proving they were
+  rebuildable `offline_v1_bootstrap` derivatives, contained no forward data,
+  had produced no profiles, and had no accepted successful lifecycle.
+
+Persisted evidence:
+- Successful bootstrap run `6821fc78adbf42ff9e26bb994f527853` inserted
+  16,528 observations and 2,112 profiles with zero mapping, timing, duplicate,
+  missing-actual, or source-hash failures.
+- Immediate rerun `6267c0b6141b41669ee400fcaf0f986a` inserted zero
+  observations, replayed all 16,528 immutable rows, and inserted zero profiles.
+- Final collections contain 16,528 observations and 2,112 profiles with the
+  intended unique/context indexes and zero running refresh jobs.
+- The 367 qualifying-line rejections are markets without an OVER price in the
+  configured 1.70-2.30 main-line window, not identity or timing failures.
+- Rebuilt 2026-08-22 outputs contain 3,222 rows in each matchup collection.
+  Each has 1,080 primary-stat rows; 520 have an exact team/stat/scope/period
+  bias profile. Missing contexts remain explicit rather than guessed.
+- Fresh read API smoke on isolated port 8790 returned HTTP 200 with 26 matches,
+  40 top matchup cards, typed camelCase bias summaries, and no secret lineage
+  fields. The old local process on port 8787 was deliberately left untouched.
+
+Verification:
+```text
+python -m pytest tests/v2 -q
+python -m compileall -q src scripts
+git diff --check
+cd frontend && npm test -- --run
+cd frontend && npm run typecheck
+cd frontend && npm run lint
+cd frontend && npm run build
+```
+
+Results:
+- Backend: `475 passed in 30.81s`; compileall and diff check passed.
+- Frontend: `54 passed in 119.05s`; typecheck, lint, and production build
+  passed.
+
+Remaining:
+- `UNPROVEN`: the first scheduled `v2_forward` market-bias refresh after a
+  newly completed match. Historical bootstrap success is not live evidence.
+- `PARTIAL`: 560/1,080 primary matchup rows for the tested date lack an exact
+  profile context and correctly render no bias; season-wide coverage remains
+  to be measured as new observations accumulate.
+
+Next:
+Inspect the next completed-match workflow's `refresh_market_bias` job metrics
+and require immutable inserts/replays plus zero timing and mapping failures.
+
 ### 2026-08-21 - V2 market-bias Tasks 6-8 integration
 
 Status: `PARTIAL`

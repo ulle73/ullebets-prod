@@ -62,7 +62,7 @@ def build_bootstrap_candidates(directory: Path, *, support_docs: dict[str, Any],
         row[0]: str(row[1]).upper()
         for row in con.execute("DESCRIBE SELECT * FROM read_parquet(?)", [line_path]).fetchall()
     }
-    required = ["match_id", "bet_key", "stat_key", "period", "scope", "direction", "line_value", "actual_value", "league_name", "home_team_name", "away_team_name", "home_team_id", "away_team_id", "kickoff_ts", "teamstats_saved_at", "has_authoritative_teamstats_outcome"]
+    required = ["match_id", "bet_key", "stat_key", "period", "scope", "direction", "line_value", "actual_value", "league_name", "home_team_name", "away_team_name", "home_team_id", "away_team_id", "kickoff_ts", "teamstats_saved_at", "generated_at", "has_authoritative_teamstats_outcome"]
     line_projection = ", ".join(
         column if column in line_columns else f"NULL AS {column}"
         for column in required
@@ -94,7 +94,13 @@ def build_bootstrap_candidates(directory: Path, *, support_docs: dict[str, Any],
             FROM (
                 SELECT *, ROW_NUMBER() OVER (
                     PARTITION BY match_id, bet_key
-                    ORDER BY teamstats_saved_at DESC NULLS LAST, kickoff_ts DESC NULLS LAST
+                    ORDER BY
+                        teamstats_saved_at DESC NULLS LAST,
+                        kickoff_ts DESC NULLS LAST,
+                        try_cast(generated_at AS TIMESTAMPTZ) DESC NULLS LAST,
+                        league_name,
+                        home_team_name,
+                        away_team_name
                 ) AS line_rank
                 FROM authoritative_line_rows
             )
@@ -129,6 +135,18 @@ def build_bootstrap_candidates(directory: Path, *, support_docs: dict[str, Any],
             SELECT * FROM exact_rows
             UNION ALL
             SELECT * FROM fallback_rows
+        ), deduped_joined AS (
+            SELECT * EXCLUDE (side_rank)
+            FROM (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY
+                        match_id, stat_key, period, scope,
+                        snapshot_fetched_at, line_value, direction
+                    ORDER BY abs(odds_decimal - 2.00), bet_key, odds_decimal
+                ) AS side_rank
+                FROM joined
+            )
+            WHERE side_rank = 1
         ), ranked_over AS (
             SELECT *, ROW_NUMBER() OVER (
                 PARTITION BY match_id, stat_key, period, scope
@@ -140,7 +158,7 @@ def build_bootstrap_candidates(directory: Path, *, support_docs: dict[str, Any],
                     line_value,
                     bet_key
             ) AS selection_rank
-            FROM joined
+            FROM deduped_joined
             WHERE direction = 'over'
               AND odds_decimal BETWEEN 1.70 AND 2.30
         ), selected_lines AS (
@@ -160,7 +178,7 @@ def build_bootstrap_candidates(directory: Path, *, support_docs: dict[str, Any],
             line_value AS snapshot_line_value,
             odds_decimal,
             {", ".join(f"{column} AS line_{column}" for column in required)}
-        FROM joined
+        FROM deduped_joined
         JOIN selected_lines USING (match_id, stat_key, period, scope, snapshot_fetched_at, line_value)
         """,
         [snapshot_path, line_path],

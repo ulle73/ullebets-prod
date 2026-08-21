@@ -39,9 +39,11 @@ _IMMUTABLE_OBSERVATION_FIELDS = (
     "line_selection_method",
     "method_version",
 )
-MARKET_BIAS_BULK_WRITE_BATCH_SIZE = 100
-# Keep Cosmos query payloads comfortably below practical $in limits.
-MARKET_BIAS_EXISTING_LOOKUP_BATCH_SIZE = 100
+# Observation/profile documents are compact; 500 stays well below Mongo's
+# command-size ceiling while avoiding excessive Cosmos network round trips.
+MARKET_BIAS_BULK_WRITE_BATCH_SIZE = 500
+# Observation keys are fixed-size hashes; 500 keeps `$in` payloads compact.
+MARKET_BIAS_EXISTING_LOOKUP_BATCH_SIZE = 500
 
 
 def immutable_observation_fingerprint(observation: dict[str, Any]) -> str:
@@ -59,8 +61,19 @@ def _batches(rows: list[Any], size: int | None = None) -> Iterable[list[Any]]:
 def _load_existing_observations(
     collection: Any,
     observation_keys: list[str],
+    *,
+    complete_source_slice: bool,
 ) -> dict[str, dict[str, Any]]:
+    if not observation_keys or collection.find_one({}, projection={"_id": 1}) is None:
+        return {}
     existing_by_key: dict[str, dict[str, Any]] = {}
+    if complete_source_slice:
+        existing_documents = collection.find({}, projection={"_id": 0})
+        return {
+            str(existing["observation_key"]): dict(existing)
+            for existing in existing_documents
+            if existing.get("observation_key")
+        }
     for key_batch in _batches(observation_keys, MARKET_BIAS_EXISTING_LOOKUP_BATCH_SIZE):
         existing_documents = collection.find(
             {"observation_key": {"$in": key_batch}},
@@ -73,7 +86,12 @@ def _load_existing_observations(
     return existing_by_key
 
 
-def persist_observations(database: Any, observations: Iterable[dict[str, Any]]) -> dict[str, int]:
+def persist_observations(
+    database: Any,
+    observations: Iterable[dict[str, Any]],
+    *,
+    complete_source_slice: bool = False,
+) -> dict[str, int]:
     collection = database[MARKET_BIAS_OBSERVATIONS]
     incoming_by_key: dict[str, dict[str, Any]] = {}
     for observation in observations:
@@ -89,7 +107,11 @@ def persist_observations(database: Any, observations: Iterable[dict[str, Any]]) 
             raise ImmutableMarketBiasConflict(f"immutable_market_bias_observation_conflict:{observation_key}")
         incoming_by_key[observation_key] = incoming
 
-    existing_by_key = _load_existing_observations(collection, list(incoming_by_key))
+    existing_by_key = _load_existing_observations(
+        collection,
+        list(incoming_by_key),
+        complete_source_slice=complete_source_slice,
+    )
     replays = 0
     insert_docs: list[dict[str, Any]] = []
     for observation_key, observation in incoming_by_key.items():

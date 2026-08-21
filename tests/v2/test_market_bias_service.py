@@ -155,9 +155,37 @@ def test_persist_observations_batch_reads_replays_and_conflicts_without_find_one
 
     assert metrics == {"observation_inserts": 2, "observation_replays": 1}
     assert [len(query["observation_key"]["$in"]) for query in collection.find_queries] == [2, 1]
-    assert collection.find_one_queries == []
+    assert collection.find_one_queries == [{}]
     with pytest.raises(ImmutableMarketBiasConflict):
         persist_observations(database, [{**_observation(0), "actual_value": 99.0}])
+
+
+def test_persist_observations_skips_lookup_batches_when_collection_is_empty() -> None:
+    database = FakeDatabase()
+    collection = BulkFakeCollection()
+    database["market_bias_observations"] = collection
+
+    metrics = persist_observations(database, [_observation(index) for index in range(3)])
+
+    assert metrics == {"observation_inserts": 3, "observation_replays": 0}
+    assert collection.find_one_queries == [{}]
+    assert collection.find_queries == []
+
+
+def test_complete_source_slice_reads_existing_collection_once() -> None:
+    database = FakeDatabase()
+    collection = BulkFakeCollection()
+    collection.docs.extend([_observation(0), _observation(1)])
+    database["market_bias_observations"] = collection
+
+    metrics = persist_observations(
+        database,
+        [_observation(index) for index in range(3)],
+        complete_source_slice=True,
+    )
+
+    assert metrics == {"observation_inserts": 1, "observation_replays": 2}
+    assert collection.find_queries == [{}]
 
 
 def test_persist_profiles_upserts_by_profile_key() -> None:
@@ -268,6 +296,25 @@ def test_empty_existing_history_skips_all_context_queries() -> None:
 
     collection = database["market_bias_observations"]
     assert collection.find_one_queries == [{}]
+    assert collection.find_queries == []
+
+
+def test_offline_bootstrap_uses_its_complete_slice_without_context_queries() -> None:
+    database = FakeDatabase()
+    collection = database["market_bias_observations"]
+    collection.docs.append(_observation(999))
+
+    run_market_bias_refresh(
+        source_workflow="test.yml",
+        source_kind="offline_v1_bootstrap",
+        candidates=[MarketBiasCandidate(observation_docs=({**_observation(), "source_kind": "offline_v1_bootstrap"},))],
+        as_of=datetime(2026, 8, 21, 18, 0, tzinfo=UTC),
+        profile_date="2026-08-21",
+        database=database,
+        dry_run=True,
+    )
+
+    assert collection.find_one_queries == []
     assert collection.find_queries == []
 
 

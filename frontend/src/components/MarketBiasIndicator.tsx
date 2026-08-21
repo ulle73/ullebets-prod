@@ -30,7 +30,7 @@ function BiasRow({ profile }: { profile: MarketBiasProfileSummary }) {
   const segments = confidenceSegments(profile.strength);
   const accessibleLabel = label(profile);
   return <li className={`market-bias__row market-bias__row--${profile.direction}`} data-team-key={profile.teamKey}>
-    <div className="market-bias__meta"><strong title={profile.teamName}>{profile.teamName}</strong><span>{insufficient ? 'n < 6' : signed(profile.shrunkMeanResidual)}</span><span>{insufficient ? `${profile.sampleSize} n` : `${profile.overCount}/${profile.nonPushSampleSize}`}</span><span className="market-bias__confidence" aria-label={`Styrka ${segments} av 3`} title={`Styrka ${segments} av 3`}>{[1, 2, 3].map((segment) => <i key={segment} className={segment <= segments ? 'is-active' : ''} />)}</span></div>
+    <div className="market-bias__meta"><strong title={profile.teamName}>{profile.teamName}</strong><span>{insufficient ? 'FÖR TUNT' : signed(profile.shrunkMeanResidual)}</span><span>{insufficient ? `n ${profile.sampleSize}` : `${profile.overCount}/${profile.nonPushSampleSize}`}</span><span className="market-bias__confidence" aria-label={`Styrka ${segments} av 3`} title={`Styrka ${segments} av 3`}>{[1, 2, 3].map((segment) => <i key={segment} className={segment <= segments ? 'is-active' : ''} />)}</span></div>
     <div className="market-bias__rail" style={{ '--bias-marker': markerPosition(profile) } as CSSProperties} aria-label={accessibleLabel} title={accessibleLabel}><span>UNDER</span><div className="market-bias__track"><i /><b className={insufficient ? 'is-hollow' : ''} /></div><span>ÖVER</span></div>
   </li>;
 }

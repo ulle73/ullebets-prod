@@ -72,3 +72,63 @@ def test_bootstrap_uses_unique_configured_aliases_and_contextual_snapshot_identi
 
     assert audit["mapping_method_counts"]["configured_alias"] == 4
     assert len(snapshot_keys) == 2
+
+
+def test_bootstrap_duplicate_line_selection_is_independent_of_parquet_row_order(tmp_path) -> None:
+    snapshot = {
+        "match_id": "m1", "bet_key": "b1", "snapshot_fetched_at": "2026-08-20T10:00:00Z",
+        "snapshot_type": "T_MINUS_30M", "stat_key": "cornerKicks", "period": "ALL",
+        "scope": "home", "direction": "over", "line_value": 10.5, "odds_decimal": 1.98,
+        "is_primary_modeled_stat": True,
+    }
+    base_line = {
+        **snapshot, "league_name": "League", "home_team_name": "Home", "away_team_name": "Away",
+        "home_team_id": "h", "away_team_id": "a", "kickoff_ts": "2026-08-20T12:00:00Z",
+        "teamstats_saved_at": "2026-08-20T15:00:00Z", "actual_value": 11.0,
+        "has_authoritative_teamstats_outcome": True,
+    }
+    support = {
+        "teams": [
+            {"team_key": "home", "league_key": "league", "team_id": "h", "team_name": "Home"},
+            {"team_key": "away", "league_key": "league", "team_id": "a", "team_name": "Away"},
+        ],
+        "leagues": [{"league_key": "league", "league_name": "League"}],
+    }
+
+    def source_hash(rows: list[dict]) -> str:
+        pd.DataFrame([snapshot]).to_parquet(tmp_path / "market_snapshots.parquet")
+        pd.DataFrame(rows).to_parquet(tmp_path / "market_lines.parquet")
+        pd.DataFrame([{"match_id": "m1"}]).to_parquet(tmp_path / "matches.parquet")
+        candidates, _ = build_bootstrap_candidates(
+            tmp_path,
+            support_docs=support,
+            as_of=datetime(2026, 8, 21, tzinfo=UTC),
+            run_id="r",
+        )
+        return candidates[0].observation_docs[0]["source_payload_hash"]
+
+    older = {**base_line, "generated_at": "2026-08-19T10:00:00Z", "league_name": "Old label"}
+    newer = {**base_line, "generated_at": "2026-08-20T10:00:00Z"}
+
+    assert source_hash([older, newer]) == source_hash([newer, older])
+
+
+def test_bootstrap_duplicate_snapshot_prices_choose_nearest_even_odds(tmp_path) -> None:
+    snapshots = pd.DataFrame([
+        {"match_id": "m1", "bet_key": "over-high", "snapshot_fetched_at": "2026-08-20T10:00:00Z", "snapshot_type": "T_MINUS_30M", "stat_key": "cornerKicks", "period": "ALL", "scope": "home", "direction": "over", "line_value": 10.5, "odds_decimal": 2.28, "is_primary_modeled_stat": True},
+        {"match_id": "m1", "bet_key": "over-even", "snapshot_fetched_at": "2026-08-20T10:00:00Z", "snapshot_type": "T_MINUS_30M", "stat_key": "cornerKicks", "period": "ALL", "scope": "home", "direction": "over", "line_value": 10.5, "odds_decimal": 2.00, "is_primary_modeled_stat": True},
+        {"match_id": "m1", "bet_key": "under-low", "snapshot_fetched_at": "2026-08-20T10:00:00Z", "snapshot_type": "T_MINUS_30M", "stat_key": "cornerKicks", "period": "ALL", "scope": "home", "direction": "under", "line_value": 10.5, "odds_decimal": 1.72, "is_primary_modeled_stat": True},
+        {"match_id": "m1", "bet_key": "under-even", "snapshot_fetched_at": "2026-08-20T10:00:00Z", "snapshot_type": "T_MINUS_30M", "stat_key": "cornerKicks", "period": "ALL", "scope": "home", "direction": "under", "line_value": 10.5, "odds_decimal": 1.95, "is_primary_modeled_stat": True},
+    ])
+    line_base = {"match_id": "m1", "stat_key": "cornerKicks", "period": "ALL", "scope": "home", "line_value": 10.5, "league_name": "League", "home_team_name": "Home", "away_team_name": "Away", "home_team_id": "h", "away_team_id": "a", "kickoff_ts": "2026-08-20T12:00:00Z", "teamstats_saved_at": "2026-08-20T15:00:00Z", "generated_at": "2026-08-20T16:00:00Z", "actual_value": 11.0, "has_authoritative_teamstats_outcome": True}
+    lines = pd.DataFrame([{**line_base, "bet_key": row["bet_key"], "direction": row["direction"]} for row in snapshots.to_dict("records")])
+    snapshots.to_parquet(tmp_path / "market_snapshots.parquet")
+    lines.to_parquet(tmp_path / "market_lines.parquet")
+    pd.DataFrame([{"match_id": "m1"}]).to_parquet(tmp_path / "matches.parquet")
+    support = {"teams": [{"team_key": "home", "league_key": "league", "team_id": "h", "team_name": "Home"}, {"team_key": "away", "league_key": "league", "team_id": "a", "team_name": "Away"}], "leagues": [{"league_key": "league", "league_name": "League"}]}
+
+    candidates, _ = build_bootstrap_candidates(tmp_path, support_docs=support, as_of=datetime(2026, 8, 21, tzinfo=UTC), run_id="r")
+    observation = candidates[0].observation_docs[0]
+
+    assert observation["over_odds"] == 2.00
+    assert observation["under_odds"] == 1.95

@@ -162,7 +162,13 @@ def _run_refresh(
     metrics = _metric_counts(observation_docs, candidate_rows)
     if metrics["duplicate_observation_key_count"]:
         raise ValueError("duplicate market-bias observation keys are fatal.")
-    existing = _load_existing_observations(database=database, incoming=observation_docs)
+    # The offline bootstrap supplies the complete historical slice. Only the
+    # incremental forward job needs persisted history to rebuild rolling profiles.
+    existing = (
+        _load_existing_observations(database=database, incoming=observation_docs)
+        if source_kind == "v2_forward"
+        else []
+    )
     profile_observations = _dedupe_observations(existing, observation_docs)
     profile_docs = _profile_documents(observations=profile_observations, as_of=as_of, profile_date=profile_date, run_id=run_id) if profile_observations else []
     metrics.update(
@@ -187,7 +193,11 @@ def _run_refresh(
     if persist:
         if database is None:
             raise RuntimeError("database is required when persistence is enabled.")
-        persistence_metrics = persist_observations(database, observation_docs)
+        persistence_metrics = persist_observations(
+            database,
+            observation_docs,
+            complete_source_slice=source_kind == "offline_v1_bootstrap",
+        )
         persistence_metrics.update(persist_profiles(database, profile_docs))
         persistence_metrics.update(persist_market_bias_reports(database, audit_rows=audit_rows, health_rows=health_rows))
         summary.update(persistence_metrics)

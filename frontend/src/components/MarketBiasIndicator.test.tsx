@@ -27,7 +27,8 @@ describe('MarketBiasIndicator', () => {
     };
     render(<MarketBiasIndicator bias={bias} leagueBaseline={null} />);
     expect(screen.getAllByRole('listitem').map((row) => row.getAttribute('data-team-key'))).toEqual(['home', 'away']);
-    expect(screen.getByText('n < 6')).toBeInTheDocument();
+    expect(screen.getByText('FÖR TUNT')).toBeInTheDocument();
+    expect(screen.getByText('n 3')).toBeInTheDocument();
     expect(screen.getByLabelText(/Chelsea.*otillräckligt/i)).toBeInTheDocument();
   });
 });
