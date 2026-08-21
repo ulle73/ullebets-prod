@@ -216,7 +216,8 @@ git diff --check
 ```
 
 Results:
-- Full V2 regression: `452 passed in 22.90s`; compile and diff checks passed.
+- Full V2 regression: `452 passed in 23.73s`; `compileall` passed and
+  `git diff --check 44c6d50..HEAD` reported no errors.
 
 Insight:
 The initial foundation is database-adapter-neutral and fails closed on source
