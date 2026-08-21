@@ -17,7 +17,7 @@ from ullebets_v2.matchups.reports import (
     build_matchup_health_rows,
     build_matchup_parity_rows,
 )
-from ullebets_v2.storage.collections import MATCHUPS_LEAGUE_AVG, MATCHUPS_SCORE, TEAMPROFILES
+from ullebets_v2.storage.collections import MARKET_BIAS_PROFILES, MATCHUPS_LEAGUE_AVG, MATCHUPS_SCORE, TEAMPROFILES
 
 
 PERIODS = (
@@ -145,10 +145,83 @@ def _read_rank(profile: dict[str, Any], stat_group: str, stat_key: str, period: 
     return _to_num(period_node.get("rank") if period_node else None)
 
 
-def _read_market_bias(profile: dict[str, Any], stat_key: str, period: str) -> Any:
-    node = profile.get("statistics", {}).get("for", {}).get(stat_key, {})
-    period_node = _get_period_node(node, period)
-    return period_node.get("marketBias") if period_node else None
+def _as_utc(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None
+
+
+def _market_bias_profile_summary(profile: dict[str, Any], *, team_name: Any) -> dict[str, Any]:
+    fields = (
+        "team_key", "venue_context", "direction", "strength", "sample_size",
+        "non_push_sample_size", "over_count", "under_count", "push_count",
+        "posterior_over_rate", "shrunk_mean_residual", "direction_confidence",
+        "method_version",
+    )
+    summary = {field: profile.get(field) for field in fields}
+    summary["team_name"] = team_name
+    return summary
+
+
+def _index_market_bias_profiles(profiles: list[dict[str, Any]]) -> dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]]:
+    indexed: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    fields = ("team_key", "league_key", "venue_context", "market_scope", "stat_key", "period")
+    for profile in profiles:
+        key = tuple(str(profile.get(field) or "") for field in fields)
+        if all(key):
+            indexed[key].append(profile)
+    return indexed
+
+
+def _latest_market_bias_profile(
+    indexed: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]],
+    *,
+    team_key: str,
+    league_key: str,
+    venue_context: str,
+    market_scope: str,
+    stat_key: str,
+    period: str,
+    match_start_time: Any,
+) -> dict[str, Any] | None:
+    kickoff = _as_utc(match_start_time)
+    if kickoff is None:
+        return None
+    key = (team_key, league_key, venue_context, market_scope, stat_key, period)
+    eligible = [profile for profile in indexed.get(key, []) if (_as_utc(profile.get("as_of")) or kickoff) < kickoff]
+    return max(eligible, key=lambda profile: _as_utc(profile.get("as_of")) or datetime.min.replace(tzinfo=UTC)) if eligible else None
+
+
+def _market_bias_payload(
+    pair: dict[str, Any],
+    *,
+    scope: str,
+    stat_key: str,
+    period: str,
+    indexed_profiles: dict[tuple[str, str, str, str, str, str], list[dict[str, Any]]],
+) -> dict[str, Any]:
+    sides = (("home", pair["home"]),) if scope == "home" else (("away", pair["away"]),) if scope == "away" else (("home", pair["home"]), ("away", pair["away"]))
+    profiles = []
+    for venue_context, team in sides:
+        profile = _latest_market_bias_profile(
+            indexed_profiles,
+            team_key=str(team["team_key"]),
+            league_key=str(pair["league_key"] or ""),
+            venue_context=venue_context,
+            market_scope=scope,
+            stat_key=stat_key,
+            period=period,
+            match_start_time=pair.get("start_time"),
+        )
+        if profile is not None:
+            profiles.append(_market_bias_profile_summary(profile, team_name=team.get("name")))
+    return {"scope": scope, "profiles": profiles}
 
 
 def _league_size_from_meta(profile: dict[str, Any]) -> int | None:
@@ -379,6 +452,7 @@ def _build_pairs(target_matches: list[dict[str, Any]], teamprofile_docs: list[di
                 "league_key": match.get("league_key"),
                 "league_id": match.get("league_id"),
                 "league_name": match.get("league_name"),
+                "start_time": match.get("start_time"),
                 "home": {
                     "team_key": home_key,
                     "id": match.get("home_team_id") or home_profile.get("meta", {}).get("lagId"),
@@ -418,6 +492,7 @@ def build_matchups_score_docs(
     *,
     target_matches: list[dict[str, Any]],
     teamprofile_docs: list[dict[str, Any]],
+    market_bias_profile_docs: list[dict[str, Any]] | None = None,
     snapshot_date: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     pairs, missing_matches = _build_pairs(
@@ -426,6 +501,7 @@ def build_matchups_score_docs(
         snapshot_date,
     )
     entries: list[dict[str, Any]] = []
+    market_bias_profiles = _index_market_bias_profiles(market_bias_profile_docs or [])
     for pair in pairs:
         league_max = _league_size_from_meta(pair["home"]["profile"]) or _league_size_from_meta(pair["away"]["profile"]) or 20
         for stat_key, stat_label in STATS_FOR_VIEW:
@@ -469,16 +545,7 @@ def build_matchups_score_docs(
                 ):
                     bundle_scope = FORECAST_SCOPE_MAP[scope]
                     league_baseline = forecast_bundle.get("baseline", {}).get("league", {}).get("perScope", {}).get(bundle_scope)
-                    market_bias = (
-                        _read_market_bias(pair["home"]["profile"], stat_key, period_key)
-                        if scope == "home"
-                        else _read_market_bias(pair["away"]["profile"], stat_key, period_key)
-                        if scope == "away"
-                        else {
-                            "home": _read_market_bias(pair["home"]["profile"], stat_key, period_key),
-                            "away": _read_market_bias(pair["away"]["profile"], stat_key, period_key),
-                        }
-                    )
+                    market_bias = _market_bias_payload(pair, scope=scope, stat_key=stat_key, period=period_key, indexed_profiles=market_bias_profiles)
                     for condition in ("over", "under"):
                         score = _round_score(_normalize_pair_score(scope_basis, league_max, condition))
                         entries.append(
@@ -500,6 +567,7 @@ def build_matchups_league_avg_docs(
     *,
     target_matches: list[dict[str, Any]],
     teamprofile_docs: list[dict[str, Any]],
+    market_bias_profile_docs: list[dict[str, Any]] | None = None,
     snapshot_date: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     pairs, missing_matches = _build_pairs(
@@ -508,6 +576,7 @@ def build_matchups_league_avg_docs(
         snapshot_date,
     )
     entries: list[dict[str, Any]] = []
+    market_bias_profiles = _index_market_bias_profiles(market_bias_profile_docs or [])
     for pair in pairs:
         for stat_key, stat_label in STATS_FOR_VIEW:
             for period_key, period_label in PERIODS:
@@ -516,16 +585,7 @@ def build_matchups_league_avg_docs(
                     normalized = forecast_bundle.get("normalized", {}).get(bundle_scope)
                     if normalized is None:
                         continue
-                    market_bias = (
-                        _read_market_bias(pair["home"]["profile"], stat_key, period_key)
-                        if scope == "home"
-                        else _read_market_bias(pair["away"]["profile"], stat_key, period_key)
-                        if scope == "away"
-                        else {
-                            "home": _read_market_bias(pair["home"]["profile"], stat_key, period_key),
-                            "away": _read_market_bias(pair["away"]["profile"], stat_key, period_key),
-                        }
-                    )
+                    market_bias = _market_bias_payload(pair, scope=scope, stat_key=stat_key, period=period_key, indexed_profiles=market_bias_profiles)
                     for ranking_bucket, sort_key in (("over", normalized), ("under", -normalized)):
                         entries.append(
                             {
@@ -619,6 +679,26 @@ def _load_teamprofiles(
     return [row for row in rows if (_profile_effective_date(row) or "") <= snapshot_date]
 
 
+def _load_market_bias_profiles(database: Any, target_matches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    league_keys = sorted({str(row.get("league_key") or "") for row in target_matches if row.get("league_key")})
+    team_keys = sorted(
+        {
+            str(row.get(team_field) or "")
+            for row in target_matches
+            for team_field in ("home_team_key", "away_team_key")
+            if row.get(team_field)
+        }
+    )
+    if not league_keys or not team_keys:
+        return []
+    return list(
+        database[MARKET_BIAS_PROFILES].find(
+            {"league_key": {"$in": league_keys}, "team_key": {"$in": team_keys}},
+            projection={"_id": 0},
+        )
+    )
+
+
 def _run_matchup_build(
     *,
     source_workflow: str,
@@ -627,6 +707,7 @@ def _run_matchup_build(
     audit_type: str,
     target_matches: list[dict[str, Any]],
     teamprofile_docs: list[dict[str, Any]] | None,
+    market_bias_profile_docs: list[dict[str, Any]] | None,
     snapshot_date: str,
     database: Any | None,
     dry_run: bool,
@@ -640,9 +721,13 @@ def _run_matchup_build(
             profiles = []
         else:
             profiles = _load_teamprofiles(database, snapshot_date, target_matches)
+    bias_profiles = market_bias_profile_docs
+    if bias_profiles is None:
+        bias_profiles = _load_market_bias_profiles(database, target_matches) if database is not None else []
     entry_docs, missing_matches = builder(
         target_matches=target_matches,
         teamprofile_docs=profiles or [],
+        market_bias_profile_docs=bias_profiles,
         snapshot_date=snapshot_date,
     )
     parity_rows = build_matchup_parity_rows(
@@ -744,6 +829,7 @@ def run_matchups_score_build(
     target_matches: list[dict[str, Any]],
     snapshot_date: str,
     teamprofile_docs: list[dict[str, Any]] | None = None,
+    market_bias_profile_docs: list[dict[str, Any]] | None = None,
     database: Any | None = None,
     dry_run: bool = False,
     generated_at: datetime | None = None,
@@ -755,6 +841,7 @@ def run_matchups_score_build(
         audit_type="matchups_score",
         target_matches=target_matches,
         teamprofile_docs=teamprofile_docs,
+        market_bias_profile_docs=market_bias_profile_docs,
         snapshot_date=snapshot_date,
         database=database,
         dry_run=dry_run,
@@ -769,6 +856,7 @@ def run_matchups_league_avg_build(
     target_matches: list[dict[str, Any]],
     snapshot_date: str,
     teamprofile_docs: list[dict[str, Any]] | None = None,
+    market_bias_profile_docs: list[dict[str, Any]] | None = None,
     database: Any | None = None,
     dry_run: bool = False,
     generated_at: datetime | None = None,
@@ -780,6 +868,7 @@ def run_matchups_league_avg_build(
         audit_type="matchups_league_avg",
         target_matches=target_matches,
         teamprofile_docs=teamprofile_docs,
+        market_bias_profile_docs=market_bias_profile_docs,
         snapshot_date=snapshot_date,
         database=database,
         dry_run=dry_run,

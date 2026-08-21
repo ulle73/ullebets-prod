@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import ullebets_v2.matchups.persistence as matchup_persistence
 from ullebets_v2.matchups.service import _load_teamprofiles, run_matchups_league_avg_build, run_matchups_score_build
+from ullebets_v2.matchups.service import build_matchups_score_docs
 from ullebets_v2.matchups.persistence import persist_matchup_records
 from ullebets_v2.teamprofiles.service import run_teamprofile_build
 
@@ -23,6 +24,7 @@ def build_target_match() -> dict:
         "away_team_key": "a-league-men:42210",
         "home_team_name": "Adelaide United",
         "away_team_name": "Melbourne City",
+        "start_time": datetime(2025, 12, 5, 18, 0, tzinfo=UTC),
     }
 
 
@@ -192,3 +194,69 @@ def test_matchup_profile_load_includes_the_full_fixture_league() -> None:
         target["away_team_key"],
         "a-league-men:extra-team",
     }
+
+
+def test_market_bias_profiles_do_not_change_matchup_ranking() -> None:
+    target = build_target_match()
+    without_bias, _ = build_matchups_score_docs(
+        target_matches=[target],
+        teamprofile_docs=build_profiles(),
+        snapshot_date="2025-12-05",
+    )
+    profiles = [
+        {
+            "team_key": target["home_team_key"],
+            "league_key": target["league_key"],
+            "venue_context": "home",
+            "market_scope": "total",
+            "stat_key": "totalShots",
+            "period": "ALL",
+            "as_of": datetime(2025, 12, 5, 17, 0, tzinfo=UTC),
+            "direction": "over",
+            "strength": "strong",
+            "sample_size": 10,
+            "non_push_sample_size": 10,
+            "over_count": 7,
+            "under_count": 3,
+            "push_count": 0,
+            "posterior_over_rate": 0.625,
+            "shrunk_mean_residual": 1.4,
+            "direction_confidence": 0.93,
+            "method_version": "main_line_residual_v1",
+        },
+        {
+            "team_key": target["away_team_key"],
+            "league_key": target["league_key"],
+            "venue_context": "away",
+            "market_scope": "total",
+            "stat_key": "totalShots",
+            "period": "ALL",
+            "as_of": datetime(2025, 12, 5, 17, 30, tzinfo=UTC),
+            "direction": "under",
+            "strength": "lean",
+            "sample_size": 8,
+            "non_push_sample_size": 7,
+            "over_count": 3,
+            "under_count": 4,
+            "push_count": 1,
+            "posterior_over_rate": 0.45,
+            "shrunk_mean_residual": -0.8,
+            "direction_confidence": 0.84,
+            "method_version": "main_line_residual_v1",
+        },
+    ]
+    with_bias, _ = build_matchups_score_docs(
+        target_matches=[target],
+        teamprofile_docs=build_profiles(),
+        market_bias_profile_docs=profiles,
+        snapshot_date="2025-12-05",
+    )
+
+    assert len(without_bias) == len(with_bias)
+    for before, after in zip(without_bias, with_bias, strict=True):
+        assert before["entry_key"] == after["entry_key"]
+        assert before["score"] == after["score"]
+        assert before["sort_key"] == after["sort_key"]
+        assert before["rank_position"] == after["rank_position"]
+    total = next(row for row in with_bias if row["stat_key"] == "totalShots" and row["period"] == "ALL" and row["scope"] == "total")
+    assert [profile["team_key"] for profile in total["market_bias"]["profiles"]] == [target["home_team_key"], target["away_team_key"]]
