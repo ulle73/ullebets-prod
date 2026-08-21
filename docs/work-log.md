@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-14
+Last updated: 2026-08-21
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -222,14 +222,19 @@ Design:
 
 Remaining:
 
-- Write and review the implementation plan.
+- Execute the reviewed implementation plan.
 - Audit exact historical team/league mapping before any bootstrap write.
 - Implement, verify, and deploy the observation, profile, automation, API, and
   frontend layers.
 
 Next:
 
-- Review the approved design document, then create the implementation plan.
+- Execute the implementation plan task by task with TDD and stop the bootstrap
+  before its first write if the mapping/leakage acceptance gate fails.
+
+Implementation plan:
+
+- [2026-08-21-market-bias-v2-implementation.md](superpowers/plans/2026-08-21-market-bias-v2-implementation.md)
 
 ### 2026-08-14 - Matchup ranking form, day replacement, and Cosmos persistence
 
