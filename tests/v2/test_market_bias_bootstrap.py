@@ -46,3 +46,29 @@ def test_bootstrap_joins_each_snapshot_to_its_exact_market_line(tmp_path) -> Non
     support={"teams":[{"team_key":"h","league_key":"la","team_id":"h","team_name":"Home"},{"team_key":"a","league_key":"la","team_id":"a","team_name":"Away"}],"leagues":[{"league_key":"la","league_name":"La Liga","unibet_lookup_slugs":["LaLiga"]}]}
     candidates, _ = build_bootstrap_candidates(tmp_path, support_docs=support, as_of=datetime(2026,8,21,tzinfo=UTC), run_id="r")
     assert {doc["actual_value"] for candidate in candidates for doc in candidate.observation_docs} == {11.0,22.0}
+
+
+def test_bootstrap_uses_unique_configured_aliases_and_contextual_snapshot_identity(tmp_path) -> None:
+    snapshots = pd.DataFrame([
+        {"match_id":"m1","bet_key":"corners-over","snapshot_fetched_at":"2026-08-20T10:00:00Z","snapshot_type":"T_MINUS_30M","stat_key":"cornerKicks","period":"ALL","scope":"home","direction":"over","line_value":10.5,"odds_decimal":1.98,"is_primary_modeled_stat":True},
+        {"match_id":"m1","bet_key":"shots-over","snapshot_fetched_at":"2026-08-20T10:00:00Z","snapshot_type":"T_MINUS_30M","stat_key":"totalShots","period":"ALL","scope":"home","direction":"over","line_value":10.5,"odds_decimal":1.98,"is_primary_modeled_stat":True},
+    ])
+    lines = pd.DataFrame([
+        {**row, "league_name":"League", "home_team_name":"Home Source", "away_team_name":"Away Source", "home_team_id":None, "away_team_id":None, "kickoff_ts":"2026-08-20T12:00:00Z", "actual_value":11.0, "has_authoritative_teamstats_outcome":True}
+        for row in snapshots.to_dict("records")
+    ])
+    for name, frame in {"market_snapshots":snapshots,"market_lines":lines,"matches":pd.DataFrame([{"match_id":"m1"}])}.items():
+        frame.to_parquet(tmp_path / f"{name}.parquet")
+    support = {
+        "teams": [
+            {"team_key":"home","league_key":"league","team_name":"Home", "aliases":["Home Source"]},
+            {"team_key":"away","league_key":"league","team_name":"Away", "team_aliases":["Away Source"]},
+        ],
+        "leagues": [{"league_key":"league", "league_name":"League"}],
+    }
+
+    candidates, audit = build_bootstrap_candidates(tmp_path, support_docs=support, as_of=datetime(2026,8,21,tzinfo=UTC), run_id="r")
+    snapshot_keys = {doc["snapshot_key"] for candidate in candidates for doc in candidate.observation_docs}
+
+    assert audit["mapping_method_counts"]["configured_alias"] == 4
+    assert len(snapshot_keys) == 2

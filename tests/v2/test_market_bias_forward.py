@@ -94,9 +94,10 @@ def test_forward_loader_rejects_post_start_and_unavailable_outcomes() -> None:
         as_of=datetime(2026, 8, 21, tzinfo=UTC),
         run_id="r",
     )
-    assert candidates == []
     assert audit["timing_rejection_count"] == 1
     assert audit["qualifying_line_failure_count"] == 1
+    assert len(candidates) == 1
+    assert candidates[0].observation_docs == ()
 
     unavailable = _database(fetched_at=datetime(2026, 8, 21, tzinfo=UTC))
     candidates, audit = load_forward_candidates(
@@ -106,8 +107,10 @@ def test_forward_loader_rejects_post_start_and_unavailable_outcomes() -> None:
         as_of=datetime(2026, 8, 21, tzinfo=UTC),
         run_id="r",
     )
-    assert candidates == []
     assert audit["missing_result_availability_count"] == 1
+    assert len(candidates) == 1
+    assert candidates[0].observation_docs == ()
+    assert candidates[0].metrics["missing_result_availability_count"] == 1
 
 
 def test_forward_loader_is_idempotent_and_hash_ignores_mongo_id() -> None:

@@ -148,4 +148,6 @@ def load_forward_candidates(
             observation_docs=candidates[0].observation_docs,
             metrics=audit,
         )
+    else:
+        candidates.append(MarketBiasCandidate(observation_docs=(), metrics=audit))
     return candidates, audit

@@ -27,6 +27,12 @@ class FakeCollection:
 
     def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
         query = query or {}
+        if "$or" in query:
+            return [
+                dict(doc)
+                for doc in self.docs
+                if any(all(doc.get(key) == value for key, value in clause.items()) for clause in query["$or"])
+            ]
         return [dict(doc) for doc in self.docs if all(doc.get(key) == value for key, value in query.items())]
 
     def insert_one(self, doc: dict) -> None:
@@ -193,6 +199,35 @@ def test_run_market_bias_refresh_merges_existing_history_without_dry_run_writes(
 
     assert summary["profile_docs"][0]["sample_size"] == 7
     assert len(summary["observation_docs"]) == 1
+    assert all(collection.write_count == 0 for collection in database.values())
+
+
+def test_metrics_only_candidate_keeps_rejection_audit_without_counting_as_source_row() -> None:
+    database = FakeDatabase()
+
+    summary = run_market_bias_refresh(
+        source_workflow="test.yml",
+        source_kind="v2_forward",
+        candidates=[
+            MarketBiasCandidate(
+                observation_docs=(),
+                metrics={
+                    "timing_rejection_count": 2,
+                    "missing_actual_count": 1,
+                    "missing_result_availability_count": 1,
+                },
+            )
+        ],
+        as_of=datetime(2026, 8, 21, 18, 0, tzinfo=UTC),
+        profile_date="2026-08-21",
+        database=database,
+        dry_run=True,
+    )
+
+    assert summary["source_row_count"] == 0
+    assert summary["timing_rejection_count"] == 2
+    assert summary["missing_actual_count"] == 1
+    assert summary["health_rows"][0]["status"] == "warn"
     assert all(collection.write_count == 0 for collection in database.values())
 
 

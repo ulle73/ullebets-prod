@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -25,6 +25,13 @@ PRIVATE_REPORT_FIELDS = {
 }
 
 
+def _as_of(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("--as-of must include a timezone offset or Z.")
+    return parsed.astimezone(UTC)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -41,7 +48,7 @@ def main() -> int:
     config = V2Config.from_env(args.repo_root)
     ensure_v2_database(config)
     database = get_database(config)
-    as_of = datetime.fromisoformat(args.as_of.replace("Z", "+00:00"))
+    as_of = _as_of(args.as_of)
     candidates, adapter_audit = load_forward_candidates(
         database,
         from_date=args.from_date,
@@ -55,7 +62,7 @@ def main() -> int:
         candidates=candidates,
         as_of=as_of,
         profile_date=args.as_of[:10],
-        database=database if args.write else None,
+        database=database,
         dry_run=not args.write,
     )
     summary["forward_audit"] = adapter_audit

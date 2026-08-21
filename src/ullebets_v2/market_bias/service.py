@@ -12,6 +12,9 @@ from ullebets_v2.market_bias.reports import build_market_bias_audit_rows, build_
 from ullebets_v2.storage.collections import MARKET_BIAS_OBSERVATIONS
 
 
+EXISTING_OBSERVATION_QUERY_BATCH_SIZE = 5_000
+
+
 @dataclass(frozen=True)
 class MarketBiasCandidate:
     """Adapter-neutral candidate output; rejected rows stay in metrics, not observations."""
@@ -68,8 +71,9 @@ def _load_existing_observations(
     contexts = sorted({_context_key(observation) for observation in incoming})
     fields = ("team_key", "league_key", "venue_context", "market_scope", "stat_key", "period")
     rows: list[dict[str, Any]] = []
-    for context in contexts:
-        query = dict(zip(fields, context, strict=True))
+    for start in range(0, len(contexts), EXISTING_OBSERVATION_QUERY_BATCH_SIZE):
+        batch = contexts[start : start + EXISTING_OBSERVATION_QUERY_BATCH_SIZE]
+        query = {"$or": [dict(zip(fields, context, strict=True)) for context in batch]}
         rows.extend(dict(row) for row in collection.find(query, projection={"_id": 0}))
     return rows
 
@@ -158,7 +162,13 @@ def _run_refresh(
     existing = _load_existing_observations(database=database, incoming=observation_docs)
     profile_observations = _dedupe_observations(existing, observation_docs)
     profile_docs = _profile_documents(observations=profile_observations, as_of=as_of, profile_date=profile_date, run_id=run_id) if profile_observations else []
-    metrics.update({"source_row_count": len(candidate_rows), "accepted_observation_count": len(observation_docs), "profile_count": len(profile_docs)})
+    metrics.update(
+        {
+            "source_row_count": sum(bool(candidate.observation_docs) for candidate in candidate_rows),
+            "accepted_observation_count": len(observation_docs),
+            "profile_count": len(profile_docs),
+        }
+    )
     audit_rows = build_market_bias_audit_rows(source_workflow=source_workflow, metrics=metrics, report_date=profile_date)
     health_rows = build_market_bias_health_rows(metrics=metrics, report_date=profile_date)
     summary: dict[str, Any] = {

@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -26,7 +26,10 @@ PRIVATE_REPORT_FIELDS = {
 
 
 def _as_of(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("--as-of must include a timezone offset or Z.")
+    return parsed.astimezone(UTC)
 
 
 def _compact_report(summary: dict[str, object]) -> dict[str, object]:
@@ -65,7 +68,7 @@ def main() -> int:
         candidates=candidates,
         as_of=as_of,
         profile_date=args.as_of[:10],
-        database=database if args.write else None,
+        database=database,
         dry_run=not args.write,
     )
     summary["bootstrap_audit"] = adapter_audit

@@ -201,15 +201,15 @@ Add the read-only offline bootstrap adapter and V2-only forward refresh
 foundation without bootstrap writes, matchup changes, or model changes.
 
 Results:
-- Historical dry-run command completed read-only with `16,972` accepted,
+- Historical dry-run command completed read-only with `16,386` accepted,
   `0` unmatched, `0` ambiguous, `0` timing-invalid, `0` missing actuals,
-  `0` duplicate keys, and `751` qualifying-line rejections. It created no
+  `0` duplicate keys, and `438` qualifying-line rejections. It created no
   observations or profiles because `--write` was not supplied.
-- Exact source IDs resolved `26,638` team identities; no name fallback was
-  needed. The compact local audit records the accepted distributions and
+- Exact source IDs resolved `25,286` team identities; no name fallback or
+  configured alias was needed. The compact local audit records the accepted distributions and
   bounded metrics without embedding observation/profile documents.
-- Focused adapter suites passed `36/36`; full V2 suite passed `458/458` in
-  `20.28s`; `python -m compileall -q src scripts`, `git diff --check`, and
+- Focused adapter suites passed `42/42` in `5.59s`; full V2 suite passed `464/464` in
+  `61.97s`; `python -m compileall -q src scripts`, `git diff --check`, and
   `codegraph sync` passed.
 
 Insight:
