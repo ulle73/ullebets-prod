@@ -8,6 +8,46 @@ from ullebets_v2.safety import (
     ensure_no_simulated_time_write,
     ensure_v2_database,
 )
+from ullebets_v2.storage.collections import (
+    CANONICAL_COLLECTION_NAMES,
+    MARKET_BIAS_OBSERVATIONS,
+    MARKET_BIAS_PROFILES,
+)
+from ullebets_v2.storage.indexes import build_core_index_plan
+
+
+def test_market_bias_collections_are_canonical_and_indexed() -> None:
+    assert MARKET_BIAS_OBSERVATIONS in CANONICAL_COLLECTION_NAMES
+    assert MARKET_BIAS_PROFILES in CANONICAL_COLLECTION_NAMES
+
+    plans = {row["collection"]: row["indexes"] for row in build_core_index_plan()}
+    observation_indexes = {row["name"]: row for row in plans[MARKET_BIAS_OBSERVATIONS]}
+    profile_indexes = {row["name"]: row for row in plans[MARKET_BIAS_PROFILES]}
+
+    assert observation_indexes["observation_key_unique"]["unique"] is True
+    assert observation_indexes["team_context_outcome_available"]["keys"] == [
+        ("team_key", 1),
+        ("venue_context", 1),
+        ("market_scope", 1),
+        ("stat_key", 1),
+        ("period", 1),
+        ("outcome_available_at", -1),
+    ]
+    assert observation_indexes["match_market_context"]["keys"] == [
+        ("match_key", 1),
+        ("stat_key", 1),
+        ("market_scope", 1),
+        ("period", 1),
+    ]
+    assert profile_indexes["profile_key_unique"]["unique"] is True
+    assert profile_indexes["profile_date_team_context"]["keys"] == [
+        ("profile_date", 1),
+        ("team_key", 1),
+        ("venue_context", 1),
+        ("market_scope", 1),
+        ("stat_key", 1),
+        ("period", 1),
+    ]
 
 
 def test_v2_config_reads_env_and_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

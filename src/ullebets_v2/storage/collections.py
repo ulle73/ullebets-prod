@@ -26,6 +26,8 @@ MATCH_STATS_CANONICAL = "match_stats_canonical"
 TEAMPROFILES = "teamprofiles"
 MATCHUPS_SCORE = "matchups_score"
 MATCHUPS_LEAGUE_AVG = "matchups_league_avg"
+MARKET_BIAS_OBSERVATIONS = "market_bias_observations"
+MARKET_BIAS_PROFILES = "market_bias_profiles"
 
 RAW_ODDS_KAMBI = "raw_odds_kambi"
 UNIBET_EVENT_LINKS = "unibet_event_links"
@@ -67,6 +69,8 @@ CANONICAL_COLLECTION_NAMES = (
     TEAMPROFILES,
     MATCHUPS_SCORE,
     MATCHUPS_LEAGUE_AVG,
+    MARKET_BIAS_OBSERVATIONS,
+    MARKET_BIAS_PROFILES,
     RAW_ODDS_KAMBI,
     UNIBET_EVENT_LINKS,
     MARKET_OFFERS,

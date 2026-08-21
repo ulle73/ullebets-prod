@@ -18,6 +18,8 @@ from ullebets_v2.storage.collections import (
     FORWARD_RESULTS,
     HEALTH_REPORTS,
     JOB_RUNS,
+    MARKET_BIAS_OBSERVATIONS,
+    MARKET_BIAS_PROFILES,
     MARKET_OFFERS,
     MARKET_SNAPSHOTS,
     MATCHUPS_LEAGUE_AVG,
@@ -224,6 +226,44 @@ def build_core_index_plan() -> list[dict[str, Any]]:
                 {"keys": [("league_key", 1), ("snapshot_date", 1)], "name": "league_key_snapshot_date"},
                 {"keys": [("snapshot_date", 1), ("ranking_bucket", 1), ("score", -1)], "name": "snapshot_bucket_score"},
                 {"keys": [("snapshot_date", 1), ("outcome_status", 1)], "name": "snapshot_outcome_status"},
+            ],
+        },
+        {
+            "collection": MARKET_BIAS_OBSERVATIONS,
+            "indexes": [
+                {"keys": [("observation_key", 1)], "name": "observation_key_unique", "unique": True},
+                {
+                    "keys": [
+                        ("team_key", 1),
+                        ("venue_context", 1),
+                        ("market_scope", 1),
+                        ("stat_key", 1),
+                        ("period", 1),
+                        ("outcome_available_at", -1),
+                    ],
+                    "name": "team_context_outcome_available",
+                },
+                {
+                    "keys": [("match_key", 1), ("stat_key", 1), ("market_scope", 1), ("period", 1)],
+                    "name": "match_market_context",
+                },
+            ],
+        },
+        {
+            "collection": MARKET_BIAS_PROFILES,
+            "indexes": [
+                {"keys": [("profile_key", 1)], "name": "profile_key_unique", "unique": True},
+                {
+                    "keys": [
+                        ("profile_date", 1),
+                        ("team_key", 1),
+                        ("venue_context", 1),
+                        ("market_scope", 1),
+                        ("stat_key", 1),
+                        ("period", 1),
+                    ],
+                    "name": "profile_date_team_context",
+                },
             ],
         },
         {
