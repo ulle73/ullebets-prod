@@ -201,24 +201,31 @@ Add the read-only offline bootstrap adapter and V2-only forward refresh
 foundation without bootstrap writes, matchup changes, or model changes.
 
 Results:
-- Historical dry-run command completed read-only with `0` accepted, `15,818`
-  unmatched, `0` ambiguous, `0` timing-invalid, and `0` hash-conflicts.
-- Bootstrap write is blocked by zero safe identity mappings; no observations
-  or profiles were written.
-- Focused Task 4/5 suites passed `31/31`; full V2 suite passed `454/454` in
-  `16.78s`; `compileall` and `git diff --check` passed.
+- Historical dry-run command completed read-only with `16,972` accepted,
+  `0` unmatched, `0` ambiguous, `0` timing-invalid, `0` missing actuals,
+  `0` duplicate keys, and `751` qualifying-line rejections. It created no
+  observations or profiles because `--write` was not supplied.
+- Exact source IDs resolved `26,638` team identities; no name fallback was
+  needed. The compact local audit records the accepted distributions and
+  bounded metrics without embedding observation/profile documents.
+- Focused adapter suites passed `36/36`; full V2 suite passed `458/458` in
+  `20.28s`; `python -m compileall -q src scripts`, `git diff --check`, and
+  `codegraph sync` passed.
 
 Insight:
-The current V2 support identity fields do not map the offline source corpus;
-the required exact/alias mapping review must precede any bootstrap write.
+The source adapter must select an exact `match_id + bet_key` outcome for the
+chosen OVER price, not a match-level row. Its line-independent context grouping
+now chooses only one main line per market context.
 
 Remaining:
-- `BLOCKED`: audited identity mapping coverage for the offline bootstrap.
+- `UNPROVEN`: a deliberate bootstrap write and its immutable persistence
+  lifecycle; this batch was explicitly read-only.
 - `UNPROVEN`: live scheduled forward refresh against a completed match.
 
 Next:
-Audit and version exact source-ID/league alias mappings, then rerun the
-read-only bootstrap gate before authorizing any write.
+Review the compact bootstrap audit and authorize a separately audited write
+only if the historical import is needed; otherwise observe a completed-match
+forward refresh.
 
 ### 2026-08-21 - V2 market-bias Tasks 1-3 foundation
 

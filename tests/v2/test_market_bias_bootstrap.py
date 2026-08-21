@@ -2,7 +2,15 @@ from datetime import UTC, datetime
 
 import pandas as pd
 
-from ullebets_v2.market_bias.bootstrap import build_bootstrap_candidates
+from ullebets_v2.market_bias.bootstrap import _time, build_bootstrap_candidates
+
+
+def test_bootstrap_parses_unix_seconds_and_milliseconds() -> None:
+    expected = datetime(2026, 8, 20, 12, tzinfo=UTC)
+    seconds = expected.timestamp()
+
+    assert _time(seconds) == expected
+    assert _time(seconds * 1000) == expected
 
 
 def test_bootstrap_accepts_only_exact_safe_prematch_mappings(tmp_path) -> None:
@@ -11,8 +19,8 @@ def test_bootstrap_accepts_only_exact_safe_prematch_mappings(tmp_path) -> None:
         {"match_id": "m2", "snapshot_fetched_at": "2026-08-20T13:00:00Z", "snapshot_type": "T_MINUS_30M", "bet_key": "b2", "stat_key": "cornerKicks", "period": "ALL", "scope": "home", "direction": "over", "line_value": 10.5, "odds_decimal": 1.98, "is_primary_modeled_stat": True},
     ])
     lines = pd.DataFrame([
-        {"match_id": "m1", "league_name": "League", "home_team_name": "Home", "away_team_name": "Away", "home_team_id": "h1", "away_team_id": "a1", "kickoff_ts": "2026-08-20T12:00:00Z", "actual_value": 11.0, "has_authoritative_teamstats_outcome": True},
-        {"match_id": "m2", "league_name": "League", "home_team_name": "Ambiguous", "away_team_name": "Away", "home_team_id": None, "away_team_id": "a1", "kickoff_ts": "2026-08-20T12:00:00Z", "actual_value": 11.0, "has_authoritative_teamstats_outcome": True},
+        {"match_id": "m1", "bet_key":"b1", "stat_key":"cornerKicks", "period":"ALL", "scope":"home", "direction":"over", "line_value":10.5, "league_name": "League", "home_team_name": "Home", "away_team_name": "Away", "home_team_id": "h1", "away_team_id": "a1", "kickoff_ts": "2026-08-20T12:00:00Z", "actual_value": 11.0, "has_authoritative_teamstats_outcome": True},
+        {"match_id": "m2", "bet_key":"b2", "stat_key":"cornerKicks", "period":"ALL", "scope":"home", "direction":"over", "line_value":10.5, "league_name": "League", "home_team_name": "Ambiguous", "away_team_name": "Away", "home_team_id": None, "away_team_id": "a1", "kickoff_ts": "2026-08-20T12:00:00Z", "actual_value": 11.0, "has_authoritative_teamstats_outcome": True},
     ])
     matches = pd.DataFrame([{"match_id": "m1"}, {"match_id": "m2"}])
     for name, frame in {"market_snapshots": snapshots, "market_lines": lines, "matches": matches}.items():
@@ -25,3 +33,16 @@ def test_bootstrap_accepts_only_exact_safe_prematch_mappings(tmp_path) -> None:
     assert candidates[0].observation_docs[0]["team_key"] == "home-key"
     assert audit["accepted_observation_count"] == 1
     assert audit["ambiguous_identity_count"] == 1
+
+
+def test_bootstrap_joins_each_snapshot_to_its_exact_market_line(tmp_path) -> None:
+    snapshots = pd.DataFrame([
+        {"match_id":"m1","bet_key":"corners-over","snapshot_fetched_at":"2026-08-20T10:00:00Z","snapshot_type":"T_MINUS_30M","stat_key":"cornerKicks","period":"ALL","scope":"home","direction":"over","line_value":10.5,"odds_decimal":1.98,"is_primary_modeled_stat":True},
+        {"match_id":"m1","bet_key":"shots-over","snapshot_fetched_at":"2026-08-20T10:00:00Z","snapshot_type":"T_MINUS_30M","stat_key":"totalShots","period":"ALL","scope":"home","direction":"over","line_value":20.5,"odds_decimal":1.98,"is_primary_modeled_stat":True},
+    ])
+    kickoff_epoch = datetime(2026, 8, 20, 12, tzinfo=UTC).timestamp()
+    lines = pd.DataFrame([{**row, "league_name":"LaLiga", "home_team_name":"Home", "away_team_name":"Away", "home_team_id":"h", "away_team_id":"a", "kickoff_ts":kickoff_epoch, "actual_value":11.0 if row["stat_key"] == "cornerKicks" else 22.0, "has_authoritative_teamstats_outcome":True} for row in snapshots.to_dict("records")])
+    for name, frame in {"market_snapshots":snapshots,"market_lines":lines,"matches":pd.DataFrame([{"match_id":"m1"}])}.items(): frame.to_parquet(tmp_path / f"{name}.parquet")
+    support={"teams":[{"team_key":"h","league_key":"la","team_id":"h","team_name":"Home"},{"team_key":"a","league_key":"la","team_id":"a","team_name":"Away"}],"leagues":[{"league_key":"la","league_name":"La Liga","unibet_lookup_slugs":["LaLiga"]}]}
+    candidates, _ = build_bootstrap_candidates(tmp_path, support_docs=support, as_of=datetime(2026,8,21,tzinfo=UTC), run_id="r")
+    assert {doc["actual_value"] for candidate in candidates for doc in candidate.observation_docs} == {11.0,22.0}
