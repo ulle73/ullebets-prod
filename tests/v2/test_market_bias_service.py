@@ -31,6 +31,9 @@ class FakeCollection:
     def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
         query = query or {}
         self.find_queries.append(query)
+        observation_keys = query.get("observation_key")
+        if isinstance(observation_keys, dict) and "$in" in observation_keys:
+            return [dict(doc) for doc in self.docs if doc.get("observation_key") in observation_keys["$in"]]
         if "$or" in query:
             return [
                 dict(doc)
@@ -134,6 +137,27 @@ def test_persist_observations_uses_bounded_unordered_bulk_batches(monkeypatch: p
     assert MARKET_BIAS_BULK_WRITE_BATCH_SIZE > 0
     assert metrics["observation_inserts"] == 5
     assert collection.bulk_batch_sizes == [2, 2, 1]
+
+
+def test_persist_observations_batch_reads_replays_and_conflicts_without_find_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = FakeDatabase()
+    collection = BulkFakeCollection()
+    collection.docs.append(_observation(0))
+    database["market_bias_observations"] = collection
+    monkeypatch.setattr(
+        "ullebets_v2.market_bias.persistence.MARKET_BIAS_EXISTING_LOOKUP_BATCH_SIZE",
+        2,
+    )
+
+    metrics = persist_observations(database, [_observation(index) for index in range(3)])
+
+    assert metrics == {"observation_inserts": 2, "observation_replays": 1}
+    assert [len(query["observation_key"]["$in"]) for query in collection.find_queries] == [2, 1]
+    assert collection.find_one_queries == []
+    with pytest.raises(ImmutableMarketBiasConflict):
+        persist_observations(database, [{**_observation(0), "actual_value": 99.0}])
 
 
 def test_persist_profiles_upserts_by_profile_key() -> None:

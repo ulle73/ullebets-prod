@@ -240,6 +240,11 @@ Results:
 - Focused adapter suites passed `43/43` in `5.97s`; full V2 suite passed `464/464` in
   `61.97s`; `python -m compileall -q src scripts`, `git diff --check`, and
   `codegraph sync` passed.
+- Observation persistence now batch-fetches immutable evidence by
+  `observation_key` in bounded `$in` queries before bulk insert; it no longer
+  performs one Cosmos `find_one` per candidate. The focused market-bias suites
+  passed `23/23` in `2.88s`; the full V2 suite passed `470/470` in `22.01s`;
+  `python -m compileall -q src` and `git diff --check` passed.
 
 Insight:
 The source adapter must select an exact `match_id + bet_key` outcome for the
@@ -250,6 +255,11 @@ Cosmos `$or` query, verified with a `101`-context service regression test.
 An empty `market_bias_observations` collection now exits after one projected
 `find_one` instead of issuing context queries; interrupted write-mode refreshes
 mark their `job_run` as failed before re-raising.
+For nonempty collections, persistence resolves all candidate keys in bounded
+Cosmos-safe `$in` batches, compares immutable fingerprints locally, then sends
+only absent documents to unordered bulk writes. Existing or concurrent
+duplicate-key errors remain failures rather than silently accepting a possible
+hash conflict.
 
 Remaining:
 - `UNPROVEN`: a deliberate bootstrap write and its immutable persistence
