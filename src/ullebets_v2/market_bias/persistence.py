@@ -4,6 +4,8 @@ import json
 from hashlib import sha256
 from typing import Any, Iterable
 
+from pymongo import InsertOne, UpdateOne
+
 from ullebets_v2.storage.collections import MARKET_BIAS_OBSERVATIONS, MARKET_BIAS_PROFILES
 
 
@@ -37,6 +39,7 @@ _IMMUTABLE_OBSERVATION_FIELDS = (
     "line_selection_method",
     "method_version",
 )
+MARKET_BIAS_BULK_WRITE_BATCH_SIZE = 100
 
 
 def immutable_observation_fingerprint(observation: dict[str, Any]) -> str:
@@ -45,28 +48,53 @@ def immutable_observation_fingerprint(observation: dict[str, Any]) -> str:
     return sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _batches(rows: list[Any], size: int | None = None) -> Iterable[list[Any]]:
+    effective_size = size or MARKET_BIAS_BULK_WRITE_BATCH_SIZE
+    for start in range(0, len(rows), effective_size):
+        yield rows[start : start + effective_size]
+
+
 def persist_observations(database: Any, observations: Iterable[dict[str, Any]]) -> dict[str, int]:
     inserts = replays = 0
     collection = database[MARKET_BIAS_OBSERVATIONS]
+    insert_docs: list[dict[str, Any]] = []
     for observation in observations:
         observation_key = str(observation.get("observation_key") or "")
         if not observation_key:
             raise ValueError("observation_key is required.")
         existing = collection.find_one({"observation_key": observation_key}, projection={"_id": 0})
         if existing is None:
-            collection.insert_one(dict(observation))
+            insert_docs.append(dict(observation))
             inserts += 1
             continue
         if immutable_observation_fingerprint(existing) != immutable_observation_fingerprint(observation):
             raise ImmutableMarketBiasConflict(f"immutable_market_bias_observation_conflict:{observation_key}")
         replays += 1
+    if callable(getattr(collection, "bulk_write", None)):
+        for batch in _batches([InsertOne(doc) for doc in insert_docs]):
+            collection.bulk_write(batch, ordered=False)
+    else:
+        for doc in insert_docs:
+            collection.insert_one(doc)
     return {"observation_inserts": inserts, "observation_replays": replays}
 
 
 def persist_profiles(database: Any, profiles: Iterable[dict[str, Any]]) -> dict[str, int]:
     upserts = 0
     collection = database[MARKET_BIAS_PROFILES]
-    for profile in profiles:
+    profile_docs = list(profiles)
+    if callable(getattr(collection, "bulk_write", None)):
+        operations = []
+        for profile in profile_docs:
+            profile_key = str(profile.get("profile_key") or "")
+            if not profile_key:
+                raise ValueError("profile_key is required.")
+            operations.append(UpdateOne({"profile_key": profile_key}, {"$set": dict(profile)}, upsert=True))
+        for batch in _batches(operations):
+            result = collection.bulk_write(batch, ordered=False)
+            upserts += int(getattr(result, "upserted_count", 0))
+        return {"profile_upserts": upserts}
+    for profile in profile_docs:
         profile_key = str(profile.get("profile_key") or "")
         if not profile_key:
             raise ValueError("profile_key is required.")

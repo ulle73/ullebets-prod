@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from ullebets_v2.market_bias.persistence import (
+    MARKET_BIAS_BULK_WRITE_BATCH_SIZE,
     ImmutableMarketBiasConflict,
     persist_observations,
     persist_profiles,
@@ -23,6 +24,10 @@ class FakeCollection:
 
     def find_one(self, query: dict, projection: dict | None = None):  # noqa: ARG002
         return next((dict(doc) for doc in self.docs if all(doc.get(key) == value for key, value in query.items())), None)
+
+    def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
+        query = query or {}
+        return [dict(doc) for doc in self.docs if all(doc.get(key) == value for key, value in query.items())]
 
     def insert_one(self, doc: dict) -> None:
         self.write_count += 1
@@ -46,6 +51,18 @@ class FakeDatabase(dict):
         collection = FakeCollection()
         self[key] = collection
         return collection
+
+
+class BulkFakeCollection(FakeCollection):
+    def __init__(self) -> None:
+        super().__init__()
+        self.bulk_batch_sizes: list[int] = []
+
+    def bulk_write(self, operations: list[object], ordered: bool) -> None:
+        assert ordered is False
+        self.bulk_batch_sizes.append(len(operations))
+        for operation in operations:
+            self.insert_one(operation._doc)  # type: ignore[attr-defined]
 
 
 def _observation(index: int = 0) -> dict:
@@ -96,6 +113,19 @@ def test_persist_observations_is_idempotent_and_rejects_immutable_conflicts() ->
         persist_observations(database, [changed])
 
 
+def test_persist_observations_uses_bounded_unordered_bulk_batches(monkeypatch: pytest.MonkeyPatch) -> None:
+    database = FakeDatabase()
+    collection = BulkFakeCollection()
+    database["market_bias_observations"] = collection
+    monkeypatch.setattr("ullebets_v2.market_bias.persistence.MARKET_BIAS_BULK_WRITE_BATCH_SIZE", 2)
+
+    metrics = persist_observations(database, [_observation(index) for index in range(5)])
+
+    assert MARKET_BIAS_BULK_WRITE_BATCH_SIZE > 0
+    assert metrics["observation_inserts"] == 5
+    assert collection.bulk_batch_sizes == [2, 2, 1]
+
+
 def test_persist_profiles_upserts_by_profile_key() -> None:
     database = FakeDatabase()
     profile = {"profile_key": "profile-1", "direction": "neutral"}
@@ -143,7 +173,27 @@ def test_run_market_bias_refresh_returns_documents_in_dry_run_without_writes() -
     assert len(summary["observation_docs"]) == 6
     assert len(summary["profile_docs"]) == 1
     assert summary["audit_rows"] and summary["health_rows"]
-    assert not database
+    assert all(collection.write_count == 0 for collection in database.values())
+
+
+def test_run_market_bias_refresh_merges_existing_history_without_dry_run_writes() -> None:
+    database = FakeDatabase()
+    existing = [_observation(index) for index in range(1, 7)]
+    database["market_bias_observations"].docs.extend(existing)
+
+    summary = run_market_bias_refresh(
+        source_workflow="test.yml",
+        source_kind="v2_forward",
+        candidates=[MarketBiasCandidate(observation_docs=(_observation(7),))],
+        as_of=datetime(2026, 8, 21, 18, 0, tzinfo=UTC),
+        profile_date="2026-08-21",
+        database=database,
+        dry_run=True,
+    )
+
+    assert summary["profile_docs"][0]["sample_size"] == 7
+    assert len(summary["observation_docs"]) == 1
+    assert all(collection.write_count == 0 for collection in database.values())
 
 
 def test_run_market_bias_refresh_persists_one_job_run_lifecycle() -> None:
@@ -162,3 +212,6 @@ def test_run_market_bias_refresh_persists_one_job_run_lifecycle() -> None:
     assert summary["profile_upserts"] == 1
     assert len(database["job_runs"].docs) == 1
     assert database["job_runs"].docs[0]["status"] == "succeeded"
+    run_id = database["job_runs"].docs[0]["run_id"]
+    assert {row["run_id"] for row in database["market_bias_observations"].docs} == {run_id}
+    assert {row["run_id"] for row in database["market_bias_profiles"].docs} == {run_id}

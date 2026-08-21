@@ -64,6 +64,18 @@ def test_select_main_line_supports_corners_both_sides_and_rejects_unqualified_pr
     ) is None
 
 
+def test_select_main_line_supports_shots_with_only_an_over_price() -> None:
+    selected = select_main_line(
+        snapshots=[_snapshot(stat_key="totalShots", over_odds=1.98, under_odds=None)],
+        match_start_time=_at(90),
+    )
+
+    assert selected is not None
+    assert selected["stat_key"] == "totalShots"
+    assert selected["over_odds"] == 1.98
+    assert selected["under_odds"] is None
+
+
 @pytest.mark.parametrize(
     ("market_scope", "actual_value", "expected_result", "expected_teams"),
     [
@@ -171,6 +183,54 @@ def test_build_bias_profile_gates_small_samples_and_marks_conflicting_signs_neut
         run_id="run-1",
     )
     assert neutral["direction"] == "neutral"
+
+
+def test_build_bias_profile_counts_selected_window_push_with_zero_residual() -> None:
+    cutoff = _at(60)
+    observations = [_observation(index) for index in range(1, 12)]
+    observations.append(_observation(12, result="push", residual=0.0))
+
+    profile = build_bias_profile(
+        observations,
+        as_of=cutoff,
+        profile_date="2026-08-21",
+        run_id="run-1",
+    )
+
+    assert profile["sample_size"] == 12
+    assert profile["non_push_sample_size"] == 11
+    assert profile["push_count"] == 1
+    assert profile["weighted_mean_residual"] < 1.0
+
+
+def test_build_bias_profile_rejects_outcome_available_exactly_at_cutoff() -> None:
+    cutoff = _at(60)
+    observations = [_observation(index) for index in range(1, 7)]
+    observations.append(_observation(7, available_at=cutoff))
+
+    profile = build_bias_profile(
+        observations,
+        as_of=cutoff,
+        profile_date="2026-08-21",
+        run_id="run-1",
+    )
+
+    assert profile["sample_size"] == 6
+    assert "observation-7" not in profile["observation_keys"]
+
+
+def test_build_bias_profile_rejects_mixed_context_even_outside_rolling_window() -> None:
+    cutoff = _at(60)
+    observations = [_observation(index) for index in range(1, 14)]
+    observations.append({**_observation(14), "team_key": "other-team"})
+
+    with pytest.raises(ValueError, match="exact market-bias context"):
+        build_bias_profile(
+            observations,
+            as_of=cutoff,
+            profile_date="2026-08-21",
+            run_id="run-1",
+        )
 
 
 def test_build_profile_key_includes_every_context_identity_component() -> None:

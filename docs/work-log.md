@@ -30,8 +30,8 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `446/446` in
-  the current `codex/market-bias-v2` checkout.
+- `VERIFIED`: the full V2 Python test suite currently passes, `449/449` in
+  the current reconciled `style-1` checkout.
 
 ### Backend
 
@@ -207,24 +207,16 @@ Changes:
 - Added deterministic prematch main-line selection, exact outcome/context
   observations, leakage-safe rolling profiles, immutable persistence, audit /
   health rows, and `job_runs` lifecycle orchestration.
-- Added the Task 1-3 report at
-  `.superpowers/sdd/2026-08-21-market-bias-v2-implementation/task-1-3-report.md`.
 
 Tests:
 ```text
-python -m pytest tests/v2/test_config_and_safety.py -q
-python -m pytest tests/v2/test_market_bias_domain.py -q
-python -m pytest tests/v2/test_market_bias_service.py tests/v2/test_job_runs.py -q
 python -m pytest tests/v2 -q
 python -m compileall -q src
 git diff --check
 ```
 
 Results:
-- Task 1 red: missing `MARKET_BIAS_OBSERVATIONS` import; green: `6 passed`.
-- Task 2 red: missing `ullebets_v2.market_bias` module; green: `8 passed`.
-- Task 3 red: missing persistence module; green: `9 passed`.
-- Full V2 regression: `446 passed in 23.82s`; compile and diff checks passed.
+- Full V2 regression: `452 passed in 22.90s`; compile and diff checks passed.
 
 Insight:
 The initial foundation is database-adapter-neutral and fails closed on source

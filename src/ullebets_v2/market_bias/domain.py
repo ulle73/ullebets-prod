@@ -216,11 +216,11 @@ def build_bias_profile(
     if not eligible:
         raise ValueError("No leakage-safe market-bias observations are available.")
     eligible.sort(key=lambda row: (row["match_start_time"], row["observation_key"]), reverse=True)
-    window = eligible[:MAX_OBSERVATIONS]
-    identity = window[0]
     context_fields = ("team_key", "league_key", "venue_context", "market_scope", "stat_key", "period")
-    if any(any(row.get(field) != identity.get(field) for field in context_fields) for row in window):
+    identity = eligible[0]
+    if any(any(row.get(field) != identity.get(field) for field in context_fields) for row in eligible):
         raise ValueError("All observations must share one exact market-bias context.")
+    window = eligible[:MAX_OBSERVATIONS]
 
     weighted_over = weighted_non_push = weighted_residual = total_weight = squared_weight = 0.0
     over_count = under_count = push_count = 0
