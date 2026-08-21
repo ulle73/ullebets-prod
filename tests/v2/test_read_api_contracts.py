@@ -198,6 +198,43 @@ def test_dashboard_defaults_to_stockholm_product_day_not_latest_database_date() 
     assert [row['matchKey'] for row in payload['matches']] == ['today']
 
 
+def test_market_bias_contract_is_typed_ordered_and_excludes_internal_provenance() -> None:
+    row = {
+        'entry_key': 'bias-row',
+        'market_bias': {
+            'scope': 'total',
+            'profiles': [
+                {
+                    'team_key': 'away', 'team_name': 'Away FC', 'venue_context': 'away',
+                    'direction': 'insufficient', 'strength': 'none', 'sample_size': 3,
+                    'non_push_sample_size': 2, 'over_count': 1, 'under_count': 1,
+                    'push_count': 1, 'posterior_over_rate': 0.5,
+                    'shrunk_mean_residual': 0.0, 'direction_confidence': 0.0,
+                    'method_version': 'main_line_residual_v1', 'source_payload_hash': 'secret',
+                    'observation_keys': ['internal'],
+                },
+                {
+                    'team_key': 'home', 'team_name': 'Home FC', 'venue_context': 'home',
+                    'direction': 'over', 'strength': 'strong', 'sample_size': 10,
+                    'non_push_sample_size': 10, 'over_count': 7, 'under_count': 3,
+                    'push_count': 0, 'posterior_over_rate': 0.625,
+                    'shrunk_mean_residual': 1.4, 'direction_confidence': 0.93,
+                    'method_version': 'main_line_residual_v1', 'source_payload_hash': 'secret',
+                    'observation_keys': ['internal'],
+                },
+            ],
+        },
+    }
+
+    summary = read_service._matchup_summary(row)
+
+    assert [profile['teamKey'] for profile in summary['marketBias']['profiles']] == ['home', 'away']
+    assert summary['marketBias']['profiles'][1]['direction'] == 'insufficient'
+    assert 'sourcePayloadHash' not in summary['marketBias']['profiles'][0]
+    assert 'observationKeys' not in summary['marketBias']['profiles'][0]
+    assert read_service._matchup_summary({'entry_key': 'none', 'market_bias': {'scope': 'home', 'profiles': []}})['marketBias'] is None
+
+
 def test_match_resolver_preserves_requested_order_and_enriches_finished_scores() -> None:
     database = MemoryDatabase(
         fixtures_canonical=MemoryCollection([fixture('m1'), fixture('m2')]),

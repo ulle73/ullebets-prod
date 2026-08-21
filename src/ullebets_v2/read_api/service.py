@@ -189,6 +189,35 @@ def read_matches(database: Any, *, match_keys: list[str]) -> dict[str, Any]:
     return {"matches": matches}
 
 
+def _market_bias_profile_summary(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "teamKey": value.get("team_key"),
+        "teamName": value.get("team_name"),
+        "venueContext": value.get("venue_context"),
+        "direction": value.get("direction"),
+        "strength": value.get("strength"),
+        "sampleSize": value.get("sample_size"),
+        "nonPushSampleSize": value.get("non_push_sample_size"),
+        "overCount": value.get("over_count"),
+        "underCount": value.get("under_count"),
+        "pushCount": value.get("push_count"),
+        "posteriorOverRate": value.get("posterior_over_rate"),
+        "shrunkMeanResidual": value.get("shrunk_mean_residual"),
+        "directionConfidence": value.get("direction_confidence"),
+        "methodVersion": value.get("method_version"),
+    }
+
+
+def _market_bias_summary(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    profiles = [row for row in value.get("profiles", []) if isinstance(row, dict)]
+    if not profiles:
+        return None
+    profiles.sort(key=lambda row: (0 if row.get("venue_context") == "home" else 1, str(row.get("team_key") or "")))
+    return {"scope": value.get("scope"), "profiles": [_market_bias_profile_summary(row) for row in profiles]}
+
+
 def _matchup_summary(row: dict[str, Any], fixture: dict[str, Any] | None = None) -> dict[str, Any]:
     forecast = row.get("forecast") if isinstance(row.get("forecast"), dict) else {}
     return {
@@ -213,7 +242,7 @@ def _matchup_summary(row: dict[str, Any], fixture: dict[str, Any] | None = None)
         "rankingMethod": row.get("ranking_method"),
         "rankingWindowMatches": row.get("ranking_window_matches"),
         "rankingRecencyHalfLifeDays": row.get("ranking_recency_half_life_days"),
-        "marketBias": _iso(row.get("market_bias")),
+        "marketBias": _market_bias_summary(row.get("market_bias")),
         "leagueBaseline": forecast.get("leagueBaseline"),
     }
 
