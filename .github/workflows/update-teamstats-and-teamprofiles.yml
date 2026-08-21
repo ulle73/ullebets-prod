@@ -50,4 +50,10 @@ jobs:
             --profile-date "$TARGET" \
             --source-workflow update-teamstats-and-teamprofiles.yml \
             --dry-run
+          python scripts/forward_v2/refresh_market_bias.py \
+            --from-date "$TARGET" \
+            --to-date "$TARGET" \
+            --as-of "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --source-workflow update-teamstats-and-teamprofiles.yml \
+            --dry-run
         fi
