@@ -30,7 +30,7 @@ describe('Ullebets application shell', () => {
     renderApp('/oversikt', { '/api/v1/dashboard': dashboard });
     expect((await screen.findAllByText('Home FC')).length).toBeGreaterThan(0);
     expect(await screen.findByText('73,4')).toBeInTheDocument();
-    expect(await screen.findByText('12,6')).toBeInTheDocument();
+    expect(await screen.findByText('Mot Unibet-linan')).toBeInTheDocument();
     expect(screen.queryByText(/Bet365/i)).not.toBeInTheDocument();
   });
 

@@ -3,6 +3,30 @@ export type EvidenceState = 'analysis' | 'forward-test' | 'historical' | 'exclud
 export type MatchupCondition = 'OVER' | 'UNDER';
 export type MatchupSource = 'persisted' | 'computed_read_only' | 'missing';
 export type MatchState = 'upcoming' | 'live' | 'finished' | 'postponed' | 'cancelled' | 'unknown';
+export type MarketBiasDirection = 'over' | 'under' | 'neutral' | 'insufficient';
+export type MarketBiasStrength = 'none' | 'lean' | 'strong' | 'very_strong';
+
+export interface MarketBiasProfileSummary {
+  teamKey: string;
+  teamName: string;
+  venueContext: 'home' | 'away';
+  direction: MarketBiasDirection;
+  strength: MarketBiasStrength;
+  sampleSize: number;
+  nonPushSampleSize: number;
+  overCount: number;
+  underCount: number;
+  pushCount: number;
+  posteriorOverRate: number;
+  shrunkMeanResidual: number;
+  directionConfidence: number;
+  methodVersion: string;
+}
+
+export interface MarketBiasSummary {
+  scope: 'total' | 'home' | 'away';
+  profiles: MarketBiasProfileSummary[];
+}
 
 export interface PageInfo {
   limit: number;
@@ -52,7 +76,7 @@ export interface MatchupEntry {
   rankingMethod: string | null;
   rankingWindowMatches: number | null;
   rankingRecencyHalfLifeDays: number | null;
-  marketBias: unknown;
+  marketBias: MarketBiasSummary | null;
   leagueBaseline: number | null;
 }
 

@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { signalCardHover } from '../domain/motion';
 import type { MatchupEntry } from '../domain/types';
 import { EntityLink } from './EntityLink';
+import { MarketBiasIndicator } from './MarketBiasIndicator';
 
 interface SignalCardProps {
   signal: MatchupEntry;
@@ -12,18 +13,6 @@ function scopeLabel(scope: MatchupEntry['scope']): string {
   if (scope === 'home') return 'Hemmalaget';
   if (scope === 'away') return 'Bortalaget';
   return 'Totalt';
-}
-
-function formatBias(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    const parts = Object.entries(value as Record<string, unknown>)
-      .filter(([, item]) => item !== null && item !== undefined && ['string', 'number', 'boolean'].includes(typeof item))
-      .map(([key, item]) => `${key}: ${String(item)}`);
-    return parts.length ? parts.join(' · ') : '—';
-  }
-  return '—';
 }
 
 export function SignalCard({ signal }: SignalCardProps) {
@@ -64,10 +53,7 @@ export function SignalCard({ signal }: SignalCardProps) {
         ) : null}
       </div>
 
-      <div className="matchup-details">
-        <div><span>Biases</span><strong>{formatBias(signal.marketBias)}</strong></div>
-        <div><span>Ligasnitt</span><strong>{signal.leagueBaseline === null ? '—' : signal.leagueBaseline.toLocaleString('sv-SE', { maximumFractionDigits: 2 })}</strong></div>
-      </div>
+      <MarketBiasIndicator bias={signal.marketBias} leagueBaseline={signal.leagueBaseline} />
 
       <footer className="signal-card__footer">
         {signal.rankPosition !== null ? <span>Rank #{signal.rankPosition}</span> : null}

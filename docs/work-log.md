@@ -192,6 +192,35 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-21 - V2 market-bias Tasks 6-8 integration
+
+Status: `PARTIAL`
+
+Objective:
+Attach the independent market-bias profile context to matchup reads, expose a
+typed read contract, and render it on matchup cards without changing ranking,
+V6, selection, ROI, or CLV behavior.
+
+Results:
+- Task 6 matchup regression passed `9/9`: entry keys, scores, sort keys,
+  rank positions, and membership remain invariant with bias profiles present.
+- Task 7 API contract regression passed `22/22`: only typed camelCase
+  summaries are exposed, total profiles are home/away ordered, and absent
+  profiles are `null`.
+- Task 8 component and app regression passed `5/5`; full frontend suite
+  passed `54/54` in `111.28s`; typecheck, lint, and production build passed.
+
+Insight:
+Market bias is loaded from `market_bias_profiles` independently of
+teamprofiles and only when its `as_of` is strictly before fixture kickoff.
+
+Remaining:
+- `UNPROVEN`: a live completed forward market-bias lifecycle.
+
+Next:
+Observe a completed-match forward refresh before treating the feature as
+operationally proven.
+
 ### 2026-08-21 - V2 market-bias Tasks 4-5 adapters
 
 Status: `PARTIAL`
