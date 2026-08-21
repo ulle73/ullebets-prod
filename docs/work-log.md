@@ -192,6 +192,34 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-21 - V2 market-bias Tasks 4-5 adapters
+
+Status: `PARTIAL`
+
+Objective:
+Add the read-only offline bootstrap adapter and V2-only forward refresh
+foundation without bootstrap writes, matchup changes, or model changes.
+
+Results:
+- Historical dry-run command completed read-only with `0` accepted, `15,818`
+  unmatched, `0` ambiguous, `0` timing-invalid, and `0` hash-conflicts.
+- Bootstrap write is blocked by zero safe identity mappings; no observations
+  or profiles were written.
+- Focused Task 4/5 suites passed `31/31`; full V2 suite passed `454/454` in
+  `16.78s`; `compileall` and `git diff --check` passed.
+
+Insight:
+The current V2 support identity fields do not map the offline source corpus;
+the required exact/alias mapping review must precede any bootstrap write.
+
+Remaining:
+- `BLOCKED`: audited identity mapping coverage for the offline bootstrap.
+- `UNPROVEN`: live scheduled forward refresh against a completed match.
+
+Next:
+Audit and version exact source-ID/league alias mappings, then rerun the
+read-only bootstrap gate before authorizing any write.
+
 ### 2026-08-21 - V2 market-bias Tasks 1-3 foundation
 
 Status: `PARTIAL`
