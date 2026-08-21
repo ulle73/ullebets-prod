@@ -192,6 +192,45 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-21 - V2 market-bias production design
+
+Status: `NOT STARTED` for implementation. The architecture and acceptance
+contract are approved and documented; no production code, database data,
+matchup ranking, or V6 behavior changed in this session.
+
+Objective: replace the empty legacy-compatible `market_bias` field with an
+auditable team tendency against comparable Unibet prematch lines.
+
+Evidence and decisions:
+
+- Current V2 contains 15,208 market snapshots, including 14,711 valid
+  prematch rows, but only 135 finished primary-market contexts currently join
+  directly to canonical actuals.
+- The audited offline corpus contains 11,917 preliminary eligible main-line
+  contexts over 1,017 matches before canonical V2 team/league mapping.
+- The selected architecture uses a one-time audited Parquet bootstrap followed
+  by idempotent forward refreshes from V2-only collections.
+- Bias uses the latest valid prematch capture, an over line nearest 2.00 within
+  1.70-2.30, exact stat/scope/period outcomes, a rolling 12-match window,
+  45-day recency half-life, and neutral small-sample shrinkage.
+- Bias remains matchup context only. Matchup ranking and frozen V6 model,
+  prediction, selection, ROI, and CLV paths remain unchanged.
+
+Design:
+
+- [2026-08-21-market-bias-v2-design.md](superpowers/specs/2026-08-21-market-bias-v2-design.md)
+
+Remaining:
+
+- Write and review the implementation plan.
+- Audit exact historical team/league mapping before any bootstrap write.
+- Implement, verify, and deploy the observation, profile, automation, API, and
+  frontend layers.
+
+Next:
+
+- Review the approved design document, then create the implementation plan.
+
 ### 2026-08-14 - Matchup ranking form, day replacement, and Cosmos persistence
 
 Status: `PARTIAL`. The V2 matchup presentation layer is verified against the
