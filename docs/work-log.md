@@ -192,6 +192,51 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-22 - Stable lazy-route frontend gate
+
+Status: `VERIFIED`
+
+Objective:
+Make the complete frontend route-surface gate deterministic when its first
+lazy-loaded page is transformed from a cold test process.
+
+Changes:
+
+- Made the Auto route's existing asynchronous heading assertion wait up to five
+  seconds instead of relying on Testing Library's one-second default. No
+  production route, API, or lazy-loading behavior changed.
+
+Tests:
+
+```text
+cd frontend && npm test -- --run src/app/remaining-routes.test.tsx
+cd frontend && npm test -- --run
+```
+
+Results:
+
+- The isolated route-surface test passed 5/5.
+- The complete frontend suite passed 17 files and 57 tests after the
+  cold-load timing failure was reproduced only in the original merge gate.
+- The merged `main` backend regression passed 476/476; frontend lint and the
+  TypeScript/Vite production build passed, and `git diff --check` reported no
+  whitespace errors.
+
+Insight:
+
+`AutoPage` is the first lazy module exercised by this route test. Its module
+load can exceed the generic one-second async-query timeout in a cold serial
+Vitest process; that is test timing, not an Auto API or rendering failure.
+
+Remaining:
+
+- The verified local `main` commit still needs to be pushed and compared with
+  `origin/main`; this does not itself prove a Vercel deployment.
+
+Next:
+
+- Push the green merged `main` branch and verify the remote ref.
+
 ### 2026-08-22 - Neutral public match URLs and preview API diagnosis
 
 Status: `PARTIAL`

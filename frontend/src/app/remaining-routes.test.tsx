@@ -22,7 +22,7 @@ describe('complete Style-1 route surface', () => {
         }],
       },
     });
-    expect(await screen.findByRole('heading', { name: 'V6 Forward' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'V6 Forward' }, { timeout: 5_000 })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Öppna A mot B' })).toHaveAttribute('href', '/matcher/m1');
     expect(screen.getByText('1,91')).toBeInTheDocument();
   });
