@@ -532,9 +532,29 @@ def _market_offer_summary(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _fixture_for_match_reference(database: Any, match_reference: str) -> dict[str, Any] | None:
+    fixture = database[FIXTURES_CANONICAL].find_one({"match_key": match_reference}, projection={"_id": 0})
+    if fixture is not None:
+        return fixture
+    if not match_reference.startswith("match-"):
+        return None
+
+    source_match_id = match_reference.removeprefix("match-")
+    if not source_match_id:
+        return None
+    source_ids: list[Any] = [source_match_id]
+    if source_match_id.isdecimal():
+        source_ids.append(int(source_match_id))
+    matches = _find_rows(database, FIXTURES_CANONICAL, {"source_match_id": {"$in": source_ids}}, limit=2)
+    return matches[0] if len(matches) == 1 else None
+
+
 def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
-    fixture = database[FIXTURES_CANONICAL].find_one({"match_key": match_key}, projection={"_id": 0})
+    fixture = _fixture_for_match_reference(database, match_key)
     if fixture is None:
+        return None
+    match_key = str(fixture.get("match_key") or "")
+    if not match_key:
         return None
     source_date = str(fixture.get("source_date") or "")
     date_matchups, matchup_source = _load_matchups(database, [fixture], source_date) if source_date else ([], "missing")

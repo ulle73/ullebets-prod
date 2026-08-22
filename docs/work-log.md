@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-21
+Last updated: 2026-08-22
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -191,6 +191,119 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-22 - Neutral public match URLs and preview API diagnosis
+
+Status: `PARTIAL`
+
+Objective:
+Ensure public match URLs never expose the internal source provider, preserve
+legacy links, and identify why the active preview cannot load match details.
+
+Changes:
+
+- Added `frontend/src/domain/match-route.ts`. Internal keys such as
+  `sofascore:16283044` now generate the neutral public URL
+  `/matcher/match-16283044`.
+- Centralized match-link generation through that route helper, including the
+  generic entity links, Auto page, active match rail, and legacy source-key
+  redirects.
+- Updated the read API to resolve a `match-<source-id>` URL identifier to one
+  canonical fixture only, while retaining the internal `match_key` for every
+  downstream database lookup.
+
+Tests:
+
+```text
+RED: cd frontend && npm test -- --run src/domain/match-route.test.ts
+RED: python -m pytest tests/v2/test_read_api.py -q
+RED: cd frontend && npm test -- --run src/pages/match-detail/MatchAnalytics.test.tsx
+GREEN: python -m pytest tests/v2 -q
+GREEN: cd frontend && npm test -- --run
+cd frontend && npm run lint
+cd frontend && npm run build
+git diff --check
+codegraph sync
+```
+
+Results:
+
+- The source-contract tests failed first because the neutral route helper and
+  public-ID resolver did not exist; the legacy-route UI test also reproduced
+  the same failed match state shown in the preview.
+- Direct public request to
+  `/api/v1/matches/sofascore%3A16283044` returned Vercel `404 NOT_FOUND`,
+  before the V2 handler could run. The deployed preview is therefore a
+  static-only deployment despite the checked-out repository containing the
+  tested `api/v1/[...path].py` read function.
+- Backend: `476 passed in 59.68s`. Frontend: `17` files / `57` tests passed
+  in `95.94s`. Lint, production build (`2,343` modules), diff check, and
+  CodeGraph sync passed.
+
+Insight:
+
+The displayed fallback was correct client behavior for a missing API, not a
+missing match or a frontend rendering defect. A rewritten URL alone would not
+fix the preview until the serverless read function is deployed with the app.
+
+Remaining:
+
+- `BLOCKED`: the live preview still returns Vercel's infrastructure `404` for
+  every `/api/v1/*` request. The deployment must include the repository root,
+  `vercel.json`, and `api/v1/[...path].py`; runtime health remains unverified.
+
+Next:
+
+- Deploy the verified repository-root Vercel configuration, then check
+  `/api/v1/health` and a neutral `/matcher/match-16283044` URL.
+
+### 2026-08-22 - Local chatbot widget loader
+
+Status: `PARTIAL`
+
+Objective:
+Load the supplied chatbot widget from the shared frontend document head without
+changing application, API, model, or data behavior.
+
+Changes:
+
+- Added the asynchronous widget loader to `frontend/index.html` with site ID
+  `dc0db006c4de` and the supplied local widget/API endpoints.
+- Added `frontend/src/app/chatbot-loader.test.ts` to lock the required loader
+  URL, async flag, dataset values, and head insertion contract.
+
+Tests:
+
+```text
+RED: cd frontend && npm test -- --run src/app/chatbot-loader.test.ts
+GREEN: cd frontend && npm test -- --run src/app/chatbot-loader.test.ts
+cd frontend && npm run lint
+cd frontend && npm run build
+git diff --check
+```
+
+Results:
+
+- RED failed as expected with `1 failed`: the loader URL was absent from the
+  page template.
+- GREEN passed with `1 passed` after adding the loader.
+- Lint passed with zero warnings; the production build transformed `2,342`
+  modules and completed successfully; `git diff --check` passed.
+
+Insight:
+
+`127.0.0.1:8000` resolves in each visitor's browser, so the widget can load
+only where that local chatbot service is running.
+
+Remaining:
+
+- `UNPROVEN`: live widget startup and interaction against that local service;
+  no service or runtime behavior was changed in this session.
+
+Next:
+
+- Start the local widget service and open the frontend only when live widget
+  behavior needs verification.
 
 ### 2026-08-21 - V2 market bias production bootstrap and matchup UI
 

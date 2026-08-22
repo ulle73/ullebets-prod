@@ -2,6 +2,7 @@ import { CalendarDays, ExternalLink, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { matchPath, useLocation } from 'react-router-dom';
 import { formatKickoff } from '../domain/formatters';
+import { publicMatchId } from '../domain/match-route';
 import type { MatchState, MatchSummary } from '../domain/types';
 import { EntityLink } from './EntityLink';
 
@@ -94,7 +95,7 @@ export function MatchRail({ matches, selectedDate, onDateChange, loading = false
               {group.matches.map((match) => {
                 const matchLabel = `${match.homeTeamName ?? 'Okänt lag'} – ${match.awayTeamName ?? 'Okänt lag'}`;
                 return (
-                  <article className={`match-row${activeMatchId === match.matchKey ? ' is-active' : ''}`} key={match.matchKey}>
+                  <article className={`match-row${activeMatchId === publicMatchId(match.matchKey) ? ' is-active' : ''}`} key={match.matchKey}>
                     <time dateTime={match.startTime ?? undefined}>{match.startTime ? formatKickoff(match.startTime) : '—'}</time>
                     <span className="match-row__teams">
                       <strong><EntityLink kind="team" id={match.homeTeamKey}>{match.homeTeamName ?? 'Okänt lag'}</EntityLink></strong>

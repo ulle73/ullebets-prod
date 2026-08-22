@@ -1,5 +1,6 @@
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { matchDetailPath } from '../domain/match-route';
 
 export type EntityKind = 'match' | 'team' | 'league';
 
@@ -12,8 +13,8 @@ type EntityLinkProps = {
 } & Omit<ComponentPropsWithoutRef<'span'>, 'children' | 'className' | 'id'>;
 
 function entityPath(kind: EntityKind, id: string): string {
+  if (kind === 'match') return matchDetailPath(id);
   const encoded = encodeURIComponent(id);
-  if (kind === 'match') return `/matcher/${encoded}`;
   if (kind === 'team') return `/lag/${encoded}`;
   return `/liga/${encoded}`;
 }

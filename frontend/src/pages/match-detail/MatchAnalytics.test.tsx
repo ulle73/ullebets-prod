@@ -145,10 +145,11 @@ describe('match analytics page', () => {
   it('renders the selected statistics design from one match request', async () => {
     const user = userEvent.setup();
     const { fetchMock } = renderApp('/matcher/sofascore%3A123', {
-      '/api/v1/matches/sofascore%3A123': detail,
+      '/api/v1/matches/match-123': detail,
     });
 
     expect(await screen.findByRole('heading', { name: 'Cruzeiro mot Mirassol' })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/matches/match-123');
     expect(screen.getByRole('img', { name: 'Cruzeiro' })).toHaveAttribute('src', '/images/home.png');
     expect(screen.getByRole('img', { name: 'Mirassol' })).toHaveAttribute('src', '/images/away.png');
 

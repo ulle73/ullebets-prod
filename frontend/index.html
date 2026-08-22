@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#07111D" />
     <title>Ullebets</title>
+    <script>
+      (function () {
+        var s = document.createElement('script');
+        s.src = 'http://127.0.0.1:8000/widget/chatbot.js';
+        s.async = true;
+        s.dataset.siteId = 'dc0db006c4de';
+        s.dataset.apiUrl = 'http://127.0.0.1:8000';
+        document.head.appendChild(s);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

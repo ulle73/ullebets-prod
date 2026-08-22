@@ -1,6 +1,7 @@
 import { CalendarDays, CheckCircle2, ChevronRight, CircleDot, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { matchDetailPath } from '../domain/match-route';
 import { PageHeader } from '../components/PageHeader';
 import { StateNotice } from '../components/StateNotice';
 import { useAuto } from '../data/queries';
@@ -238,7 +239,7 @@ export function AutoPage() {
                       <div className="auto-cell auto-cell--numeric auto-cell--model" role="cell"><strong>{row.predictedWinProbability === null ? '—' : formatProbability(row.predictedWinProbability)}</strong><small>{selectionFamily(row) === 'v6' ? 'V6 · PRIMÄR' : 'LEGACY'}</small></div>
                       <div className="auto-cell auto-cell--numeric auto-cell--ev" role="cell"><strong>{row.expectedRoiUnits === null ? '—' : formatExpectedRoi(row.expectedRoiUnits)}</strong></div>
                       <div className="auto-cell auto-cell--result" role="cell"><span className={`auto-result auto-result--${bucket}`}>{resultLabel(bucket)}</span>{detail ? <small>{detail}</small> : null}</div>
-                      {row.matchKey ? <Link className="auto-row-link" to={`/matcher/${encodeURIComponent(row.matchKey)}`} aria-label={`Öppna ${row.homeTeamName ?? ''} mot ${row.awayTeamName ?? ''}`}><ChevronRight size={17} /></Link> : <span />}
+                      {row.matchKey ? <Link className="auto-row-link" to={matchDetailPath(row.matchKey)} aria-label={`Öppna ${row.homeTeamName ?? ''} mot ${row.awayTeamName ?? ''}`}><ChevronRight size={17} /></Link> : <span />}
                     </article>
                   );
                 })}

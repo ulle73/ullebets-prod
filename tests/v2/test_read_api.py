@@ -90,6 +90,22 @@ def fixture_row(*, source_date: str = "2026-08-09", start_time: datetime | None 
     }
 
 
+def test_match_detail_resolves_neutral_public_match_identifier() -> None:
+    fixture = {**fixture_row(), "source_match_id": 123}
+    database = FakeDatabase(
+        fixtures_canonical=FakeCollection([fixture]),
+        matchups_score=FakeCollection([]),
+        matchups_league_avg=FakeCollection([]),
+        market_snapshots=FakeCollection([]),
+        teamprofiles=FakeCollection([]),
+    )
+
+    payload = read_match_detail(database, "match-123")
+
+    assert payload is not None
+    assert payload["match"]["matchKey"] == "sofascore:123"
+
+
 def matchup_row(*, snapshot_date: str = "2026-08-09") -> dict:
     return {
         "entry_key": "row-1",

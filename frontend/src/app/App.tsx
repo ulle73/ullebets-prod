@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
+import { matchDetailPath, publicMatchId } from '../domain/match-route';
 import { OverviewPage } from '../pages/OverviewPage';
 
 const AutoPage = lazy(() => import('../pages/AutoPage').then((module) => ({ default: module.AutoPage })));
@@ -14,6 +15,14 @@ const SystemStatusPage = lazy(() => import('../pages/SystemStatusPage').then((mo
 const TeamPage = lazy(() => import('../pages/TeamPage').then((module) => ({ default: module.TeamPage })));
 const WatchlistPage = lazy(() => import('../pages/WatchlistPage').then((module) => ({ default: module.WatchlistPage })));
 
+function MatchRoute() {
+  const { matchId } = useParams();
+  if (!matchId) return <Navigate to="/oversikt" replace />;
+  const neutralMatchId = publicMatchId(matchId);
+  if (neutralMatchId !== matchId) return <Navigate to={matchDetailPath(matchId)} replace />;
+  return <MatchDetailPage />;
+}
+
 export function App() {
   return (
     <AppShell>
@@ -25,7 +34,7 @@ export function App() {
           <Route path="/watchlist" element={<WatchlistPage />} />
           <Route path="/resultatloop" element={<ResultsLoopPage />} />
           <Route path="/historik" element={<HistoryPage />} />
-          <Route path="/matcher/:matchId" element={<MatchDetailPage />} />
+          <Route path="/matcher/:matchId" element={<MatchRoute />} />
           <Route path="/lag/:teamId" element={<TeamPage />} />
           <Route path="/liga/:leagueId" element={<LeaguePage />} />
           <Route path="/modell" element={<ModelPage />} />
