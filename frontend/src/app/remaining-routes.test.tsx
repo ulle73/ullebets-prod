@@ -31,14 +31,15 @@ describe('complete Style-1 route surface', () => {
     renderApp('/resultatloop', {
       '/api/v1/dashboard': dashboard,
       '/api/v1/results': {
-        summary: { rows: 9, settled: 7, wins: 4, losses: 3, pushes: 0, excluded: 2 },
+        summary: { rows: 9, groups: 6, settled: 7, wins: 4, losses: 3, pushes: 0, excluded: 2, stakeUnits: 7, pnlUnits: 0.875, roiPct: 12.5, officialClvObservations: 6, beatClosingLine: 4, clvBeatRatePct: 66.7 },
         page: { limit: 50, offset: 0, hasMore: false },
         rows: [],
       },
     });
     expect(await screen.findByRole('heading', { name: 'Resultatloop' })).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.getByText('4')).toBeInTheDocument();
+    expect(screen.getByText('+12,5 %')).toBeInTheDocument();
+    expect(screen.getByText('4/6 officiella observationer')).toBeInTheDocument();
   });
 
   it('renders a typed team profile returned by the read API', async () => {

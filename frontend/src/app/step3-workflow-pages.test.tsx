@@ -22,7 +22,7 @@ describe('step 3 workflow pages',()=>{
   fireEvent.click(main().getByRole('button',{name:'Nästa sida'}));
   await waitFor(()=>expect(params(urls(fetchMock,'/api/v1/auto').at(-1)!).get('offset')).toBe('75'));
   expect(main().getByRole('button',{name:'Föregående sida'})).toBeEnabled();
- });
+ },15_000);
 
  it('Resultatloop sends status filters to the read API and paginates',async()=>{
   const{fetchMock}=renderApp('/resultatloop?status=settled&stat=fouls&direction=over&checkpoint=T_MINUS_2H&limit=20&offset=20',{

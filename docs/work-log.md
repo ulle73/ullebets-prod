@@ -193,6 +193,71 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-23 - V6 full-domain checkpoint journal
+
+Status: `PARTIAL`
+
+Objective:
+Implement the forward-only journal that records every supported positive-EV
+V6 checkpoint observation as a separate 1u play, settles each observation,
+tracks CLV by horizon, and groups only the read presentation.
+
+Changes:
+
+- Added immutable registry `forward_policy_registry_v2` and policy
+  `v6_full_domain_checkpoint_journal_v2`; frozen V1 was not modified.
+- Registered the honest V6 domain: corners over/under and shots on goal/total
+  shots over-only, for home/away/total and 1ST/2ND/ALL.
+- Made forward identity granularity-aware so checkpoint observations remain
+  separate through persistence, settlement, CLV, and forward results.
+- Added read-only grouping by policy, match, stat, scope, period, direction,
+  and line. Best observed EV is the representative row; stake, PnL, ROI, and
+  official CLV counts are aggregated over every underlying observation.
+- Added stat/scope/period/direction/checkpoint filters, model-support status on
+  match offers, grouped Auto/Resultat UI, and automatic score -> settle -> CLV
+  -> forward-result workflow wiring.
+
+Tests:
+
+```text
+python -u -m pytest tests/v2/test_ev_policy_registry.py tests/v2/test_ev_score_evaluation.py tests/v2/test_ev_forward_predictions.py tests/v2/test_forward_exposures.py tests/v2/test_settlement.py tests/v2/test_clv_tracking.py tests/v2/test_forward_results.py tests/v2/test_read_api.py tests/v2/test_read_api_contracts.py tests/v2/test_automation_contract.py -q
+npm test -- --run
+npm run typecheck
+npm run lint
+npm run build
+python -u scripts/forward_v2/score_ev_shadow_model.py --repo-root C:\dev\ullebets-prod --artifact <worktree>/models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib --manifest <worktree>/models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json --score-only --selection-policy-registry <worktree>/models/ev/forward_policy_registry_v2.json --selection-policy-id v6_full_domain_checkpoint_journal_v2 --dry-run
+```
+
+Results:
+
+- Backend feature/contract gate: `103 passed`.
+- Frontend gate under Node 24.19: `57 passed`; TypeScript, ESLint, and
+  production build all exited `0`.
+- Real database dry-run read `1,391` snapshot rows, built `249` canonical
+  markets and `402` scores across 17 matches, excluded 96 Brazil OOD scores,
+  and produced 44 registered V2 checkpoint-journal selections.
+- Dry-run persistence was exactly zero inserts, existing rows, and conflicts.
+- Registry fingerprint:
+  `7d3c1a2fe659a86a8b8078a22d1af1e93bd57316138b8d5ca0ac76aa5a0b805e`.
+
+Insight:
+The same market can be one display group without becoming one evaluation
+unit. Horizon ROI and CLV remain honest only when every captured checkpoint
+keeps its own prediction key, 1u stake, price, settlement, and CLV row.
+
+Remaining:
+
+- `UNPROVEN`: no V2 journal row has yet been persisted by a hosted write-mode
+  checkpoint run.
+- `UNPROVEN`: no complete future in-domain journal observation has yet passed
+  through official T-10 CLV and untouched settlement.
+- Historical or dry-run selections are not forward model ROI evidence.
+
+Next:
+Verify the next due hosted checkpoint writes the V2 policy observations, then
+audit the later scheduled settlement, official CLV refresh, and grouped read
+result without changing the policy or model.
+
 ### 2026-08-23 - Vercel-routing för liga-, lag- och matchdetaljer
 
 Status: `VERIFIED`

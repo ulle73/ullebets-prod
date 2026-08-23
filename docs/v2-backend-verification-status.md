@@ -1,11 +1,47 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-21
-Branch: `codex/market-bias-v2`
+Last updated: 2026-08-23
+Branch: `codex/v6-checkpoint-journal`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## V6 Full-Domain Checkpoint Journal On 2026-08-23
+
+The new immutable `forward_policy_registry_v2` leaves frozen V1 evidence
+untouched and registers `v6_full_domain_checkpoint_journal_v2`. Each eligible
+positive-EV score is a separate 1u evaluation at its captured checkpoint. The
+same policy/match/stat/scope/period/direction/line is grouped only by the read
+API, where the highest observed EV is shown and all underlying stake, PnL,
+ROI, and official CLV observations remain aggregated.
+
+Supported model domain is explicit and fail-closed:
+
+- `cornerKicks`: over and under;
+- `shotsOnGoal` and `totalShots`: over only;
+- scopes `home`, `away`, `total`;
+- periods `1ST`, `2ND`, `ALL`.
+
+Unsupported offer dimensions return `model_missing`; shots under is not
+invented. Checkpoint provenance now survives forward bet, settlement, CLV,
+and forward result documents. `/auto` and `/results` filter by checkpoint,
+policy, model, stat, scope, period, direction, and league before presentation
+grouping.
+
+Current evidence:
+
+- 103 backend feature/contract tests passed;
+- 57 frontend tests, strict TypeScript, ESLint, and production build passed;
+- real read-only scoring dry-run: 1,391 snapshots, 249 canonical markets, 402
+  scores, 306 in-domain scores, 96 Brazil OOD scores excluded, 44 registered
+  V2 selections across 17 target matches, and zero persistence attempts;
+- automation contracts prove all scoring workflows use registry V2 and the
+  settlement workflow orders settlement before CLV and result refresh.
+
+Status is `VERIFIED` for local implementation, read contract, dry-run scoring,
+and workflow configuration. It remains `UNPROVEN` for the first hosted
+write-mode V2 journal row and a complete future official-CLV settlement.
 
 ## Market Bias Bootstrap And Matchup Attachment On 2026-08-21
 

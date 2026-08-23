@@ -24,6 +24,9 @@ Status details and evidence:
 - [ ] `UNPROVEN` Materialize a valid closing line from that live capture.
 - [ ] `UNPROVEN` Calculate CLV from a valid live closing line.
 - [ ] `BLOCKED` Accumulate in-domain V6 forward predictions and settlements.
+- [ ] `UNPROVEN` Persist and settle the first hosted
+  `v6_full_domain_checkpoint_journal_v2` observation; local real-data dry-run
+  produced 44 selections but intentionally wrote none.
 - [ ] `PARTIAL` Prove output parity for every original backend workflow.
 - [ ] `PARTIAL` Remove the runtime dependency on the old repository's JS
   oracle so V2 can run independently.
@@ -262,8 +265,13 @@ Current acceptance window:
   confidence segments, explicit thin-data state, and accessible Swedish text.
 - [x] `VERIFIED` Registered forward selections expose offered odds, model probability, expected ROI field, model/policy identities, and persisted runtime status without presenting observation counts as proof.
 - [x] `VERIFIED` Settled forward-result rows can show persisted ROI/PnL, closing odds, official CLV status/value, settlement state, exclusions, and linked match/team/league entities. This verifies the product surface, not positive forward efficacy.
+- [x] `VERIFIED` The local V2 checkpoint-journal contract keeps each snapshot
+  as a separate 1u evaluation, groups only presentation rows, exposes
+  stat/scope/period/direction/checkpoint filters, and labels unsupported match
+  offers as model-missing. Hosted write-mode lifecycle evidence remains
+  unchecked above.
 - [ ] `PARTIAL` Data freshness, missing-data, exclusion, health, and audit states are shown on the relevant surfaces, but uniform freshness metadata across every product section still depends on the source/read contract carrying it.
-- [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, 45 frontend tests, and production build all pass on `style-1` run `31648971262`.
+- [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, and production build all pass on `style-1` run `31648971262`; the current checkpoint-journal checkout additionally passes 57 frontend tests, lint, and production build locally.
 
 ## 12. Release readiness
 
