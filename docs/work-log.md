@@ -265,6 +265,9 @@ python -m pytest tests/v2/test_fixture_live.py -q
 python -m pytest tests/v2 -q
 python -m compileall -q src scripts
 git diff --check
+vercel deploy --prod --yes --scope ryds-projects-4371adb0
+gh workflow run import-fixtures-rolling.yml -f start_date=2026-08-23 -f end_date=2026-08-23 -f dry_run=false
+gh run watch 32631232032 --exit-status
 ```
 
 Results:
@@ -284,6 +287,14 @@ Results:
   V2 suite passed `482` tests in `17.18s`. Compile and whitespace checks
   passed. The red tests first reproduced both the old false-success behavior
   and the HTTP-200 error-payload gap.
+- Vercel production deployment `dpl_JDRoSvYcrSw6bdJpnNk3tE9LDwJd` is `Ready`
+  with the `api/v1/[...path]` function at `14.79 MB`.
+- A write-mode, one-date production verification run
+  `32631232032` failed in `52s` exactly as intended. Its V2 job run
+  `41f8eca2a72e4c9c91e9141a49b270ca` has `status=failed`,
+  `processed_dates=0`, and `FixtureSourceUnavailableError` listing the
+  RapidAPI `429/403` responses plus public fallback `403`; it did not create
+  a new canonical fixture batch.
 
 Insight:
 
