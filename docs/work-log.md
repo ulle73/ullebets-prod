@@ -245,6 +245,16 @@ Results:
   and the post-merge `main` suite both passed `522/522`.
 - Frontend gate under Node 24.19: `57 passed`; TypeScript, ESLint, and
   production build all exited `0` before and after the merge.
+- One deliberately parallel pre-merge backend/frontend gate produced a
+  frontend cold-import timeout in the Auto route plus two Vitest worker-start
+  timeouts while the backend suite and an unrelated package installation were
+  consuming the machine. No production code was changed for that run. The
+  isolated rerun passed all `57/57`, and the sequential merged-main gates then
+  passed `522/522` backend and `57/57` frontend tests.
+- The first unscoped post-merge `python -m pytest -q` process also ended with
+  exit `1` near completion without a pytest failure report during the same
+  resource contention. The explicit repository collection found exactly 522
+  tests, and `python -m pytest tests -q` passed all `522/522` in `35.42s`.
 - Real database dry-run read `1,391` snapshot rows, built `249` canonical
   markets and `402` scores across 17 matches, excluded 96 Brazil OOD scores,
   and produced 44 registered V2 checkpoint-journal selections.
