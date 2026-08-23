@@ -192,6 +192,48 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-23 - Coastworks SiteChat widget endpoint update
+
+Status: `VERIFIED`
+
+Objective:
+Update the embedded chatbot widget in the frontend HTML shell to point to the
+Coastworks SiteChat production endpoint (`https://coastworks-sitechat.vercel.app`).
+
+Changes:
+- Replaced the local development chatbot script loader in `frontend/index.html`
+  with the production Coastworks SiteChat widget script tag (`data-site-id="dc0db006c4de"`, `data-api-url="https://coastworks-sitechat.vercel.app"`).
+- Updated `frontend/src/app/chatbot-loader.test.ts` to assert against the new
+  Coastworks SiteChat widget attributes.
+
+Tests:
+```text
+cd frontend && npm test -- --run src/app/chatbot-loader.test.ts
+cd frontend && npm test -- --run
+cd frontend && npm run typecheck
+cd frontend && npm run lint
+cd frontend && npm run build
+git diff --check
+python -m pytest tests/v2 -q
+```
+
+Results:
+- Frontend isolated test `chatbot-loader.test.ts` passed 1/1.
+- Full frontend test suite passed 17 files / 57 tests.
+- TypeScript check, ESLint (0 warnings), and Vite production build passed.
+- `git diff --check` passed with 0 whitespace issues.
+- Backend regression passed 480/480.
+
+Insight:
+The chatbot widget is now loaded directly from the hosted Coastworks SiteChat
+production service rather than the local development server.
+
+Remaining:
+- Live browser interaction with the hosted chatbot widget in production.
+
+Next:
+- Observe chatbot appearance and responsiveness in live frontend sessions.
+
 ### 2026-08-23 - Stockholm-baserat fixture-datum för matchlistan
 
 Status: `VERIFIED`
