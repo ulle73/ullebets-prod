@@ -185,6 +185,10 @@ Current acceptance window:
 - [x] Invalid timing rows remain auditable but cannot receive PnL or CLV.
 - [x] Operational forward rows have been settled against canonical outcomes.
 - [x] Forward-results output separates open, settled, and excluded rows.
+- [x] Started forward exposures with unresolved actuals are recovered by exact
+  immutable match identity before the hourly settlement chain. The 2026-08-23
+  production repair enriched 7 missed fixtures and settled all 11 affected
+  22 August V6 journal exposures (5 wins, 6 losses, 0 missing actuals).
 - [ ] `UNPROVEN` Produce model-specific in-domain forward ROI.
 - [ ] `UNPROVEN` Produce model-specific in-domain CLV and beat-close rate.
 
@@ -229,6 +233,10 @@ Current acceptance window:
   zero rows because no upcoming canonical model markets existed.
 - [ ] `PARTIAL` Prove every scheduled workflow in real write mode through a
   complete prematch-to-postmatch lifecycle.
+- [ ] `PARTIAL` Post-match recovery has distinct concurrency, exact unresolved
+  forward targeting, a minimum-age guard, and recovery-before-settlement
+  ordering. Production data and the full local suite are verified; a hosted
+  run from the merged `main` SHA remains required.
 - [ ] `PARTIAL` A valid T-30/T-10 snapshot now starts V6 in the same capture
   workflow instead of waiting for an independent scorer schedule. A hosted
   write-mode closing capture remains required evidence.

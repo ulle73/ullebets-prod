@@ -30,8 +30,8 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `522/522` in
-  the current checkpoint-journal checkout.
+- `VERIFIED`: the full V2 Python test suite currently passes, `528/528` in
+  the post-match recovery checkout.
 
 ### Backend
 
@@ -109,6 +109,11 @@ Valid empty source responses are not failures when no matches or markets exist.
   absolute `1e-12` tolerance and independently validates their derived feature
   fingerprint. A production-database rerun reused 105 frozen scores with zero
   conflicts; 49 were precision-equivalent rows. It created zero forward bets.
+- `VERIFIED`: post-match recovery now selects by the canonical Stockholm
+  fixture date and independently discovers every started forward exposure
+  whose actual is unresolved. The production repair enriched all 7 affected
+  22 August matches and settled all 11 V6 journal exposures: 5 wins, 6 losses,
+  and 0 missing actuals.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -192,6 +197,76 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-23 - Self-healing post-match enrichment and settlement recovery
+
+Status: `PARTIAL`
+
+Objective:
+Diagnose why completed 22 August V6 journal exposures remained open in
+`/auto`, repair the underlying automation and date contract, backfill the
+missing production outcomes, and prove that future missed runs recover
+automatically.
+
+Root cause:
+
+- GitHub Actions run `32620243134` for the daily teamstats/enrichment workflow
+  was queued behind ML training run `32620200522` and then cancelled when
+  fixture run `32620592959` became the single pending member of the shared
+  `ullebets-v2-backend` concurrency group. Recent daily runs had therefore not
+  fetched completed results.
+- Finished-match enrichment selected mutable source dates instead of the
+  product contract `fixture_date_stockholm`. The 7 affected fixtures belonged
+  to 22 August in Stockholm but carried source dates of 23 or 30 August.
+- The hourly settlement workflow reran correctly, but canonical actuals did
+  not exist, so all 11 affected exposures remained `pending_result`.
+
+Changes:
+
+- Finished-match selection, persisted enrichment dates, and enrichment audits
+  now consistently use `fixture_date_stockholm` with source date only as a
+  compatibility fallback.
+- Enrichment can now include exact match keys from started forward exposures
+  in `pending_result` or `missing_actual`, guarded by the shared settlement
+  timing contract and a configurable minimum match age.
+- The hourly post-match workflow now owns recovery enrichment before
+  settlement, CLV, result refresh, and audits. It has a dedicated concurrency
+  group; the daily teamstats workflow has its own group and also runs the
+  unresolved-forward recovery path.
+- Automation verification now rejects the former global concurrency group and
+  requires the recovery command, minimum-age guard, and job order.
+
+Verification:
+
+- Regression tests were observed failing before implementation and passing
+  afterward; targeted result: `32 passed in 2.53s`.
+- Full V2 suite after the final diff: `528 passed in 62.63s`.
+- Production recovery dry-run selected 7 exact affected matches and produced
+  7/7 raw statistics, incidents, shotmaps, results, and canonical results,
+  1,821 canonical stat rows, matched parity, zero source errors, and `ok`
+  audit status.
+- The equivalent guarded write run persisted those 7 match outcomes. The
+  settlement/result chain then produced 55 canonical forward exposures: 15
+  settled and 40 legitimately open for current or future matches.
+- Exact 22 August audit: 11/11 V6 journal exposures are `settled`, with 5
+  wins, 6 losses, and 0 missing actuals. The protected production
+  `/api/v1/auto` response exposes the same statuses and actual values.
+- `MONGODB_DB=ullebets_v2 python scripts/forward_v2/healthcheck_v2.py`
+  returned `overall_status=ok`.
+
+Insight:
+Settlement cannot repair missing upstream actuals. Durable recovery must be
+driven by unresolved immutable forward identities, not only by a calendar
+schedule that can be cancelled or by a provider's mutable date label.
+
+Remaining:
+The code and data repair are production-database verified. Merge/push, hosted
+execution of the new workflow definition, and final Vercel source/deployment
+verification remain separate delivery gates.
+
+Next justified test: run the post-match workflow from the merged `main` SHA,
+verify its complete hosted chain, and then confirm the protected production
+read API still returns all 11 affected rows as settled.
 
 ### 2026-08-23 - V6 full-domain checkpoint journal
 

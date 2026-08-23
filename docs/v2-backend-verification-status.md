@@ -7,6 +7,41 @@ Database: `ullebets_v2`
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
 
+## Self-Healing Post-Match Recovery On 2026-08-23
+
+Eleven completed V6 checkpoint-journal exposures from 22 August remained open
+because their canonical actuals had never been ingested. The defect was not a
+settlement-rule failure. Daily enrichment run `32620243134` was cancelled by
+the repository-wide concurrency group, and enrichment selected mutable source
+dates rather than `fixture_date_stockholm`; the 7 affected Stockholm-date
+fixtures carried source dates of 23 or 30 August.
+
+The permanent contract now has two independent recovery paths. Daily
+enrichment has its own concurrency group and uses the product date. The hourly
+post-match workflow first discovers every sufficiently old, started forward
+exposure whose latest settlement is `pending_result` or `missing_actual`,
+enriches those exact immutable match keys, and only then runs settlement, CLV,
+forward-result refresh, and audits. Both paths remain fail-closed on
+`MONGODB_DB=ullebets_v2` and share the canonical settlement timing contract.
+
+Current evidence:
+
+- targeted regression suite: 32 passed;
+- full V2 suite: 528 passed;
+- guarded production dry-run and write run: 7/7 affected matches, 7 raw result
+  payloads, 7 canonical results, 1,821 canonical stat rows, zero source errors,
+  matched parity, and `ok` audit;
+- exact affected exposures: 11/11 settled, 5 wins, 6 losses, and 0 missing
+  actuals;
+- complete current forward surface: 55 canonical exposures, 15 settled and 40
+  legitimately open for current/future fixtures;
+- production read API exposes the repaired outcomes, and V2 health is `ok`.
+
+Status: `VERIFIED` for implementation, regression coverage, production data
+recovery, settlement, and the read contract. It remains `PARTIAL` until the
+new workflow definition has run from the merged `main` SHA and the final
+deployment/source boundary is verified separately.
+
 ## V6 Full-Domain Checkpoint Journal On 2026-08-23
 
 The new immutable `forward_policy_registry_v2` leaves frozen V1 evidence
