@@ -179,6 +179,9 @@ export interface MarketOffer {
   sourceProvider: string | null;
   payloadKind: string | null;
   updatedAt: string | null;
+  modelSupport?: 'supported' | 'partially_supported' | 'model_missing';
+  modelSupportReason?: string | null;
+  supportedDirections?: string[];
 }
 
 export interface MatchDetailResponse {
@@ -318,6 +321,18 @@ export interface AutoSelection {
   policyId: string | null;
   policyStatus: string | null;
   snapshotKey: string | null;
+  snapshotLabel?: string | null;
+  selectionGranularity?: string | null;
+  canonicalExposureKey?: string | null;
+  observationCount?: number;
+  checkpointLabels?: string[];
+  bestSnapshotLabel?: string | null;
+  bestExpectedRoiUnits?: number | null;
+  settledObservationCount?: number;
+  officialClvCount?: number;
+  beatClosingLineCount?: number;
+  clvBeatRate?: number | null;
+  averageClvPct?: number | null;
   offerKey: string | null;
   oddsSnapshotTime: string | null;
   predictionCreatedAt: string | null;
@@ -331,16 +346,21 @@ export interface AutoSelection {
   actualValue: number | null;
   pnlUnits: number | null;
   stakeUnits: number | null;
+  roiUnits?: number | null;
+  groupStakeUnits?: number | null;
+  groupPnlUnits?: number | null;
+  groupRoiUnits?: number | null;
   validForPerformance: boolean | null;
 }
 
 export interface AutoResponse {
   count: number;
+  observationCount?: number;
   rawCount: number;
   excludedComboLegCount: number;
   excludedShadowPredictionCount: number;
   collapsedDuplicateCount: number;
-  summary: { total: number; valid: number; excluded: number };
+  summary: { total: number; groups?: number; valid: number; excluded: number };
   page: PageInfo;
   selections: AutoSelection[];
 }
@@ -362,6 +382,15 @@ export interface ForwardResult {
   scope: string | null;
   direction: string | null;
   lineValue: number | null;
+  snapshotKey?: string | null;
+  snapshotLabel?: string | null;
+  selectionGranularity?: string | null;
+  canonicalExposureKey?: string | null;
+  observationCount?: number;
+  checkpointLabels?: string[];
+  bestSnapshotLabel?: string | null;
+  bestExpectedRoiUnits?: number | null;
+  settledObservationCount?: number;
   savedOdds: number | null;
   savedAt: string | null;
   oddsSnapshotTime: string | null;
@@ -376,6 +405,9 @@ export interface ForwardResult {
   roiUnits: number | null;
   pnlUnits: number | null;
   stakeUnits: number | null;
+  groupStakeUnits?: number | null;
+  groupPnlUnits?: number | null;
+  groupRoiUnits?: number | null;
   actualSource: string | null;
   actualSourceStatus: string | null;
   settledAt: string | null;
@@ -394,12 +426,30 @@ export interface ForwardResult {
   clvStatus: string | null;
   clvPct: number | null;
   beatClosingLine: boolean | null;
+  officialClvCount?: number;
+  beatClosingLineCount?: number;
+  clvBeatRate?: number | null;
+  averageClvPct?: number | null;
   prematchObservationCount: number | null;
   refreshedAt: string | null;
 }
 
 export interface ResultsResponse {
-  summary: { rows: number; settled: number; wins: number; losses: number; pushes: number; excluded: number };
+  summary: {
+    rows: number;
+    groups?: number;
+    settled: number;
+    wins: number;
+    losses: number;
+    pushes: number;
+    excluded: number;
+    stakeUnits?: number;
+    pnlUnits?: number;
+    roiPct?: number | null;
+    officialClvObservations?: number;
+    beatClosingLine?: number;
+    clvBeatRatePct?: number | null;
+  };
   page: PageInfo;
   rows: ForwardResult[];
 }

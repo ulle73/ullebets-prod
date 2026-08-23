@@ -32,6 +32,17 @@ export const DIRECTION_OPTIONS: FilterOption[] = [
   { value: 'under', label: 'UNDER' },
 ];
 
+export const CHECKPOINT_OPTIONS: FilterOption[] = [
+  { value: '', label: 'Alla checkpoints' },
+  { value: 'T_MINUS_3D', label: 'T-3 dagar' },
+  { value: 'T_MINUS_2D', label: 'T-2 dagar' },
+  { value: 'T_MINUS_1D', label: 'T-1 dag' },
+  { value: 'T_MINUS_12H', label: 'T-12 timmar' },
+  { value: 'T_MINUS_2H', label: 'T-2 timmar' },
+  { value: 'T_MINUS_30M', label: 'T-30 minuter' },
+  { value: 'T_MINUS_10M', label: 'T-10 minuter' },
+];
+
 export const RESULT_STATUS_OPTIONS: FilterOption[] = [
   { value: '', label: 'Alla statusar' },
   { value: 'settled', label: 'Avgjorda' },

@@ -30,6 +30,17 @@ function abbreviation(name: string | null, fallback: string): string {
   return name?.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 3).toLocaleUpperCase('sv-SE') || fallback;
 }
 
+function marketSupportLabel(status: string | undefined): string | null {
+  if (status === 'supported') return 'V6: över + under';
+  if (status === 'partially_supported') return 'V6: endast över';
+  if (status === 'model_missing') return 'Modell saknas';
+  return null;
+}
+
+function checkpointLabel(value: string | null | undefined): string {
+  return value?.replace('T_MINUS_', 'T-').replace(/M$/, 'm').replace(/H$/, 'H').replace(/D$/, 'D') ?? 'saknas';
+}
+
 export function MatchDetailPage() {
   const { matchId } = useParams();
   const detail = useMatchDetail(matchId);
@@ -87,7 +98,10 @@ export function MatchDetailPage() {
                 <div className="analytics-market-row analytics-market-row--head"><span>MARKNAD</span><span>LINA</span><span>OVER</span><span>UNDER</span></div>
                 {data.marketOffers.map((offer, index) => (
                   <div className="analytics-market-row" key={offer.offerKey ?? `${offer.statKey}:${offer.scope}:${offer.period}:${offer.line}:${index}`}>
-                    <strong>{[offer.statKey, offer.scope, offer.period].filter(Boolean).join(' · ') || 'Marknad saknas'}</strong>
+                    <div>
+                      <strong>{[offer.statKey, offer.scope, offer.period].filter(Boolean).join(' · ') || 'Marknad saknas'}</strong>
+                      {marketSupportLabel(offer.modelSupport) ? <small className={`model-support model-support--${offer.modelSupport}`}>{marketSupportLabel(offer.modelSupport)}</small> : null}
+                    </div>
                     <span>{offer.line?.toLocaleString('sv-SE') ?? '—'}</span>
                     <span>{formatOdds(offer.overOdds)}</span>
                     <span>{formatOdds(offer.underOdds)}</span>
@@ -102,14 +116,14 @@ export function MatchDetailPage() {
               <div className="analytics-evidence-list">
                 {forwardSelections.map((selection, index) => (
                   <article className="analytics-evidence-row" key={selection.selectionKey ?? selection.predictionKey ?? `selection:${index}`}>
-                    <div><strong>{selection.direction?.toLocaleUpperCase('sv-SE') ?? '—'} {selection.statKey ?? 'Stat'} · {selection.scope ?? '—'} · {selection.period ?? '—'}</strong><small>Lina {selection.lineValue?.toLocaleString('sv-SE') ?? '—'} · odds {formatOdds(selection.selectedOdds)}</small></div>
+                    <div><strong>{selection.direction?.toLocaleUpperCase('sv-SE') ?? '—'} {selection.statKey ?? 'Stat'} · {selection.scope ?? '—'} · {selection.period ?? '—'}</strong><small>Lina {selection.lineValue?.toLocaleString('sv-SE') ?? '—'} · odds {formatOdds(selection.selectedOdds)} · {selection.observationCount ?? 1} obs · bäst {checkpointLabel(selection.bestSnapshotLabel ?? selection.snapshotLabel)}</small></div>
                     <span>Modell P {formatProbability(selection.predictedWinProbability)}</span>
                     <span>EV {formatExpectedRoi(selection.expectedRoiUnits)}</span>
                   </article>
                 ))}
                 {forwardResults.map((result, index) => (
                   <article className="analytics-evidence-row analytics-evidence-row--settled" key={result.resultLoopKey ?? result.predictionKey ?? `result:${index}`}>
-                    <div><strong>{result.settlementResult?.toLocaleUpperCase('sv-SE') ?? result.resultLoopStatus ?? 'RESULTAT'}</strong><small>Utfall {result.actualValue?.toLocaleString('sv-SE') ?? '—'} · PnL {result.pnlUnits === null ? '—' : `${result.pnlUnits > 0 ? '+' : ''}${result.pnlUnits.toLocaleString('sv-SE')} u`}</small></div>
+                    <div><strong>{result.settlementResult?.toLocaleUpperCase('sv-SE') ?? result.resultLoopStatus ?? 'RESULTAT'}</strong><small>Utfall {result.actualValue?.toLocaleString('sv-SE') ?? '—'} · PnL {result.pnlUnits === null ? '—' : `${result.pnlUnits > 0 ? '+' : ''}${result.pnlUnits.toLocaleString('sv-SE')} u`} · {result.observationCount ?? 1} obs</small></div>
                     <span>{result.officialClv ? `CLV ${formatClv(result.clvPct)}` : 'CLV saknas'}</span>
                     <span>{result.closingOdds === null ? 'Closing saknas' : `Close ${formatOdds(result.closingOdds)}`}</span>
                   </article>

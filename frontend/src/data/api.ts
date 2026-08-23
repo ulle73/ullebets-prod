@@ -3,8 +3,8 @@ import type { AutoResponse, DashboardResponse, MatchesResponse, ModelResponse, R
 
 type QueryValue = string | number | boolean | null | undefined;
 export type ApiQuery = Record<string, QueryValue>;
-export interface AutoQuery extends ApiQuery { limit?:number;offset?:number;league?:string;stat?:string;period?:string;scope?:string;direction?:string;model?:string;policy?:string; }
-export interface ResultsQuery extends ApiQuery { limit?:number;offset?:number;status?:string;league?:string;stat?:string;period?:string;scope?:string;direction?:string; }
+export interface AutoQuery extends ApiQuery { limit?:number;offset?:number;league?:string;stat?:string;period?:string;scope?:string;direction?:string;model?:string;policy?:string;checkpoint?:string; }
+export interface ResultsQuery extends ApiQuery { limit?:number;offset?:number;status?:string;league?:string;stat?:string;period?:string;scope?:string;direction?:string;model?:string;policy?:string;checkpoint?:string; }
 
 export function buildApiUrl(path:string,query:ApiQuery={}):string{const params=new URLSearchParams();for(const[key,value]of Object.entries(query)){if(value===undefined||value===null||value==='')continue;params.set(key,String(value));}const suffix=params.toString();return `/api/v1${path}${suffix?`?${suffix}`:''}`;}
 async function getJson<T>(url:string,signal?:AbortSignal):Promise<T>{const init:RequestInit={method:'GET',headers:{Accept:'application/json'}};if(signal)init.signal=signal;const response=await fetch(url,init);if(!response.ok)throw new Error(`Read API returned ${response.status}`);return response.json() as Promise<T>;}

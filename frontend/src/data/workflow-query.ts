@@ -28,6 +28,7 @@ export function autoQueryFromSearch(params: URLSearchParams): AutoQuery {
   const direction = optional(params, 'direction');
   const model = optional(params, 'model');
   const policy = optional(params, 'policy');
+  const checkpoint = optional(params, 'checkpoint');
   if (league) query.league = league;
   if (stat) query.stat = stat;
   if (period) query.period = period;
@@ -35,6 +36,7 @@ export function autoQueryFromSearch(params: URLSearchParams): AutoQuery {
   if (direction) query.direction = direction;
   if (model) query.model = model;
   if (policy) query.policy = policy;
+  if (checkpoint) query.checkpoint = checkpoint;
   return query;
 }
 
@@ -49,12 +51,18 @@ export function resultsQueryFromSearch(params: URLSearchParams): ResultsQuery {
   const period = optional(params, 'period');
   const scope = optional(params, 'scope');
   const direction = optional(params, 'direction');
+  const model = optional(params, 'model');
+  const policy = optional(params, 'policy');
+  const checkpoint = optional(params, 'checkpoint');
   if (status) query.status = status;
   if (league) query.league = league;
   if (stat) query.stat = stat;
   if (period) query.period = period;
   if (scope) query.scope = scope;
   if (direction) query.direction = direction;
+  if (model) query.model = model;
+  if (policy) query.policy = policy;
+  if (checkpoint) query.checkpoint = checkpoint;
   return query;
 }
 

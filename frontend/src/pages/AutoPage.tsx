@@ -4,10 +4,12 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { matchDetailPath } from '../domain/match-route';
 import { PageHeader } from '../components/PageHeader';
 import { StateNotice } from '../components/StateNotice';
+import { WorkflowFilters, type WorkflowFilter } from '../components/WorkflowFilters';
 import { useAuto } from '../data/queries';
 import { autoQueryFromSearch, patchSearchParams } from '../data/workflow-query';
 import { formatExpectedRoi, formatOdds, formatProbability } from '../domain/formatters';
 import type { AutoSelection } from '../domain/types';
+import { CHECKPOINT_OPTIONS, DIRECTION_OPTIONS, PERIOD_OPTIONS, SCOPE_OPTIONS, STAT_OPTIONS } from '../domain/workflow-filter-options';
 
 type FamilyFilter = 'v6' | 'legacy' | 'all';
 type ResultFilter = 'all' | 'open' | 'win' | 'loss' | 'push' | 'excluded';
@@ -94,6 +96,14 @@ function formatPnl(value: number | null): string {
   return `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatted} u`;
 }
 
+function checkpointLabel(value: string | null | undefined): string {
+  return value?.replace('T_MINUS_', 'T-').replace(/M$/, 'm').replace(/H$/, 'H').replace(/D$/, 'D') ?? 'saknas';
+}
+
+function observationCount(row: AutoSelection): number {
+  return row.observationCount ?? 1;
+}
+
 function resultLabel(bucket: Exclude<ResultFilter, 'all'>): string {
   if (bucket === 'win') return 'VUNNEN';
   if (bucket === 'loss') return 'FÖRLORAD';
@@ -134,6 +144,10 @@ export function AutoPage() {
   const totalPnl = settledRows.reduce((sum, row) => sum + (row.pnlUnits ?? 0), 0);
   const totalStake = settledRows.reduce((sum, row) => sum + (row.stakeUnits ?? 1), 0);
   const roi = totalStake > 0 ? totalPnl / totalStake : null;
+  const openObservationCount = openRows.reduce((sum, row) => sum + observationCount(row), 0);
+  const settledObservationCount = settledRows.reduce((sum, row) => sum + observationCount(row), 0);
+  const wonObservationCount = settledRows.filter((row) => resultBucket(row) === 'win').reduce((sum, row) => sum + observationCount(row), 0);
+  const lostObservationCount = settledRows.filter((row) => resultBucket(row) === 'loss').reduce((sum, row) => sum + observationCount(row), 0);
   const separatedRows = (query.data.excludedComboLegCount ?? 0) + (query.data.excludedShadowPredictionCount ?? 0);
   const groupedRows = visibleRows.reduce<Map<string, AutoSelection[]>>((groups, row) => {
     const key = dateKey(row.matchStartTime);
@@ -142,6 +156,15 @@ export function AutoPage() {
     groups.set(key, group);
     return groups;
   }, new Map());
+  const workflowFilters: WorkflowFilter[] = [
+    { key: 'stat', label: 'Stat', value: serverQuery.stat ?? '', options: STAT_OPTIONS },
+    { key: 'scope', label: 'Lag/scope', value: serverQuery.scope ?? '', options: SCOPE_OPTIONS },
+    { key: 'period', label: 'Period', value: serverQuery.period ?? '', options: PERIOD_OPTIONS },
+    { key: 'direction', label: 'Riktning', value: serverQuery.direction ?? '', options: DIRECTION_OPTIONS },
+    { key: 'checkpoint', label: 'Checkpoint', value: serverQuery.checkpoint ?? '', options: CHECKPOINT_OPTIONS },
+  ];
+  const changeWorkflowFilter = (key: string, value: string) => setSearchParams(patchSearchParams(searchParams, { [key]: value }, { resetOffset: true }));
+  const changePageLimit = (value: number) => setSearchParams(patchSearchParams(searchParams, { limit: value }, { resetOffset: true }));
 
   return (
     <div className="page-stack auto-page">
@@ -151,17 +174,19 @@ export function AutoPage() {
       <section className="auto-summary" aria-label="Forward-sammanfattning">
         <article className="auto-summary__card">
           <span className="auto-summary__icon"><CircleDot size={19} aria-hidden="true" /></span>
-          <div><small>ÖPPNA VAL</small><strong>{openRows.length}</strong><p>väntar på rättning</p></div>
+          <div><small>ÖPPNA SPEL</small><strong>{openObservationCount}</strong><p>{openRows.length} grupper väntar på rättning</p></div>
         </article>
         <article className="auto-summary__card">
           <span className="auto-summary__icon"><CheckCircle2 size={19} aria-hidden="true" /></span>
-          <div><small>RÄTTADE</small><strong>{settledRows.length}</strong><p>{settledRows.filter((row) => resultBucket(row) === 'win').length} vunna · {settledRows.filter((row) => resultBucket(row) === 'loss').length} förlorade</p></div>
+          <div><small>RÄTTADE SPEL</small><strong>{settledObservationCount}</strong><p>{wonObservationCount} vunna · {lostObservationCount} förlorade</p></div>
         </article>
         <article className="auto-summary__card auto-summary__card--roi">
           <span className="auto-summary__icon"><TrendingUp size={19} aria-hidden="true" /></span>
           <div><small>URVALS-ROI</small><strong>{roi === null ? '—' : formatExpectedRoi(roi)}</strong><p>{roi === null ? 'inga rättade val' : `${formatPnl(totalPnl)} · deskriptivt`}</p></div>
         </article>
       </section>
+
+      <WorkflowFilters filters={workflowFilters} pageLimit={pageLimit} onFilterChange={changeWorkflowFilter} onPageLimitChange={changePageLimit} />
 
       <section className="auto-filters" aria-label="Filtrera forward-val">
         <div className="auto-filter-group">
@@ -198,7 +223,7 @@ export function AutoPage() {
         <div className="auto-exposure-audit" role="status">
           <span><strong>{separatedRows}</strong> kombinations-/shadowrader separerade</span>
           <span><strong>{query.data.collapsedDuplicateCount}</strong> upprepade exponeringar sammanslagna</span>
-          <span><strong>{query.data.count}</strong> faktiska raka forward-val</span>
+          <span><strong>{query.data.observationCount ?? query.data.summary.total}</strong> faktiska 1u-observationer i <strong>{query.data.count}</strong> grupper</span>
         </div>
       ) : null}
 
@@ -208,7 +233,7 @@ export function AutoPage() {
         <section className="auto-ledger" aria-label="Forward-val">
           {[...groupedRows.entries()].map(([key, rows]) => (
             <section className="auto-date-group" key={key}>
-              <header className="auto-date-group__header"><CalendarDays size={14} aria-hidden="true" /><h2>{dateHeading(rows[0]?.matchStartTime ?? null)}</h2><span>{rows.length} val</span></header>
+              <header className="auto-date-group__header"><CalendarDays size={14} aria-hidden="true" /><h2>{dateHeading(rows[0]?.matchStartTime ?? null)}</h2><span>{rows.reduce((sum, row) => sum + observationCount(row), 0)} spel · {rows.length} grupper</span></header>
               <div className="auto-table" role="table" aria-label={`Forward-val ${dateHeading(rows[0]?.matchStartTime ?? null)}`}>
                 <div className="auto-table__head" role="row">
                   {['TID', 'MATCH', 'STAT', 'SCOPE', 'PERIOD', 'RIKTNING', 'LINA', 'ODDS', 'MODELL P', 'EV', 'UTFALL'].map((label) => <span role="columnheader" key={label}>{label}</span>)}
@@ -237,7 +262,7 @@ export function AutoPage() {
                       <div className="auto-cell auto-cell--numeric" role="cell"><strong>{formatNumber(row.lineValue)}</strong></div>
                       <div className="auto-cell auto-cell--numeric" role="cell"><strong>{row.selectedOdds === null ? '—' : formatOdds(row.selectedOdds)}</strong></div>
                       <div className="auto-cell auto-cell--numeric auto-cell--model" role="cell"><strong>{row.predictedWinProbability === null ? '—' : formatProbability(row.predictedWinProbability)}</strong><small>{selectionFamily(row) === 'v6' ? 'V6 · PRIMÄR' : 'LEGACY'}</small></div>
-                      <div className="auto-cell auto-cell--numeric auto-cell--ev" role="cell"><strong>{row.expectedRoiUnits === null ? '—' : formatExpectedRoi(row.expectedRoiUnits)}</strong></div>
+                      <div className="auto-cell auto-cell--numeric auto-cell--ev" role="cell"><strong>{row.expectedRoiUnits === null ? '—' : formatExpectedRoi(row.expectedRoiUnits)}</strong><small>{observationCount(row)} obs · bäst {checkpointLabel(row.bestSnapshotLabel ?? row.snapshotLabel)}</small></div>
                       <div className="auto-cell auto-cell--result" role="cell"><span className={`auto-result auto-result--${bucket}`}>{resultLabel(bucket)}</span>{detail ? <small>{detail}</small> : null}</div>
                       {row.matchKey ? <Link className="auto-row-link" to={matchDetailPath(row.matchKey)} aria-label={`Öppna ${row.homeTeamName ?? ''} mot ${row.awayTeamName ?? ''}`}><ChevronRight size={17} /></Link> : <span />}
                     </article>

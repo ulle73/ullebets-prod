@@ -298,6 +298,32 @@
   font-variant-numeric: tabular-nums;
 }
 
+.analytics-market-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.model-support {
+  width: fit-content;
+  padding: 2px 6px;
+  border: 1px solid rgba(101, 217, 159, 0.32);
+  border-radius: 999px;
+  color: #65d99f;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.model-support--partially_supported {
+  border-color: rgba(217, 181, 86, 0.38);
+  color: #d9b556;
+}
+
+.model-support--model_missing {
+  border-color: rgba(239, 92, 104, 0.38);
+  color: #ff7b84;
+}
+
 .analytics-market-row--head {
   min-height: 30px;
   color: #68798b;

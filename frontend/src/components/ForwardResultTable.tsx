@@ -9,9 +9,17 @@ function units(value: number | null): string {
 }
 
 function officialClv(row: ForwardResult): string {
+  if ((row.officialClvCount ?? 0) > 0 && row.averageClvPct !== null && row.averageClvPct !== undefined) {
+    const value = `${row.averageClvPct > 0 ? '+' : ''}${row.averageClvPct.toLocaleString('sv-SE', { maximumFractionDigits: 2 })} %`;
+    return `CLV snitt ${value} · slår ${row.beatClosingLineCount ?? 0}/${row.officialClvCount}`;
+  }
   if (!row.officialClv || row.clvPct === null) return 'CLV saknas';
   const value = `${row.clvPct > 0 ? '+' : ''}${row.clvPct.toLocaleString('sv-SE', { maximumFractionDigits: 2 })} %`;
   return `CLV ${value}${row.closingOdds === null ? '' : ` · close ${formatOdds(row.closingOdds)}`}`;
+}
+
+function checkpointLabel(value: string | null | undefined): string {
+  return value?.replace('T_MINUS_', 'T-').replace(/M$/, 'm').replace(/H$/, 'H').replace(/D$/, 'D') ?? 'saknas';
 }
 
 function resultLabel(row: ForwardResult): string {
@@ -41,6 +49,7 @@ export function ForwardResultTable({ rows, ariaLabel = 'Forward-resultat' }: For
                 <EntityLink kind="team" id={row.awayTeamKey}>{row.awayTeamName ?? 'Okänt lag'}</EntityLink>
               </strong>
               <small>{[row.statKey, row.period, row.scope].filter(Boolean).join(' · ')}</small>
+              <small>{row.observationCount ?? 1} obs · bäst {checkpointLabel(row.bestSnapshotLabel ?? row.snapshotLabel)}</small>
               <EntityLink kind="match" id={row.matchKey} className="quiet-link" ariaLabel={`Öppna ${matchLabel}`}>
                 <ExternalLink size={13} aria-hidden="true" />Matchdetalj
               </EntityLink>
