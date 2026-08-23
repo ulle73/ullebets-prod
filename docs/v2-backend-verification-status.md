@@ -1,7 +1,7 @@
 # Ullebets V2 Backend Verification Status
 
 Last updated: 2026-08-23
-Branch: `codex/v6-checkpoint-journal`
+Branch: `main`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
@@ -37,11 +37,15 @@ Current evidence:
   scores, 306 in-domain scores, 96 Brazil OOD scores excluded, 44 registered
   V2 selections across 17 target matches, and zero persistence attempts;
 - automation contracts prove all scoring workflows use registry V2 and the
-  settlement workflow orders settlement before CLV and result refresh.
+  settlement workflow orders settlement before CLV and result refresh;
+- feature commit `1243355` is on `origin/main`, and Vercel production
+  deployment `dpl_7yabEkwkhqdA2dkcQkeEph1DFUFa` is `Ready` with both
+  read-only Python route depths and the production alias.
 
 Status is `VERIFIED` for local implementation, read contract, dry-run scoring,
-and workflow configuration. It remains `UNPROVEN` for the first hosted
-write-mode V2 journal row and a complete future official-CLV settlement.
+workflow configuration, Git delivery, and production deployment. It remains
+`UNPROVEN` for the first hosted write-mode V2 journal row and a complete
+future official-CLV settlement.
 
 ## Market Bias Bootstrap And Matchup Attachment On 2026-08-21
 

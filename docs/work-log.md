@@ -216,30 +216,44 @@ Changes:
 - Added stat/scope/period/direction/checkpoint filters, model-support status on
   match offers, grouped Auto/Resultat UI, and automatic score -> settle -> CLV
   -> forward-result workflow wiring.
+- Fast-forward merged the verified feature branch to `main`, pushed commit
+  `1243355` to `origin/main`, and removed only the clean owned feature
+  worktree/branch. The unrelated `.playwright-cli/` directory was preserved.
+- Deployed the same product commit explicitly to Vercel Production because the
+  project is not Git-linked. Deployment `dpl_7yabEkwkhqdA2dkcQkeEph1DFUFa`
+  reached `Ready` and received the production alias
+  `https://ullebets-prod-preview.vercel.app`.
 
 Tests:
 
 ```text
 python -u -m pytest tests/v2/test_ev_policy_registry.py tests/v2/test_ev_score_evaluation.py tests/v2/test_ev_forward_predictions.py tests/v2/test_forward_exposures.py tests/v2/test_settlement.py tests/v2/test_clv_tracking.py tests/v2/test_forward_results.py tests/v2/test_read_api.py tests/v2/test_read_api_contracts.py tests/v2/test_automation_contract.py -q
+python -u -m pytest tests -q
 npm test -- --run
 npm run typecheck
 npm run lint
 npm run build
 python -u scripts/forward_v2/score_ev_shadow_model.py --repo-root C:\dev\ullebets-prod --artifact <worktree>/models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib --manifest <worktree>/models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json --score-only --selection-policy-registry <worktree>/models/ev/forward_policy_registry_v2.json --selection-policy-id v6_full_domain_checkpoint_journal_v2 --dry-run
+git push origin main
+vercel deploy . --prod -y --scope ryds-projects-4371adb0
+vercel inspect dpl_7yabEkwkhqdA2dkcQkeEph1DFUFa --scope ryds-projects-4371adb0
 ```
 
 Results:
 
 - Backend feature/contract gate: `103 passed`; the subsequent full V2 suite
-  passed `522/522`.
+  and the post-merge `main` suite both passed `522/522`.
 - Frontend gate under Node 24.19: `57 passed`; TypeScript, ESLint, and
-  production build all exited `0`.
+  production build all exited `0` before and after the merge.
 - Real database dry-run read `1,391` snapshot rows, built `249` canonical
   markets and `402` scores across 17 matches, excluded 96 Brazil OOD scores,
   and produced 44 registered V2 checkpoint-journal selections.
 - Dry-run persistence was exactly zero inserts, existing rows, and conflicts.
 - Registry fingerprint:
   `7d3c1a2fe659a86a8b8078a22d1af1e93bd57316138b8d5ca0ac76aa5a0b805e`.
+- GitHub `origin/main` resolved to `1243355`; Vercel built 2,343 frontend
+  modules plus both read-only Python route depths and reported production
+  deployment `dpl_7yabEkwkhqdA2dkcQkeEph1DFUFa` as `Ready`.
 
 Insight:
 The same market can be one display group without becoming one evaluation

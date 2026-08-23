@@ -265,11 +265,12 @@ Current acceptance window:
   confidence segments, explicit thin-data state, and accessible Swedish text.
 - [x] `VERIFIED` Registered forward selections expose offered odds, model probability, expected ROI field, model/policy identities, and persisted runtime status without presenting observation counts as proof.
 - [x] `VERIFIED` Settled forward-result rows can show persisted ROI/PnL, closing odds, official CLV status/value, settlement state, exclusions, and linked match/team/league entities. This verifies the product surface, not positive forward efficacy.
-- [x] `VERIFIED` The local V2 checkpoint-journal contract keeps each snapshot
+- [x] `VERIFIED` The V2 checkpoint-journal contract keeps each snapshot
   as a separate 1u evaluation, groups only presentation rows, exposes
   stat/scope/period/direction/checkpoint filters, and labels unsupported match
-  offers as model-missing. Hosted write-mode lifecycle evidence remains
-  unchecked above.
+  offers as model-missing. Feature commit `1243355` is on `origin/main`, and
+  Vercel production deployment `dpl_7yabEkwkhqdA2dkcQkeEph1DFUFa` is `Ready`.
+  Hosted write-mode lifecycle evidence remains unchecked above.
 - [ ] `PARTIAL` Data freshness, missing-data, exclusion, health, and audit states are shown on the relevant surfaces, but uniform freshness metadata across every product section still depends on the source/read contract carrying it.
 - [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, and production build all pass on `style-1` run `31648971262`; the current checkpoint-journal checkout additionally passes 57 frontend tests, lint, and production build locally.
 
@@ -277,8 +278,8 @@ Current acceptance window:
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `522/522` in the local
-  checkpoint-journal checkout. The earlier hosted `434/434`
+- [x] Current V2 regression suite passes `522/522` on the merged local `main`
+  checkout. The earlier hosted `434/434`
   backend-isolation run `31648971290` remains preserved as historical
   evidence.
 - [x] The V2 worktree was committed and merge-verified without secrets,
