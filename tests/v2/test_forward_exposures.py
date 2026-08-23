@@ -86,3 +86,37 @@ def test_v6_family_requires_frozen_v6_model_or_policy_provenance() -> None:
     assert forward_selection_family(
         _legacy_row("misleading") | {"headline": "V6 is mentioned in display text"}
     ) == "legacy"
+
+
+def test_checkpoint_observations_are_distinct_but_share_display_group() -> None:
+    first = _v6_row() | {
+        "prediction_key": "journal|score-t3d",
+        "selection_key": "journal|score-t3d",
+        "selection_policy_id": "v6_full_domain_checkpoint_journal_v2",
+        "selection_policy_registry_id": "forward_policy_registry_v2",
+        "selection_granularity": "checkpoint_observation",
+        "snapshot_key": "snapshot-t3d",
+        "snapshot_label": "T_MINUS_3D",
+        "expected_roi_units": 0.08,
+    }
+    later = first | {
+        "prediction_key": "journal|score-t2h",
+        "selection_key": "journal|score-t2h",
+        "snapshot_key": "snapshot-t2h",
+        "snapshot_label": "T_MINUS_2H",
+        "odds_snapshot_time": "2026-07-28T10:30:00Z",
+        "prediction_created_at": "2026-07-28T10:31:00Z",
+        "expected_roi_units": 0.12,
+    }
+
+    canonical, audit = canonicalize_forward_bet_docs([first, later])
+
+    assert {row["prediction_key"] for row in canonical} == {
+        "journal|score-t3d",
+        "journal|score-t2h",
+    }
+    assert len(
+        {row["canonical_exposure_key"] for row in canonical}
+    ) == 1
+    assert audit["canonical_count"] == 2
+    assert audit["collapsed_duplicate_count"] == 0

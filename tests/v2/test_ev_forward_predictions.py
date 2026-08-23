@@ -5,6 +5,7 @@ from importlib.metadata import version
 
 import pandas as pd
 import pytest
+from ullebets_v2.ev_model import forward_predictions
 
 from ullebets_v2.ev_model.forward_predictions import (
     build_forward_prediction_docs,
@@ -134,6 +135,8 @@ def test_registered_v6_policy_prediction_is_traceable_to_frozen_score() -> None:
         "sample_key": "m1|cornerKicks|ALL|away",
         "side_key": "m1|cornerKicks|ALL|away|over",
         "snapshot_key": "snap-1",
+        "snapshot_label": "T_MINUS_2H",
+        "snapshot_type": "research",
         "offer_key": "offer-1",
         "stat_key": "cornerKicks",
         "period": "ALL",
@@ -165,6 +168,8 @@ def test_registered_v6_policy_prediction_is_traceable_to_frozen_score() -> None:
             "status": "forward_test_primary",
             "minimum_ev": 0.075,
             "maximum_ev": 0.25,
+            "selection_granularity": "checkpoint_observation",
+            "stake_units": 1.0,
             "filters": {
                 "stat_keys": ["cornerKicks"],
                 "scopes": ["away", "total"],
@@ -185,9 +190,23 @@ def test_registered_v6_policy_prediction_is_traceable_to_frozen_score() -> None:
     )
     assert row["selection_policy_registry_fingerprint"] == "registry-hash"
     assert row["source_score_key"] == "v6|snap-1|over"
+    assert row["snapshot_label"] == "T_MINUS_2H"
+    assert row["snapshot_type"] == "research"
+    assert row["selection_granularity"] == "checkpoint_observation"
+    assert row["stake_units"] == 1.0
     assert row["selected_odds"] == 1.95
     assert row["valid_for_forward_evaluation"] is True
     assert row["prediction_fingerprint_sha256"]
+
+
+def test_checkpoint_policy_does_not_freeze_the_entire_match() -> None:
+    assert forward_predictions.should_freeze_after_first_match(
+        {"selection_granularity": "checkpoint_observation"}
+    ) is False
+    assert forward_predictions.should_freeze_after_first_match(
+        {"selection_granularity": "single_exposure"}
+    ) is True
+    assert forward_predictions.should_freeze_after_first_match({}) is True
 
 
 def test_registered_policy_prediction_rejects_model_mismatch() -> None:

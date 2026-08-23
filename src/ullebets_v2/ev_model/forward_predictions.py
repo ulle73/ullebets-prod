@@ -76,6 +76,12 @@ def exclude_previously_frozen_matches(
     return snapshots.loc[~frozen_mask].copy(), int(frozen_mask.sum())
 
 
+def should_freeze_after_first_match(policy: dict[str, Any]) -> bool:
+    return str(policy.get("selection_granularity") or "") != (
+        "checkpoint_observation"
+    )
+
+
 def validate_model_runtime(expected_versions: dict[str, str]) -> None:
     mismatches: list[str] = []
     for package_name, expected in sorted(expected_versions.items()):
@@ -336,6 +342,11 @@ def build_registered_policy_prediction_docs(
             "sample_key": str(score.get("sample_key") or ""),
             "side_key": str(score.get("side_key") or ""),
             "snapshot_key": str(score.get("snapshot_key") or ""),
+            "snapshot_label": score.get("snapshot_label"),
+            "snapshot_type": score.get("snapshot_type"),
+            "selection_granularity": policy.get(
+                "selection_granularity"
+            ) or "single_exposure",
             "offer_key": str(score.get("offer_key") or ""),
             "stat_key": str(score.get("stat_key") or ""),
             "period": str(score.get("period") or ""),
@@ -354,7 +365,7 @@ def build_registered_policy_prediction_docs(
                 if policy.get("maximum_ev") is not None
                 else None
             ),
-            "stake_units": 1.0,
+            "stake_units": float(policy.get("stake_units") or 1.0),
             "odds_snapshot_time": snapshot_time.to_pydatetime(),
             "match_start_time": match_start.to_pydatetime(),
             "prediction_created_at": timestamp,

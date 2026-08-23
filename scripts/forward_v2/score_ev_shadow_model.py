@@ -27,6 +27,7 @@ from ullebets_v2.ev_model.forward_predictions import (
     build_forward_prediction_docs,
     exclude_previously_frozen_matches,
     persist_forward_prediction_docs,
+    should_freeze_after_first_match,
     valid_frozen_match_keys,
     validate_model_runtime,
 )
@@ -335,6 +336,7 @@ def main() -> int:
                 )
             )
             if selection_policy is not None
+            and should_freeze_after_first_match(selection_policy)
             else []
         )
         registered_frozen_keys = valid_frozen_match_keys(
@@ -504,12 +506,13 @@ def main() -> int:
             registered_selected_before_dedupe = len(
                 registered_selections
             )
-            registered_selections = [
-                row
-                for row in registered_selections
-                if str(row.get("match_key"))
-                not in registered_frozen_keys
-            ]
+            if should_freeze_after_first_match(selection_policy):
+                registered_selections = [
+                    row
+                    for row in registered_selections
+                    if str(row.get("match_key"))
+                    not in registered_frozen_keys
+                ]
             registered_prediction_docs = (
                 build_registered_policy_prediction_docs(
                     registered_selections,

@@ -87,6 +87,30 @@ def forward_exposure_key(row: dict[str, Any]) -> str:
     return f"forward-exposure:{stable_json_hash(identity)}"
 
 
+def forward_evaluation_key(row: dict[str, Any]) -> str:
+    exposure_key = forward_exposure_key(row)
+    if str(row.get("selection_granularity") or "") != (
+        "checkpoint_observation"
+    ):
+        return exposure_key
+    snapshot_identity = (
+        row.get("snapshot_key")
+        or row.get("odds_snapshot_time")
+        or row.get("saved_at")
+        or row.get("prediction_key")
+        or row.get("selection_key")
+    )
+    return (
+        "forward-evaluation:"
+        + stable_json_hash(
+            {
+                "canonical_exposure_key": exposure_key,
+                "snapshot_identity": str(snapshot_identity or ""),
+            }
+        )
+    )
+
+
 def _to_datetime(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         parsed = value
@@ -136,9 +160,11 @@ def canonicalize_forward_bet_docs(
             excluded_shadow_prediction_count += 1
             continue
         row = dict(source_row)
-        key = forward_exposure_key(row)
-        row["canonical_exposure_key"] = key
-        groups.setdefault(key, []).append(row)
+        exposure_key = forward_exposure_key(row)
+        row["canonical_exposure_key"] = exposure_key
+        evaluation_key = forward_evaluation_key(row)
+        row["canonical_evaluation_key"] = evaluation_key
+        groups.setdefault(evaluation_key, []).append(row)
 
     canonical = [
         min(group, key=_selection_rank)
