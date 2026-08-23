@@ -250,7 +250,7 @@ Current acceptance window:
 
 - [x] `VERIFIED` A stable read-only API now exposes the fixture/dashboard, match, league, team, Auto, results, model, and system contracts required by the frontend without adding write behavior.
 - [x] `VERIFIED` The complete `style-1` frontend is implemented across the five primary destinations plus match, team, league, model, system-status, and real not-found routes.
-- [ ] `PARTIAL` Today's/upcoming matches and match detail are rendered from read contracts, including available scores, market offers, actuals, checkpoints, team comparison, and forward evidence. The local/read-contract implementation now filters on the derived Stockholm-local kickoff date rather than fixture `source_date`; public Vercel artifact verification remains before this row can be accepted.
+- [x] `VERIFIED` Today's/upcoming matches and match detail are rendered from read contracts, including available scores, market offers, actuals, checkpoints, team comparison, and forward evidence. The selected dashboard date filters on the derived Stockholm-local kickoff date rather than fixture `source_date`; the protected Vercel production API verified the `2026-08-22` contract at 19 matches, including Hull City and excluding Arsenal.
 - [x] `VERIFIED` Team statistics are explorable by home/away context, FOR/AGAINST orientation, period, rank, and league-relative deviation; league stat rankings are also available.
 - [x] `VERIFIED` Matchup cards expose available market-bias profiles as a
   compact UNDER/OVER rail with signed residual, over/non-push sample,

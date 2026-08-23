@@ -194,7 +194,7 @@ Detailed model history:
 
 ### 2026-08-23 - Stockholm-baserat fixture-datum för matchlistan
 
-Status: `PARTIAL`
+Status: `VERIFIED`
 
 Objective:
 Åtgärda den reproducerade datumblandningen i dashboarden utan att förvanska
@@ -213,6 +213,10 @@ Changes:
   fixtures; en efterföljande dry-run krävde `0` ändringar.
 - Lade till regressionstester för tidszonsgräns, 21/22/23-augusti-kontraktet,
   indexet och backfillens idempotens.
+- Lade till root-förankrade Vercel-exkluderingar så att lokala historik- och
+  offlinefiler inte blir deployade. Funktionens runtime använder enbart
+  `requirements.txt`; det lokala `pyproject.toml` med ML-beroenden bevaras för
+  offline-jobben men skickas inte till Vercel.
 
 Tests:
 
@@ -227,6 +231,9 @@ cd frontend && npm run lint
 cd frontend && npm run build
 python -m compileall -q src scripts
 git diff --check
+vercel deploy --prod --yes --scope ryds-projects-4371adb0 --no-wait
+vercel inspect dpl_AYky64hNFyiPfThuZSPMEsd2SiX1 --logs --scope ryds-projects-4371adb0
+vercel curl '/api/v1/dashboard?date=2026-08-22' --deployment dpl_AYky64hNFyiPfThuZSPMEsd2SiX1
 ```
 
 Results:
@@ -242,6 +249,12 @@ Results:
 - Backend: `480 passed in 23.98s`. Frontend: `17` filer och `57` tester.
   TypeScript, lint, produktionsbygge (`2,343` moduler), compileall och
   whitespace-kontroll passerade.
+- Vercel-produktion `dpl_AYky64hNFyiPfThuZSPMEsd2SiX1` är `Ready`. Bygget
+  passerade på `15s` och den read-only Python-funktionen är `14.79 MB`.
+  Den skyddade, autentiserade produktionskontrollen returnerade
+  `selectedDate=2026-08-22` och `19` matcher, med Hull City men utan Arsenal.
+  Oautentiserade direkta HTTP-anrop går avsiktligt till Vercel SSO (HTTP 302)
+  innan appen, inte till en felaktig API- eller frontend-fallback.
 
 Insight:
 
@@ -251,14 +264,14 @@ avsparkstiden, medan `source_date` endast ska användas för spårbarhet.
 
 Remaining:
 
-- `PARTIAL`: den publika Vercel-artefakten måste fortfarande verifieras efter
-  att den här committen har publicerats; lokal kod och den produktionsanslutna
-  V2-kontraktläsningen är verifierade.
+- Ingen öppen brist i datumkontraktet. Vercel-skyddet innebär att framtida
+  automatiserade HTTP-prober måste använda auktoriserad bypass eller köras av
+  en inloggad användare.
 
 Next:
 
-- Publicera aktuell `main` till rätt Vercel-projekt och kontrollera dess
-  `/api/v1/dashboard?date=2026-08-22`-svar mot den här kontraktregressionen.
+- Observera nästa vanliga fixture-inläsning och dess dashboarddatum som
+  rutinmässig livscykeluppföljning; ingen historisk datakörning är motiverad.
 
 ### 2026-08-23 - Dashboardens datumfilter blandar avsparksdagar
 

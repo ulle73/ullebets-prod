@@ -1,0 +1,15 @@
+# Production runtime needs only the API, shared source, frontend build input,
+# dependency manifests, and Vercel configuration. Historical data stays local
+# and is read through the production database instead of deployment artifacts.
+/data/
+/docs/
+/models/
+/scripts/
+/tests/
+/.codegraph/
+/.github/
+/.superpowers/
+/AGENTS.md
+/README.md
+/design-qa.md
+/pyproject.toml

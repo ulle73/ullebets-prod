@@ -5,7 +5,6 @@
   "functions": {
     "api/**/*.py": {
       "maxDuration": 10,
-      "memory": 512,
       "includeFiles": "src/**",
       "excludeFiles": "{tests/**,data/**,docs/**,frontend/**,.github/**}"
     }
