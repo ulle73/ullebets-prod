@@ -203,6 +203,15 @@ def build_forward_result_docs(
                 "canonical_exposure_key": row.get(
                     "canonical_exposure_key"
                 ) or row.get("exposure_key"),
+                "canonical_evaluation_key": row.get(
+                    "canonical_evaluation_key"
+                ),
+                "selection_granularity": row.get(
+                    "selection_granularity"
+                ),
+                "snapshot_key": row.get("snapshot_key"),
+                "snapshot_label": row.get("snapshot_label"),
+                "snapshot_type": row.get("snapshot_type"),
                 "selection_key": row.get("selection_key"),
                 "tracking_key": row.get("tracking_key"),
                 "match_key": row.get("match_key"),

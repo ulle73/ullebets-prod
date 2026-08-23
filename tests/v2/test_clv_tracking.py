@@ -203,6 +203,94 @@ def test_run_clv_tracking_refresh_freezes_first_canonical_exposure() -> None:
     assert summary["forward_exposure_audit"]["collapsed_duplicate_count"] == 1
 
 
+def test_clv_tracks_each_checkpoint_observation_with_its_provenance() -> None:
+    shared = {
+        "prediction_type": "ev_registered_score_policy",
+        "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+        "model_status": "forward_test_only",
+        "selection_policy_id": "v6_full_domain_checkpoint_journal_v2",
+        "selection_policy_registry_id": "forward_policy_registry_v2",
+        "selection_granularity": "checkpoint_observation",
+        "match_key": "match-1",
+        "offer_key": "offer-1",
+        "stat_key": "cornerKicks",
+        "period": "ALL",
+        "scope": "total",
+        "direction": "over",
+        "line_value": 9.5,
+        "match_start_time": "2026-07-30T00:30:00Z",
+        "invalid_for_model": False,
+    }
+    summary = run_clv_tracking_refresh(
+        tracked_bet_docs=[
+            shared
+            | {
+                "prediction_key": "journal-t3d",
+                "selection_key": "journal-t3d",
+                "snapshot_key": "snapshot-t3d",
+                "snapshot_label": "T_MINUS_3D",
+                "snapshot_type": "forward",
+                "expected_roi_units": 0.08,
+                "saved_odds": 2.1,
+                "odds_snapshot_time": "2026-07-27T00:30:00Z",
+                "prediction_created_at": "2026-07-27T00:31:00Z",
+            },
+            shared
+            | {
+                "prediction_key": "journal-t2h",
+                "selection_key": "journal-t2h",
+                "snapshot_key": "snapshot-t2h",
+                "snapshot_label": "T_MINUS_2H",
+                "snapshot_type": "research",
+                "expected_roi_units": 0.12,
+                "saved_odds": 2.2,
+                "odds_snapshot_time": "2026-07-29T22:30:00Z",
+                "prediction_created_at": "2026-07-29T22:31:00Z",
+            },
+        ],
+        closing_line_docs=[
+            {
+                "closing_key": "offer-1",
+                "offer_key": "offer-1",
+                "match_key": "match-1",
+                "stat_key": "cornerKicks",
+                "period": "ALL",
+                "scope": "total",
+                "line": 9.5,
+                "match_start_time": "2026-07-30T00:30:00Z",
+                "closing_snapshot_time": "2026-07-30T00:20:00Z",
+                "closing_snapshot_label": "T_MINUS_10M",
+                "closing_quality": "t10",
+                "closing_is_official": True,
+                "closing_over_odds": 2.0,
+                "prematch_observation_count": 3,
+            }
+        ],
+        dry_run=True,
+        refreshed_at=datetime(2026, 7, 30, 0, 21, tzinfo=UTC),
+    )
+
+    assert summary["clv_tracking_rows"] == 2
+    assert {
+        (row["prediction_key"], row["snapshot_label"], row["snapshot_type"])
+        for row in summary["clv_docs"]
+    } == {
+        ("journal-t3d", "T_MINUS_3D", "forward"),
+        ("journal-t2h", "T_MINUS_2H", "research"),
+    }
+    assert all(
+        row["selection_granularity"] == "checkpoint_observation"
+        for row in summary["clv_docs"]
+    )
+    assert {
+        row["expected_roi_units"]
+        for row in summary["clv_docs"]
+    } == {0.08, 0.12}
+    assert len(
+        {row["canonical_exposure_key"] for row in summary["clv_docs"]}
+    ) == 1
+
+
 def test_run_clv_tracking_refresh_dry_run_marks_missing_closing_and_invalid_timing() -> None:
     summary = run_clv_tracking_refresh(
         tracked_bet_docs=[

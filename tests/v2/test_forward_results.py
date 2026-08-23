@@ -26,6 +26,11 @@ def test_run_forward_result_refresh_dry_run_builds_settled_clv_tracked_rows() ->
                 "saved_at": "2026-07-28T09:50:00Z",
                 "match_start_time": "2026-07-28T10:00:00Z",
                 "stake_units": 1,
+                "snapshot_key": "snapshot-t2h",
+                "snapshot_label": "T_MINUS_2H",
+                "snapshot_type": "research",
+                "selection_granularity": "checkpoint_observation",
+                "expected_roi_units": 0.14,
             }
         ],
         clv_tracking_docs=[
@@ -100,6 +105,11 @@ def test_run_forward_result_refresh_dry_run_builds_settled_clv_tracked_rows() ->
     assert row["official_clv"] is True
     assert row["settlement_result"] == "win"
     assert row["odds_captured_after_start"] is False
+    assert row["snapshot_key"] == "snapshot-t2h"
+    assert row["snapshot_label"] == "T_MINUS_2H"
+    assert row["snapshot_type"] == "research"
+    assert row["selection_granularity"] == "checkpoint_observation"
+    assert row["expected_roi_units"] == 0.14
 
 
 def test_forward_results_use_one_canonical_straight_exposure() -> None:

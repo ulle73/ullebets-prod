@@ -123,6 +123,12 @@ def _normalize_tracking_doc(row: dict[str, Any]) -> dict[str, Any]:
             "selection_policy_registry_id"
         ),
         "canonical_exposure_key": row.get("canonical_exposure_key"),
+        "canonical_evaluation_key": row.get("canonical_evaluation_key"),
+        "selection_granularity": row.get("selection_granularity"),
+        "snapshot_key": row.get("snapshot_key"),
+        "snapshot_label": row.get("snapshot_label"),
+        "snapshot_type": row.get("snapshot_type"),
+        "expected_roi_units": row.get("expected_roi_units"),
         "bet_key": row.get("bet_key") or row.get("trackingKey"),
         "match_key": match_key,
         "source_match_id": source_match_id,
@@ -518,6 +524,19 @@ def build_clv_tracking_docs(
                 "selection_key": tracked["selection_key"],
                 "prediction_key": tracked.get("prediction_key"),
                 "parent_prediction_key": tracked.get("parent_prediction_key"),
+                "canonical_exposure_key": tracked.get(
+                    "canonical_exposure_key"
+                ),
+                "canonical_evaluation_key": tracked.get(
+                    "canonical_evaluation_key"
+                ),
+                "selection_granularity": tracked.get(
+                    "selection_granularity"
+                ),
+                "snapshot_key": tracked.get("snapshot_key"),
+                "snapshot_label": tracked.get("snapshot_label"),
+                "snapshot_type": tracked.get("snapshot_type"),
+                "expected_roi_units": tracked.get("expected_roi_units"),
                 "analysis_key": tracked.get("analysis_key"),
                 "run_id": tracked.get("run_id"),
                 "export_mode": tracked.get("export_mode"),
