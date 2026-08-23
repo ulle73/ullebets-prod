@@ -687,6 +687,20 @@ def test_results_summary_covers_full_collection_even_when_rows_are_limited() -> 
 
     payload = read_results(database, limit=1)
 
-    assert payload["summary"] == {"rows": 2, "settled": 1, "wins": 1, "losses": 0, "pushes": 0, "excluded": 1}
+    assert payload["summary"] == {
+        "rows": 2,
+        "groups": 2,
+        "settled": 1,
+        "wins": 1,
+        "losses": 0,
+        "pushes": 0,
+        "excluded": 1,
+        "stakeUnits": 0,
+        "pnlUnits": 0.0,
+        "roiPct": None,
+        "officialClvObservations": 0,
+        "beatClosingLine": 0,
+        "clvBeatRatePct": None,
+    }
     assert payload["page"] == {"limit": 1, "offset": 0, "hasMore": True}
     assert len(payload["rows"]) == 1

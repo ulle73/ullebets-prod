@@ -4,6 +4,7 @@ from ullebets_v2.forward_exposures import (
     canonicalize_forward_bet_docs,
     forward_exposure_key,
     forward_selection_family,
+    group_forward_observation_docs,
 )
 
 
@@ -120,3 +121,53 @@ def test_checkpoint_observations_are_distinct_but_share_display_group() -> None:
     ) == 1
     assert audit["canonical_count"] == 2
     assert audit["collapsed_duplicate_count"] == 0
+
+
+def test_display_group_uses_best_ev_and_aggregates_every_one_unit_observation() -> None:
+    first = _v6_row() | {
+        "prediction_key": "journal|score-t3d",
+        "selection_key": "journal|score-t3d",
+        "selection_policy_id": "v6_full_domain_checkpoint_journal_v2",
+        "selection_granularity": "checkpoint_observation",
+        "snapshot_label": "T_MINUS_3D",
+        "expected_roi_units": 0.08,
+        "stake_units": 1.0,
+        "pnl_units": 0.95,
+        "official_clv": True,
+        "beat_closing_line": True,
+        "clv_pct": 4.0,
+        "settlement_status": "settled",
+        "settlement_result": "win",
+    }
+    best = first | {
+        "prediction_key": "journal|score-t2h",
+        "selection_key": "journal|score-t2h",
+        "snapshot_label": "T_MINUS_2H",
+        "expected_roi_units": 0.12,
+        "stake_units": 1.0,
+        "pnl_units": 1.05,
+        "official_clv": True,
+        "beat_closing_line": False,
+        "clv_pct": -2.0,
+    }
+
+    grouped = group_forward_observation_docs([first, best])
+
+    assert len(grouped) == 1
+    row = grouped[0]
+    assert row["prediction_key"] == "journal|score-t2h"
+    assert row["observation_count"] == 2
+    assert row["observation_keys"] == [
+        "journal|score-t3d",
+        "journal|score-t2h",
+    ]
+    assert row["snapshot_labels"] == ["T_MINUS_3D", "T_MINUS_2H"]
+    assert row["best_snapshot_label"] == "T_MINUS_2H"
+    assert row["stake_units"] == 2.0
+    assert row["pnl_units"] == 2.0
+    assert row["roi_units"] == 1.0
+    assert row["settled_observation_count"] == 2
+    assert row["official_clv_count"] == 2
+    assert row["beat_closing_line_count"] == 1
+    assert row["clv_beat_rate"] == 0.5
+    assert row["average_clv_pct"] == 1.0

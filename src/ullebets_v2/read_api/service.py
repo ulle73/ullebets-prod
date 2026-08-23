@@ -7,7 +7,9 @@ from zoneinfo import ZoneInfo
 from ullebets_v2.forward_exposures import (
     canonicalize_forward_bet_docs,
     forward_selection_family,
+    group_forward_observation_docs,
 )
+from ullebets_v2.ev_model.support import classify_v6_market_support
 from ullebets_v2.matchups.service import build_matchups_score_docs
 from ullebets_v2.storage.collections import (
     AUDIT_REPORTS,
@@ -517,6 +519,11 @@ def _actual_stat_summary(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _market_offer_summary(row: dict[str, Any]) -> dict[str, Any]:
+    model_support = classify_v6_market_support(
+        row.get("stat_key"),
+        row.get("scope"),
+        row.get("period"),
+    )
     return {
         "offerKey": row.get("offer_key"),
         "eventId": row.get("event_id"),
@@ -529,6 +536,9 @@ def _market_offer_summary(row: dict[str, Any]) -> dict[str, Any]:
         "sourceProvider": row.get("source_provider"),
         "payloadKind": row.get("payload_kind"),
         "updatedAt": _iso(row.get("updated_at")),
+        "modelSupport": model_support["status"],
+        "modelSupportReason": model_support["reason"],
+        "supportedDirections": model_support["directions"],
     }
 
 
@@ -622,16 +632,25 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
     forward_bet_rows = _find_rows(database, FORWARD_BETS, {"match_key": match_key})
     canonical_forward_bets, _ = canonicalize_forward_bet_docs(forward_bet_rows)
     forward_result_by_selection = _forward_result_lookup(database, canonical_forward_bets)
+    grouped_forward_bets = group_forward_observation_docs(
+        _with_forward_results(
+            canonical_forward_bets,
+            forward_result_by_selection,
+        )
+    )
     forward_selections = [
         _forward_selection_read_model(
             row,
             fixture,
-            forward_result_by_selection.get(_forward_selection_key(row) or "", {}),
+            row,
         )
-        for row in canonical_forward_bets
+        for row in grouped_forward_bets
     ]
     forward_result_rows = _find_rows(database, FORWARD_RESULTS, {"match_key": match_key})
     canonical_forward_results, _ = canonicalize_forward_bet_docs(forward_result_rows)
+    grouped_forward_results = group_forward_observation_docs(
+        canonical_forward_results
+    )
 
     return {
         "match": match,
@@ -651,7 +670,10 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
             "away": _profile_summary(away_profile),
         },
         "forwardSelections": forward_selections,
-        "forwardResults": [_result_read_model(row, fixture) for row in canonical_forward_results],
+        "forwardResults": [
+            _result_read_model(row, fixture)
+            for row in grouped_forward_results
+        ],
     }
 
 
@@ -797,6 +819,7 @@ def _filter_query(
     direction: str | None = None,
     model_id: str | None = None,
     policy_id: str | None = None,
+    checkpoint: str | None = None,
 ) -> dict[str, Any]:
     query: dict[str, Any] = {}
     for field, value in (
@@ -806,6 +829,7 @@ def _filter_query(
         ("direction", direction),
         ("model_id", model_id),
         ("selection_policy_id", policy_id),
+        ("snapshot_label", checkpoint),
     ):
         if value:
             query[field] = value
@@ -846,6 +870,24 @@ def _forward_result_lookup(database: Any, rows: list[dict[str, Any]]) -> dict[st
     return lookup
 
 
+def _with_forward_results(
+    rows: list[dict[str, Any]],
+    result_lookup: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    combined: list[dict[str, Any]] = []
+    for row in rows:
+        result = result_lookup.get(_forward_selection_key(row) or "", {})
+        merged = {**row, **result}
+        merged["canonical_exposure_key"] = row.get(
+            "canonical_exposure_key"
+        )
+        merged["canonical_evaluation_key"] = row.get(
+            "canonical_evaluation_key"
+        )
+        combined.append(merged)
+    return combined
+
+
 def _forward_selection_read_model(
     row: dict[str, Any],
     fixture: dict[str, Any],
@@ -875,6 +917,25 @@ def _forward_selection_read_model(
         "policyId": row.get("selection_policy_id"),
         "policyStatus": row.get("selection_policy_status"),
         "snapshotKey": row.get("snapshot_key"),
+        "snapshotLabel": row.get("snapshot_label"),
+        "selectionGranularity": row.get("selection_granularity"),
+        "canonicalExposureKey": row.get("canonical_exposure_key"),
+        "observationCount": row.get("observation_count", 1),
+        "checkpointLabels": row.get("snapshot_labels") or [],
+        "bestCheckpointLabel": row.get("best_snapshot_label")
+        or row.get("snapshot_label"),
+        "bestSnapshotLabel": row.get("best_snapshot_label")
+        or row.get("snapshot_label"),
+        "bestExpectedRoiUnits": row.get("expected_roi_units"),
+        "settledObservationCount": row.get(
+            "settled_observation_count", 0
+        ),
+        "officialClvCount": row.get("official_clv_count", 0),
+        "beatClosingLineCount": row.get(
+            "beat_closing_line_count", 0
+        ),
+        "clvBeatRate": row.get("clv_beat_rate"),
+        "averageClvPct": row.get("average_clv_pct"),
         "offerKey": row.get("offer_key"),
         "oddsSnapshotTime": _iso(row.get("odds_snapshot_time")),
         "predictionCreatedAt": _iso(row.get("prediction_created_at")),
@@ -888,6 +949,10 @@ def _forward_selection_read_model(
         "actualValue": result.get("actual_value"),
         "pnlUnits": result.get("pnl_units"),
         "stakeUnits": result.get("stake_units"),
+        "roiUnits": result.get("roi_units"),
+        "groupStakeUnits": result.get("stake_units"),
+        "groupPnlUnits": result.get("pnl_units"),
+        "groupRoiUnits": result.get("roi_units"),
         "validForPerformance": result.get("valid_for_performance"),
     }
 
@@ -904,6 +969,7 @@ def read_auto(
     model_id: str | None = None,
     policy_id: str | None = None,
     league_key: str | None = None,
+    checkpoint: str | None = None,
 ) -> dict[str, Any]:
     page_limit, page_offset = _page_values(limit, offset)
     query = _with_league_filter(
@@ -915,12 +981,17 @@ def read_auto(
             direction=direction,
             model_id=model_id,
             policy_id=policy_id,
+            checkpoint=checkpoint,
         ),
         league_key,
     )
     raw_rows = _find_rows(database, FORWARD_BETS, query)
     canonical_rows, exposure_audit = canonicalize_forward_bet_docs(raw_rows)
-    canonical_rows.sort(
+    result_lookup = _forward_result_lookup(database, canonical_rows)
+    grouped_rows = group_forward_observation_docs(
+        _with_forward_results(canonical_rows, result_lookup)
+    )
+    grouped_rows.sort(
         key=lambda row: (
             str(_iso(row.get("match_start_time")) or ""),
             forward_selection_family(row) == "v6",
@@ -930,6 +1001,7 @@ def read_auto(
     )
     summary = {
         "total": len(canonical_rows),
+        "groups": len(grouped_rows),
         "valid": sum(
             row.get("valid_for_forward_evaluation") is True and not row.get("invalid_for_model")
             for row in canonical_rows
@@ -937,17 +1009,15 @@ def read_auto(
         "excluded": 0,
     }
     summary["excluded"] = summary["total"] - summary["valid"]
-    rows = canonical_rows[page_offset:page_offset + page_limit]
+    rows = grouped_rows[page_offset:page_offset + page_limit]
     fixtures = _fixture_lookup(database, [str(row.get("match_key")) for row in rows if row.get("match_key")])
-    results = _forward_result_lookup(database, rows)
     selections = []
     for row in rows:
         fixture = fixtures.get(str(row.get("match_key") or ""), {})
-        selection_key = _forward_selection_key(row)
-        result = results.get(selection_key or "", {})
-        selections.append(_forward_selection_read_model(row, fixture, result))
+        selections.append(_forward_selection_read_model(row, fixture, row))
     return {
-        "count": exposure_audit["canonical_count"],
+        "count": len(grouped_rows),
+        "observationCount": exposure_audit["canonical_count"],
         "rawCount": exposure_audit["raw_count"],
         "excludedComboLegCount": exposure_audit["excluded_combo_leg_count"],
         "excludedShadowPredictionCount": exposure_audit["excluded_shadow_prediction_count"],
@@ -956,7 +1026,7 @@ def read_auto(
         "page": {
             "limit": page_limit,
             "offset": page_offset,
-            "hasMore": page_offset + len(rows) < summary["total"],
+            "hasMore": page_offset + len(rows) < len(grouped_rows),
         },
         "selections": selections,
     }
@@ -980,6 +1050,20 @@ def _result_read_model(row: dict[str, Any], fixture: dict[str, Any]) -> dict[str
         "scope": row.get("scope"),
         "direction": row.get("direction"),
         "lineValue": row.get("line_value"),
+        "snapshotKey": row.get("snapshot_key"),
+        "snapshotLabel": row.get("snapshot_label"),
+        "selectionGranularity": row.get("selection_granularity"),
+        "canonicalExposureKey": row.get("canonical_exposure_key"),
+        "observationCount": row.get("observation_count", 1),
+        "checkpointLabels": row.get("snapshot_labels") or [],
+        "bestCheckpointLabel": row.get("best_snapshot_label")
+        or row.get("snapshot_label"),
+        "bestSnapshotLabel": row.get("best_snapshot_label")
+        or row.get("snapshot_label"),
+        "bestExpectedRoiUnits": row.get("expected_roi_units"),
+        "settledObservationCount": row.get(
+            "settled_observation_count", 0
+        ),
         "savedOdds": row.get("saved_odds"),
         "savedAt": _iso(row.get("saved_at")),
         "oddsSnapshotTime": _iso(row.get("odds_snapshot_time")),
@@ -994,6 +1078,9 @@ def _result_read_model(row: dict[str, Any], fixture: dict[str, Any]) -> dict[str
         "roiUnits": row.get("roi_units"),
         "pnlUnits": row.get("pnl_units"),
         "stakeUnits": row.get("stake_units"),
+        "groupStakeUnits": row.get("stake_units"),
+        "groupPnlUnits": row.get("pnl_units"),
+        "groupRoiUnits": row.get("roi_units"),
         "actualSource": row.get("actual_source"),
         "actualSourceStatus": row.get("actual_source_status"),
         "settledAt": _iso(row.get("settled_at")),
@@ -1012,6 +1099,12 @@ def _result_read_model(row: dict[str, Any], fixture: dict[str, Any]) -> dict[str
         "clvStatus": row.get("clv_status"),
         "clvPct": row.get("clv_pct"),
         "beatClosingLine": row.get("beat_closing_line"),
+        "officialClvCount": row.get("official_clv_count", 0),
+        "beatClosingLineCount": row.get(
+            "beat_closing_line_count", 0
+        ),
+        "clvBeatRate": row.get("clv_beat_rate"),
+        "averageClvPct": row.get("average_clv_pct"),
         "prematchObservationCount": row.get("prematch_observation_count"),
         "refreshedAt": _iso(row.get("refreshed_at")),
     }
@@ -1027,26 +1120,48 @@ def read_results(
     period: str | None = None,
     scope: str | None = None,
     direction: str | None = None,
+    model_id: str | None = None,
+    policy_id: str | None = None,
     league_key: str | None = None,
+    checkpoint: str | None = None,
 ) -> dict[str, Any]:
     page_limit, page_offset = _page_values(limit, offset)
-    query = _filter_query(stat_key=stat_key, period=period, scope=scope, direction=direction)
+    query = _filter_query(
+        stat_key=stat_key,
+        period=period,
+        scope=scope,
+        direction=direction,
+        model_id=model_id,
+        policy_id=policy_id,
+        checkpoint=checkpoint,
+    )
     if status:
         query["result_loop_status"] = status
     query = _with_league_filter(database, query, league_key)
     raw_rows = _find_rows(database, FORWARD_RESULTS, query)
     canonical_rows, exposure_audit = canonicalize_forward_bet_docs(raw_rows)
     canonical_rows.sort(key=lambda row: str(_iso(row.get("match_start_time")) or ""), reverse=True)
+    grouped_rows = group_forward_observation_docs(canonical_rows)
+    grouped_rows.sort(key=lambda row: str(_iso(row.get("match_start_time")) or ""), reverse=True)
     valid_settled = [
         row
         for row in canonical_rows
         if row.get("settlement_status") == "settled" and row.get("valid_for_performance") is True
     ]
-    rows = canonical_rows[page_offset:page_offset + page_limit]
+    rows = grouped_rows[page_offset:page_offset + page_limit]
     fixtures = _fixture_lookup(database, [str(row.get("match_key")) for row in rows if row.get("match_key")])
+    total_stake = sum(float(row.get("stake_units") or 0) for row in valid_settled)
+    total_pnl = sum(float(row.get("pnl_units") or 0) for row in valid_settled)
+    official_clv_rows = [
+        row for row in valid_settled if row.get("official_clv") is True
+    ]
+    beat_closing_count = sum(
+        row.get("beat_closing_line") is True for row in official_clv_rows
+    )
     return {
         "summary": {
             "rows": len(canonical_rows),
+            "groups": len(grouped_rows),
             "settled": len(valid_settled),
             "wins": sum(
                 1
@@ -1062,6 +1177,20 @@ def read_results(
             ),
             "pushes": sum(1 for row in valid_settled if row.get("settlement_result") == "push"),
             "excluded": sum(1 for row in canonical_rows if row.get("valid_for_performance") is False),
+            "stakeUnits": total_stake,
+            "pnlUnits": total_pnl,
+            "roiPct": (
+                total_pnl / total_stake * 100.0
+                if total_stake
+                else None
+            ),
+            "officialClvObservations": len(official_clv_rows),
+            "beatClosingLine": beat_closing_count,
+            "clvBeatRatePct": (
+                beat_closing_count / len(official_clv_rows) * 100.0
+                if official_clv_rows
+                else None
+            ),
         },
         "rawCount": exposure_audit["raw_count"],
         "excludedComboLegCount": exposure_audit["excluded_combo_leg_count"],
@@ -1070,7 +1199,7 @@ def read_results(
         "page": {
             "limit": page_limit,
             "offset": page_offset,
-            "hasMore": page_offset + len(rows) < len(canonical_rows),
+            "hasMore": page_offset + len(rows) < len(grouped_rows),
         },
         "rows": [_result_read_model(row, fixtures.get(str(row.get("match_key") or ""), {})) for row in rows],
     }

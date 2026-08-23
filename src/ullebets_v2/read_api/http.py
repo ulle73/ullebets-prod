@@ -168,6 +168,7 @@ def dispatch_get(database: Any, path: str, query: dict[str, list[str]]) -> tuple
             model_id=_first(query, "model"),
             policy_id=_first(query, "policy"),
             league_key=_first(query, "league"),
+            checkpoint=_first(query, "checkpoint"),
         )
     if normalized_path == "/api/v1/results":
         return HTTPStatus.OK, read_results(
@@ -179,7 +180,10 @@ def dispatch_get(database: Any, path: str, query: dict[str, list[str]]) -> tuple
             period=_first(query, "period"),
             scope=_first(query, "scope"),
             direction=_first(query, "direction"),
+            model_id=_first(query, "model"),
+            policy_id=_first(query, "policy"),
             league_key=_first(query, "league"),
+            checkpoint=_first(query, "checkpoint"),
         )
     if normalized_path == "/api/v1/model":
         return HTTPStatus.OK, read_model(database)

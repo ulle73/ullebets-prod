@@ -430,6 +430,27 @@ def test_match_detail_includes_canonical_result_actual_stats_and_market_offers()
     assert payload['marketOffers'][0]['line'] == 12.5
     assert payload['marketOffers'][0]['overOdds'] == 1.9
     assert payload['marketOffers'][0]['sourceProvider'] == 'kambi'
+    assert payload['marketOffers'][0]['modelSupport'] == 'model_missing'
+    assert payload['marketOffers'][0]['modelSupportReason'] == 'stat_key_not_trained'
+    assert payload['marketOffers'][0]['supportedDirections'] == []
+
+
+def test_market_offer_contract_distinguishes_full_partial_and_missing_model_support() -> None:
+    corners = read_service._market_offer_summary(
+        {'stat_key': 'cornerKicks', 'scope': 'total', 'period': 'ALL'}
+    )
+    shots = read_service._market_offer_summary(
+        {'stat_key': 'shotsOnGoal', 'scope': 'home', 'period': '1ST'}
+    )
+    unsupported = read_service._market_offer_summary(
+        {'stat_key': 'fouls', 'scope': 'away', 'period': 'ALL'}
+    )
+
+    assert corners['modelSupport'] == 'supported'
+    assert corners['supportedDirections'] == ['over', 'under']
+    assert shots['modelSupport'] == 'partially_supported'
+    assert shots['supportedDirections'] == ['over']
+    assert unsupported['modelSupport'] == 'model_missing'
 
 
 def test_auto_contract_filters_counts_and_paginates_before_frontend_rendering() -> None:
@@ -482,11 +503,112 @@ def test_auto_contract_filters_counts_and_paginates_before_frontend_rendering() 
 
     payload = read_service.read_auto(database, stat_key='fouls', limit=1, offset=1)
 
-    assert payload['summary'] == {'total': 2, 'valid': 1, 'excluded': 1}
+    assert payload['summary'] == {
+        'total': 2,
+        'groups': 2,
+        'valid': 1,
+        'excluded': 1,
+    }
     assert payload['page'] == {'limit': 1, 'offset': 1, 'hasMore': False}
     assert [row['selectionKey'] for row in payload['selections']] == ['s2']
     assert payload['selections'][0]['homeTeamKey'] == 'h2'
     assert payload['selections'][0]['leagueKey'] == 'league-a'
+
+
+def test_auto_groups_checkpoint_rows_after_filtering_and_keeps_observation_totals() -> None:
+    shared = {
+        'prediction_type': 'ev_registered_score_policy',
+        'model_id': 'ev_scope_interaction_recency45_asof_capped_v6_shadow',
+        'selection_policy_id': 'v6_full_domain_checkpoint_journal_v2',
+        'selection_granularity': 'checkpoint_observation',
+        'match_key': 'm1',
+        'stat_key': 'cornerKicks',
+        'period': 'ALL',
+        'scope': 'total',
+        'direction': 'over',
+        'line_value': 10.5,
+        'stake_units': 1.0,
+        'valid_for_forward_evaluation': True,
+        'invalid_for_model': False,
+        'match_start_time': datetime(2026, 8, 15, 12, tzinfo=UTC),
+    }
+    database = MemoryDatabase(
+        forward_bets=MemoryCollection(
+            [
+                shared | {
+                    'prediction_key': 'p-t3d',
+                    'selection_key': 'p-t3d',
+                    'snapshot_key': 's-t3d',
+                    'snapshot_label': 'T_MINUS_3D',
+                    'expected_roi_units': 0.08,
+                },
+                shared | {
+                    'prediction_key': 'p-t2h',
+                    'selection_key': 'p-t2h',
+                    'snapshot_key': 's-t2h',
+                    'snapshot_label': 'T_MINUS_2H',
+                    'expected_roi_units': 0.12,
+                },
+            ]
+        ),
+        forward_results=MemoryCollection(
+            [
+                {
+                    **shared,
+                    'result_loop_key': 'p-t3d',
+                    'prediction_key': 'p-t3d',
+                    'snapshot_label': 'T_MINUS_3D',
+                    'expected_roi_units': 0.08,
+                    'settlement_status': 'settled',
+                    'settlement_result': 'win',
+                    'pnl_units': 0.9,
+                    'official_clv': True,
+                    'beat_closing_line': True,
+                    'clv_pct': 4.0,
+                    'valid_for_performance': True,
+                },
+                {
+                    **shared,
+                    'result_loop_key': 'p-t2h',
+                    'prediction_key': 'p-t2h',
+                    'snapshot_label': 'T_MINUS_2H',
+                    'expected_roi_units': 0.12,
+                    'settlement_status': 'settled',
+                    'settlement_result': 'win',
+                    'pnl_units': 1.1,
+                    'official_clv': True,
+                    'beat_closing_line': False,
+                    'clv_pct': -2.0,
+                    'valid_for_performance': True,
+                },
+            ]
+        ),
+        fixtures_canonical=MemoryCollection([fixture('m1')]),
+    )
+
+    payload = read_service.read_auto(database)
+
+    assert payload['summary']['total'] == 2
+    assert payload['summary']['groups'] == 1
+    assert payload['count'] == 1
+    assert len(payload['selections']) == 1
+    row = payload['selections'][0]
+    assert row['selectionKey'] == 'p-t2h'
+    assert row['observationCount'] == 2
+    assert row['checkpointLabels'] == ['T_MINUS_3D', 'T_MINUS_2H']
+    assert row['bestCheckpointLabel'] == 'T_MINUS_2H'
+    assert row['stakeUnits'] == 2.0
+    assert row['pnlUnits'] == 2.0
+    assert row['roiUnits'] == 1.0
+    assert row['officialClvCount'] == 2
+    assert row['beatClosingLineCount'] == 1
+
+    filtered = read_service.read_auto(database, checkpoint='T_MINUS_3D')
+
+    assert filtered['summary']['total'] == 1
+    assert filtered['summary']['groups'] == 1
+    assert filtered['selections'][0]['selectionKey'] == 'p-t3d'
+    assert filtered['selections'][0]['observationCount'] == 1
 
 
 def test_results_contract_is_typed_filtered_paginated_and_entity_joined() -> None:
@@ -543,11 +665,18 @@ def test_results_contract_is_typed_filtered_paginated_and_entity_joined() -> Non
 
     assert payload['summary'] == {
         'rows': 1,
+        'groups': 1,
         'settled': 1,
         'wins': 1,
         'losses': 0,
         'pushes': 0,
         'excluded': 0,
+        'stakeUnits': 0,
+        'pnlUnits': 0.9,
+        'roiPct': None,
+        'officialClvObservations': 1,
+        'beatClosingLine': 0,
+        'clvBeatRatePct': 0.0,
     }
     assert payload['page'] == {'limit': 1, 'offset': 0, 'hasMore': False}
     row = payload['rows'][0]
@@ -559,6 +688,122 @@ def test_results_contract_is_typed_filtered_paginated_and_entity_joined() -> Non
     assert row['officialClv'] is True
     assert row['clvPct'] == 5.5
     assert 'result_loop_key' not in row
+
+
+def test_results_group_rows_but_calculate_roi_and_clv_over_every_observation() -> None:
+    shared = {
+        'prediction_type': 'ev_registered_score_policy',
+        'model_id': 'ev_scope_interaction_recency45_asof_capped_v6_shadow',
+        'selection_policy_id': 'v6_full_domain_checkpoint_journal_v2',
+        'selection_granularity': 'checkpoint_observation',
+        'match_key': 'm1',
+        'stat_key': 'cornerKicks',
+        'period': 'ALL',
+        'scope': 'total',
+        'direction': 'over',
+        'line_value': 10.5,
+        'settlement_status': 'settled',
+        'settlement_result': 'win',
+        'valid_for_performance': True,
+        'official_clv': True,
+        'stake_units': 1.0,
+        'result_loop_status': 'settled',
+        'match_start_time': datetime(2026, 8, 13, 18, tzinfo=UTC),
+    }
+    database = MemoryDatabase(
+        forward_results=MemoryCollection(
+            [
+                shared | {
+                    'result_loop_key': 'p-t3d',
+                    'prediction_key': 'p-t3d',
+                    'snapshot_label': 'T_MINUS_3D',
+                    'expected_roi_units': 0.08,
+                    'pnl_units': 0.9,
+                    'beat_closing_line': True,
+                    'clv_pct': 4.0,
+                },
+                shared | {
+                    'result_loop_key': 'p-t2h',
+                    'prediction_key': 'p-t2h',
+                    'snapshot_label': 'T_MINUS_2H',
+                    'expected_roi_units': 0.12,
+                    'pnl_units': 1.1,
+                    'beat_closing_line': False,
+                    'clv_pct': -2.0,
+                },
+            ]
+        ),
+        fixtures_canonical=MemoryCollection([fixture('m1')]),
+    )
+
+    payload = read_service.read_results(database)
+
+    assert payload['summary']['rows'] == 2
+    assert payload['summary']['groups'] == 1
+    assert payload['summary']['stakeUnits'] == 2.0
+    assert payload['summary']['pnlUnits'] == 2.0
+    assert payload['summary']['roiPct'] == 100.0
+    assert payload['summary']['officialClvObservations'] == 2
+    assert payload['summary']['beatClosingLine'] == 1
+    assert payload['summary']['clvBeatRatePct'] == 50.0
+    assert len(payload['rows']) == 1
+    row = payload['rows'][0]
+    assert row['predictionKey'] == 'p-t2h'
+    assert row['observationCount'] == 2
+    assert row['stakeUnits'] == 2.0
+    assert row['pnlUnits'] == 2.0
+    assert row['averageClvPct'] == 1.0
+
+
+def test_http_auto_and_results_routes_forward_checkpoint_filter() -> None:
+    database = MemoryDatabase(
+        forward_bets=MemoryCollection(
+            [
+                {
+                    'selection_key': 't3d',
+                    'match_key': 'm1',
+                    'snapshot_label': 'T_MINUS_3D',
+                },
+                {
+                    'selection_key': 't2h',
+                    'match_key': 'm1',
+                    'snapshot_label': 'T_MINUS_2H',
+                },
+            ]
+        ),
+        forward_results=MemoryCollection(
+            [
+                {
+                    'result_loop_key': 't3d',
+                    'match_key': 'm1',
+                    'snapshot_label': 'T_MINUS_3D',
+                },
+                {
+                    'result_loop_key': 't2h',
+                    'match_key': 'm1',
+                    'snapshot_label': 'T_MINUS_2H',
+                },
+            ]
+        ),
+    )
+
+    auto_status, auto_payload = read_http.dispatch_get(
+        database,
+        '/api/v1/auto',
+        {'checkpoint': ['T_MINUS_2H']},
+    )
+    result_status, result_payload = read_http.dispatch_get(
+        database,
+        '/api/v1/results',
+        {'checkpoint': ['T_MINUS_3D']},
+    )
+
+    assert auto_status.value == 200
+    assert auto_payload['summary']['total'] == 1
+    assert auto_payload['selections'][0]['selectionKey'] == 't2h'
+    assert result_status.value == 200
+    assert result_payload['summary']['rows'] == 1
+    assert result_payload['rows'][0]['resultLoopKey'] == 't3d'
 
 
 def test_http_dispatch_exposes_resolver_and_league_routes_without_mutations() -> None:

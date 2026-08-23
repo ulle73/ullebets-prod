@@ -9,6 +9,16 @@ from ullebets_v2.support.schemas import stable_json_hash
 
 ForwardSelectionFamily = Literal["v6", "legacy"]
 
+CHECKPOINT_ORDER = {
+    "T_MINUS_3D": 0,
+    "T_MINUS_2D": 1,
+    "T_MINUS_1D": 2,
+    "T_MINUS_12H": 3,
+    "T_MINUS_2H": 4,
+    "T_MINUS_30M": 5,
+    "T_MINUS_10M": 6,
+}
+
 
 def forward_selection_family(row: dict[str, Any]) -> ForwardSelectionFamily:
     prediction_type = str(row.get("prediction_type") or "").lower()
@@ -122,6 +132,137 @@ def _to_datetime(value: Any) -> datetime | None:
     else:
         return None
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def _to_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _observation_key(row: dict[str, Any]) -> str:
+    return str(
+        row.get("prediction_key")
+        or row.get("selection_key")
+        or row.get("tracking_key")
+        or row.get("result_loop_key")
+        or forward_evaluation_key(row)
+    )
+
+
+def _observation_rank(row: dict[str, Any]) -> tuple[int, datetime, str]:
+    label = str(row.get("snapshot_label") or "")
+    observed_at = next(
+        (
+            parsed
+            for field in (
+                "odds_snapshot_time",
+                "saved_at",
+                "prediction_created_at",
+                "created_at",
+            )
+            if (parsed := _to_datetime(row.get(field))) is not None
+        ),
+        datetime.max.replace(tzinfo=UTC),
+    )
+    return (
+        CHECKPOINT_ORDER.get(label, len(CHECKPOINT_ORDER)),
+        observed_at,
+        _observation_key(row),
+    )
+
+
+def _best_ev_rank(row: dict[str, Any]) -> tuple[float, tuple[int, datetime, str]]:
+    expected_roi = _to_float(row.get("expected_roi_units"))
+    return (
+        -(expected_roi if expected_roi is not None else float("-inf")),
+        _observation_rank(row),
+    )
+
+
+def group_forward_observation_docs(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Group read-only presentation rows without collapsing evaluation units."""
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for source_row in rows:
+        row = dict(source_row)
+        exposure_key = forward_exposure_key(row)
+        row["canonical_exposure_key"] = exposure_key
+        groups.setdefault(exposure_key, []).append(row)
+
+    grouped: list[dict[str, Any]] = []
+    for exposure_key, group in groups.items():
+        ordered = sorted(group, key=_observation_rank)
+        representative = dict(min(ordered, key=_best_ev_rank))
+        stakes = [
+            value
+            for row in ordered
+            if (value := _to_float(row.get("stake_units"))) is not None
+        ]
+        pnl_values = [
+            value
+            for row in ordered
+            if (value := _to_float(row.get("pnl_units"))) is not None
+        ]
+        official_clv_rows = [
+            row for row in ordered if row.get("official_clv") is True
+        ]
+        official_clv_values = [
+            value
+            for row in official_clv_rows
+            if (value := _to_float(row.get("clv_pct"))) is not None
+        ]
+        total_stake = sum(stakes) if stakes else None
+        total_pnl = sum(pnl_values) if pnl_values else None
+        observation_keys = [_observation_key(row) for row in ordered]
+        snapshot_labels = list(
+            dict.fromkeys(
+                str(row.get("snapshot_label"))
+                for row in ordered
+                if row.get("snapshot_label")
+            )
+        )
+        representative.update(
+            {
+                "canonical_exposure_key": exposure_key,
+                "observation_count": len(ordered),
+                "observation_keys": observation_keys,
+                "snapshot_labels": snapshot_labels,
+                "best_snapshot_label": representative.get(
+                    "snapshot_label"
+                ),
+                "settled_observation_count": sum(
+                    row.get("settlement_status") == "settled"
+                    for row in ordered
+                ),
+                "official_clv_count": len(official_clv_rows),
+                "beat_closing_line_count": sum(
+                    row.get("beat_closing_line") is True
+                    for row in official_clv_rows
+                ),
+                "average_clv_pct": (
+                    sum(official_clv_values) / len(official_clv_values)
+                    if official_clv_values
+                    else None
+                ),
+            }
+        )
+        if total_stake is not None:
+            representative["stake_units"] = total_stake
+        if total_pnl is not None:
+            representative["pnl_units"] = total_pnl
+        if total_stake and total_pnl is not None:
+            representative["roi_units"] = total_pnl / total_stake
+        representative["clv_beat_rate"] = (
+            representative["beat_closing_line_count"]
+            / representative["official_clv_count"]
+            if representative["official_clv_count"]
+            else None
+        )
+        grouped.append(representative)
+    return grouped
 
 
 def _selection_rank(row: dict[str, Any]) -> tuple[int, datetime, str]:
