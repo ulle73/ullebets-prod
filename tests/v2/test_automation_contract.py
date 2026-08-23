@@ -421,11 +421,16 @@ def test_workflow_directory_rejects_postmatch_recovery_without_catch_up() -> Non
     workflow_path = workflow_dir / "ev-shadow-settlement.yml"
     original_bytes = workflow_path.read_bytes()
     original = original_bytes.decode("utf-8")
+    lines = original.splitlines(keepends=True)
+    recovery_line_indexes = [
+        index
+        for index, line in enumerate(lines)
+        if "--include-unresolved-forward-bets" in line
+    ]
+    assert recovery_line_indexes
+    del lines[recovery_line_indexes[0]]
     try:
-        workflow_path.write_text(
-            original.replace("          --include-unresolved-forward-bets \\\n", "", 1),
-            encoding="utf-8",
-        )
+        workflow_path.write_bytes("".join(lines).encode("utf-8"))
         report = inspect_workflow_directory(workflow_dir)
     finally:
         workflow_path.write_bytes(original_bytes)

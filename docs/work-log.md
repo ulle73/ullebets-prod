@@ -235,12 +235,18 @@ Changes:
   unresolved-forward recovery path.
 - Automation verification now rejects the former global concurrency group and
   requires the recovery command, minimum-age guard, and job order.
+- The negative workflow-contract test now removes its target line through
+  `splitlines(keepends=True)` and byte-preserving rewrite, so the same gate
+  executes under both LF and CRLF checkouts.
 
 Verification:
 
 - Regression tests were observed failing before implementation and passing
   afterward; targeted result: `32 passed in 2.53s`.
-- Full V2 suite after the final diff: `528 passed in 62.63s`.
+- The first merged-main run exposed the LF-only test mutation on Windows:
+  `1 failed, 527 passed`. After the newline-neutral test repair, the exact
+  regression passed `1/1` and the full merged-main suite passed
+  `528 passed in 44.14s`.
 - Production recovery dry-run selected 7 exact affected matches and produced
   7/7 raw statistics, incidents, shotmaps, results, and canonical results,
   1,821 canonical stat rows, matched parity, zero source errors, and `ok`
