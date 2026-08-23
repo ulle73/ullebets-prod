@@ -31,7 +31,7 @@ grouping.
 
 Current evidence:
 
-- 103 backend feature/contract tests passed;
+- 103 backend feature/contract tests and the full 522-test V2 suite passed;
 - 57 frontend tests, strict TypeScript, ESLint, and production build passed;
 - real read-only scoring dry-run: 1,391 snapshots, 249 canonical markets, 402
   scores, 306 in-domain scores, 96 Brazil OOD scores excluded, 44 registered

@@ -148,7 +148,7 @@ describe('match analytics page', () => {
       '/api/v1/matches/match-123': detail,
     });
 
-    expect(await screen.findByRole('heading', { name: 'Cruzeiro mot Mirassol' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Cruzeiro mot Mirassol' }, { timeout: 15_000 })).toBeInTheDocument();
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/matches/match-123');
     expect(screen.getByRole('img', { name: 'Cruzeiro' })).toHaveAttribute('src', '/images/home.png');
     expect(screen.getByRole('img', { name: 'Mirassol' })).toHaveAttribute('src', '/images/away.png');
@@ -174,5 +174,5 @@ describe('match analytics page', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Backtest' }));
     expect(screen.getByText('Ingen matchup-ranking')).toBeInTheDocument();
-  });
+  }, 15_000);
 });

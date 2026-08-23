@@ -277,9 +277,10 @@ Current acceptance window:
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `449/449` in the reconciled local
-  `style-1` checkout. The earlier hosted `434/434` backend-isolation run
-  `31648971290` remains preserved as historical evidence.
+- [x] Current V2 regression suite passes `522/522` in the local
+  checkpoint-journal checkout. The earlier hosted `434/434`
+  backend-isolation run `31648971290` remains preserved as historical
+  evidence.
 - [x] The V2 worktree was committed and merge-verified without secrets,
   caches, or unnecessary generated data; the clean merged checkout passed
   `392/392` tests at that checkpoint.

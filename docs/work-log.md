@@ -30,8 +30,8 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `449/449` in
-  the current reconciled `style-1` checkout.
+- `VERIFIED`: the full V2 Python test suite currently passes, `522/522` in
+  the current checkpoint-journal checkout.
 
 ### Backend
 
@@ -230,7 +230,8 @@ python -u scripts/forward_v2/score_ev_shadow_model.py --repo-root C:\dev\ullebet
 
 Results:
 
-- Backend feature/contract gate: `103 passed`.
+- Backend feature/contract gate: `103 passed`; the subsequent full V2 suite
+  passed `522/522`.
 - Frontend gate under Node 24.19: `57 passed`; TypeScript, ESLint, and
   production build all exited `0`.
 - Real database dry-run read `1,391` snapshot rows, built `249` canonical
