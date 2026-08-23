@@ -389,6 +389,52 @@ def test_settlement_workflow_refreshes_clv_then_forward_results() -> None:
     )
 
 
+def test_postmatch_workflows_recover_missing_actuals_without_global_queue_starvation() -> None:
+    settlement_workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "ev-shadow-settlement.yml"
+    ).read_text(encoding="utf-8")
+    daily_enrichment_workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "update-teamstats-and-teamprofiles.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "ingest_match_enrichment.py" in settlement_workflow
+    enrichment_index = settlement_workflow.index("ingest_match_enrichment.py")
+    settlement_index = settlement_workflow.index("settle_forward_bets.py")
+    assert enrichment_index < settlement_index
+    assert "--include-unresolved-forward-bets" in settlement_workflow
+    assert "group: ullebets-v2-postmatch" in settlement_workflow
+    assert "group: ullebets-v2-backend" not in settlement_workflow
+
+    assert "--include-unresolved-forward-bets" in daily_enrichment_workflow
+    assert "group: ullebets-v2-teamstats" in daily_enrichment_workflow
+    assert "group: ullebets-v2-backend" not in daily_enrichment_workflow
+
+
+def test_workflow_directory_rejects_postmatch_recovery_without_catch_up() -> None:
+    workflow_dir = repo_root() / ".github" / "workflows"
+    workflow_path = workflow_dir / "ev-shadow-settlement.yml"
+    original_bytes = workflow_path.read_bytes()
+    original = original_bytes.decode("utf-8")
+    try:
+        workflow_path.write_text(
+            original.replace("          --include-unresolved-forward-bets \\\n", "", 1),
+            encoding="utf-8",
+        )
+        report = inspect_workflow_directory(workflow_dir)
+    finally:
+        workflow_path.write_bytes(original_bytes)
+
+    flagged = {row["file"]: row for row in report["file_reports"]}
+    assert "ev-shadow-settlement.yml" in report["invalid_content_files"]
+    assert "missing_required_helper_fragments" in flagged["ev-shadow-settlement.yml"]["findings"]
+
+
 def test_ev_forward_workflow_is_manual_recovery_only() -> None:
     workflow = (
         repo_root()

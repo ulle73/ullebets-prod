@@ -28,12 +28,27 @@ REQUIRED_ENV_KEYS = [
 WORKFLOW_DRY_RUN_INPUT_DESCRIPTION = 'description: "Run without writes (smoke test)."'
 WORKFLOW_DRY_RUN_RUNNER_WIRING = "dry_run: ${{ inputs.dry_run || false }}"
 HELPER_WORKFLOW_FILES = [
+    "ev-shadow-settlement.yml",
     "v2-healthcheck.yml",
     "v2-odds-scheduler.yml",
     "v2-python-job.yml",
 ]
 FORBIDDEN_DIRECT_WORKFLOW_FRAGMENTS = ["npm ", "pnpm ", "yarn ", "node ", "pages/api", "next "]
 HELPER_WORKFLOW_RULES = {
+    "ev-shadow-settlement.yml": {
+        "required_fragments": [
+            'cron: "17 * * * *"',
+            "group: ullebets-v2-postmatch",
+            "uses: ./.github/workflows/v2-python-job.yml",
+            "ingest_match_enrichment.py",
+            "--include-unresolved-forward-bets",
+            "--minimum-match-age-hours 3",
+            "settle_forward_bets.py",
+            "refresh_clv_tracking.py",
+            "refresh_forward_results.py",
+        ],
+        "forbidden_fragments": ["group: ullebets-v2-backend"],
+    },
     "v2-odds-scheduler.yml": {
         "required_fragments": [
             'cron: "23 * * * *"',
@@ -97,8 +112,12 @@ WORKFLOW_CONTENT_RULES = {
         "forbidden_fragments": [],
     },
     "update-teamstats-and-teamprofiles.yml": {
-        "required_fragments": ["--fixture-source db"],
-        "forbidden_fragments": [],
+        "required_fragments": [
+            "--fixture-source db",
+            "--include-unresolved-forward-bets",
+            "group: ullebets-v2-teamstats",
+        ],
+        "forbidden_fragments": ["group: ullebets-v2-backend"],
     },
 }
 DEFAULT_WORKFLOW_LEGACY_CONTRACT = {

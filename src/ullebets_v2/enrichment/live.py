@@ -640,7 +640,8 @@ def build_live_match_enrichment_source_rows(
         source_match_id = target.get("source_match_id")
         source_match_id_str = str(source_match_id) if source_match_id is not None else None
         source_date = str(
-            target.get("source_date")
+            target.get("fixture_date_stockholm")
+            or target.get("source_date")
             or (_parse_datetime(target.get("start_time")) or now).date().isoformat()
         )
         row: dict[str, Any] = {

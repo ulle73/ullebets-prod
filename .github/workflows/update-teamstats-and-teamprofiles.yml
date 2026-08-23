@@ -21,7 +21,7 @@ on:
         type: boolean
 
 concurrency:
-  group: ullebets-v2-backend
+  group: ullebets-v2-teamstats
   cancel-in-progress: false
 
 permissions:
@@ -43,6 +43,7 @@ jobs:
           --mode live \
           --fixture-source db \
           --date "$TARGET" \
+          --include-unresolved-forward-bets \
           --source-workflow update-teamstats-and-teamprofiles.yml \
           --dry-run
         if [ "${{ inputs.skip_generate_profiles }}" != "true" ]; then

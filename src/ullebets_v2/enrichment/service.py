@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,9 @@ from ullebets_v2.enrichment.replay import (
     build_teamstats_source_rows_from_database,
 )
 from ullebets_v2.enrichment.reports import build_match_enrichment_audit_rows, build_match_enrichment_parity_rows
+from ullebets_v2.forward_timing import to_utc_datetime
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
+from ullebets_v2.settlement.service import FORWARD_BET_SELECTION_SOURCE, build_settled_docs
 
 
 def filter_source_rows_by_dates(source_rows: list[dict[str, Any]], dates: list[str] | None) -> list[dict[str, Any]]:
@@ -32,6 +35,39 @@ def filter_source_rows_by_dates(source_rows: list[dict[str, Any]], dates: list[s
         if matches:
             filtered.append({**row, "matches": matches})
     return filtered
+
+
+def select_unresolved_forward_match_keys(
+    *,
+    forward_bet_docs: list[dict[str, Any]],
+    match_stats_canonical: list[dict[str, Any]],
+    match_results_canonical: list[dict[str, Any]],
+    reference_time: datetime,
+    minimum_match_age: timedelta,
+) -> list[str]:
+    cutoff = reference_time - minimum_match_age
+    eligible_bets = []
+    for row in forward_bet_docs:
+        match_start_time = to_utc_datetime(row.get("match_start_time"))
+        if match_start_time is None or match_start_time > cutoff:
+            continue
+        eligible_bets.append(row)
+
+    settlement_rows = build_settled_docs(
+        selection_docs=eligible_bets,
+        match_stats_canonical=match_stats_canonical,
+        match_results_canonical=match_results_canonical,
+        selection_source=FORWARD_BET_SELECTION_SOURCE,
+        settled_at=reference_time,
+    )
+    return sorted(
+        {
+            str(row["match_key"])
+            for row in settlement_rows
+            if row.get("match_key")
+            and row.get("settlement_status") in {"pending_result", "missing_actual"}
+        }
+    )
 
 
 def load_replay_source_rows(
@@ -220,7 +256,12 @@ def run_live_match_enrichment_window(
         extra_summary={
             "mode": "live",
             "target_matches": len(targets),
-            "dates": sorted({str(row.get("source_date") or "") for row in targets}),
+            "dates": sorted(
+                {
+                    str(row.get("fixture_date_stockholm") or row.get("source_date") or "")
+                    for row in targets
+                }
+            ),
             "errors": sum(1 for row in live_result["match_rows"] if row.get("error")),
             "matched_targets": len(live_result["source_rows"]),
             "match_rows": live_result["match_rows"],

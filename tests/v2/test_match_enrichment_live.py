@@ -147,6 +147,65 @@ def test_build_live_match_enrichment_source_rows_preserves_raw_metadata() -> Non
     assert docs["match_results"][0]["away_score"] == 1
 
 
+def test_live_enrichment_uses_fixture_product_date_when_source_date_drifted() -> None:
+    target = {
+        **build_fixture_target(),
+        "source_date": "2025-11-30",
+        "fixture_date_stockholm": "2025-11-21",
+    }
+
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
+        if url.endswith("/event/14671649"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={"event": {"homeScore": {"current": 2}, "awayScore": {"current": 1}}},
+            )
+        if url.endswith("/event/14671649/statistics"):
+            return HttpJsonResponse(
+                status=200,
+                headers={"content-type": "application/json"},
+                data={
+                    "statistics": [
+                        {
+                            "period": "ALL",
+                            "groups": [
+                                {
+                                    "groupName": "Match overview",
+                                    "statisticsItems": [
+                                        {"key": "cornerKicks", "homeValue": 6, "awayValue": 5}
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+        return HttpJsonResponse(status=404, headers={}, data=None)
+
+    live_rows = build_live_match_enrichment_source_rows(
+        targets=[target],
+        source_config=EnrichmentSourceConfig.from_env({}),
+        transport=transport,
+        fetched_at=datetime(2025, 11, 22, 1, 0, tzinfo=UTC),
+    )
+
+    assert live_rows["match_rows"][0]["source_date"] == "2025-11-21"
+    assert live_rows["source_rows"][0]["matches"][0]["date"] == "2025-11-21"
+
+    summary = run_live_match_enrichment_window(
+        targets=[target],
+        support_docs=build_support_docs(),
+        source_workflow="postmatch-recovery.yml",
+        source_config=EnrichmentSourceConfig.from_env({}),
+        dry_run=True,
+        transport=transport,
+    )
+
+    assert summary["dates"] == ["2025-11-21"]
+    assert summary["parity_status_counts"] == {"matched": 1}
+
+
 def test_build_live_match_enrichment_source_rows_preserves_fixture_team_keys_without_source_ids() -> None:
     target = build_fixture_target()
 

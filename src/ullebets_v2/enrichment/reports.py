@@ -28,7 +28,12 @@ def _match_identity(match: dict[str, Any]) -> str:
     return "|".join(
         [
             str(match.get("match_key") or ""),
-            str(match.get("date") or match.get("source_date") or ""),
+            str(
+                match.get("fixture_date_stockholm")
+                or match.get("date")
+                or match.get("source_date")
+                or ""
+            ),
             str(match.get("homeTeamId") or match.get("home_team_key") or match.get("homeTeamName") or match.get("home_team_name") or ""),
             str(match.get("awayTeamId") or match.get("away_team_key") or match.get("awayTeamName") or match.get("away_team_name") or ""),
         ]
@@ -36,7 +41,12 @@ def _match_identity(match: dict[str, Any]) -> str:
 
 
 def _match_date(match: dict[str, Any]) -> str:
-    return str(match.get("date") or match.get("source_date") or "unknown-date")
+    return str(
+        match.get("fixture_date_stockholm")
+        or match.get("date")
+        or match.get("source_date")
+        or "unknown-date"
+    )
 
 
 def build_match_enrichment_parity_rows(
