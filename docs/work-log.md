@@ -237,7 +237,7 @@ Next:
 
 ### 2026-08-23 - Fail-closed fixture ingestion after current-day coverage loss
 
-Status: `BLOCKED`
+Status: `VERIFIED`
 
 Objective:
 Reproduce why the 23 August dashboard shows four fixtures although the supplied
@@ -268,6 +268,8 @@ git diff --check
 vercel deploy --prod --yes --scope ryds-projects-4371adb0
 gh workflow run import-fixtures-rolling.yml -f start_date=2026-08-23 -f end_date=2026-08-23 -f dry_run=false
 gh run watch 32631232032 --exit-status
+gh workflow run import-fixtures-rolling.yml -f start_date=2026-08-23 -f end_date=2026-08-23 -f dry_run=false
+gh run watch 32634363672 --exit-status
 ```
 
 Results:
@@ -295,28 +297,36 @@ Results:
   `processed_dates=0`, and `FixtureSourceUnavailableError` listing the
   RapidAPI `429/403` responses plus public fallback `403`; it did not create
   a new canonical fixture batch.
+- The local `.env.local` now contains `15` `RAPIDAPI_KEYS`. The same secret
+  was replaced in GitHub Actions and in Vercel Production as a sensitive
+  server-side environment variable; neither platform exposed the value during
+  verification.
+- The subsequent one-date, write-mode GitHub Actions run `32634363672`
+  succeeded. It processed `1` date and reported `8` raw documents, `38`
+  canonical upsert operations, and `38` source-link operations. A direct V2
+  read then confirmed exactly `19` canonical documents, `19` unique identity
+  keys, and no duplicate identities for `2026-08-23`.
+- The protected production dashboard now returns exactly `19` matches for
+  `2026-08-23`: Brasileirão Série A `6`, Serie A `4`, Premier League `3`,
+  La Liga `3`, and Ligue 1 `3`.
 
 Insight:
 
-The Stockholm date-filter repair is correct but cannot create data that was
-never ingested. This is a live-source entitlement/capacity outage, compounded
-by a workflow bug that treated zero successful source batches as a valid empty
-day.
+The initial fault was a live-source entitlement/capacity outage, compounded by
+a workflow bug that treated zero successful source batches as a valid empty
+day. New active credentials restore the schedule; the fail-closed behavior
+remains necessary for the next provider outage.
 
 Remaining:
 
-- `BLOCKED`: restoring all 19 fixtures requires a legitimate scheduled-fixture
-  provider with sufficient active quota. Manually constructing canonical data
-  from screenshots would be untraceable and is deliberately not used.
-- The production workflow will correctly fail after this change until that
-  provider is restored; current dashboard data remains incomplete rather than
-  being falsely declared current.
+- `UNPROVEN`: the new credential pool's sustained capacity for the rolling
+  D0-D7 schedule is not yet proven; only the repaired D0 import has current
+  runtime evidence.
 
 Next:
 
-- Install or restore an authorised schedule-provider credential, run one
-  `2026-08-23` live ingest, and verify the protected dashboard returns all 19
-  fixtures before accepting current-day coverage.
+- Observe the next scheduled rolling D0-D7 import and require nonzero source
+  coverage plus canonical counts before accepting sustained provider capacity.
 
 ### 2026-08-23 - Stockholm-baserat fixture-datum för matchlistan
 

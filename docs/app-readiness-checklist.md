@@ -58,9 +58,10 @@ Status details and evidence:
 
 ## 3. Fixtures and match identity
 
-- [ ] `BLOCKED` Upcoming fixtures require an active, quota-backed live source.
-  On 2026-08-23 all configured scheduled-fixture endpoints returned 403/429
-  (or timeout), so the source cannot currently establish complete coverage.
+- [x] Upcoming fixtures can be fetched from the live source. After replacing
+  `RAPIDAPI_KEYS` with 15 configured keys, the 2026-08-23 write-mode run
+  returned the complete 19-fixture schedule and the production read API
+  returned the same 19 unique canonical fixtures.
 - [x] Raw fixture payloads are stored before normalization.
 - [x] Canonical fixtures and source links are created idempotently.
 - [x] Empty fixture dates are accepted only after every configured league
@@ -254,7 +255,7 @@ Current acceptance window:
 
 - [x] `VERIFIED` A stable read-only API now exposes the fixture/dashboard, match, league, team, Auto, results, model, and system contracts required by the frontend without adding write behavior.
 - [x] `VERIFIED` The complete `style-1` frontend is implemented across the five primary destinations plus match, team, league, model, system-status, and real not-found routes.
-- [ ] `PARTIAL` Today's/upcoming matches and match detail are rendered from read contracts, including available scores, market offers, actuals, checkpoints, team comparison, and forward evidence. The selected dashboard date filters on the derived Stockholm-local kickoff date rather than fixture `source_date`; the protected Vercel production API verified the `2026-08-22` contract at 19 matches, including Hull City and excluding Arsenal. Current-day completeness is blocked by the unavailable fixture source: the `2026-08-23` production response contains only the four canonical records already captured before the outage, not the 19 matches evidenced by the supplied schedules.
+- [x] `VERIFIED` Today's/upcoming matches and match detail are rendered from read contracts, including available scores, market offers, actuals, checkpoints, team comparison, and forward evidence. The selected dashboard date filters on the derived Stockholm-local kickoff date rather than fixture `source_date`; the protected Vercel production API verified the `2026-08-22` contract at 19 matches, including Hull City and excluding Arsenal, and the repaired `2026-08-23` source/import/read path at the supplied 19 matches (6 Brasileirão Série A, 4 Serie A, and 3 each in Premier League, La Liga, and Ligue 1).
 - [x] `VERIFIED` Team statistics are explorable by home/away context, FOR/AGAINST orientation, period, rank, and league-relative deviation; league stat rankings are also available.
 - [x] `VERIFIED` Matchup cards expose available market-bias profiles as a
   compact UNDER/OVER rail with signed residual, over/non-push sample,
