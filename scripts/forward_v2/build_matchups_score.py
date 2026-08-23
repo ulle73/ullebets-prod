@@ -31,7 +31,7 @@ def main() -> int:
     ensure_v2_database(config)
     config.ensure_directories()
     database = get_database(config)
-    targets = list(database["fixtures_canonical"].find({"source_date": args.date}, projection={"_id": 0}))
+    targets = list(database["fixtures_canonical"].find({"fixture_date_stockholm": args.date}, projection={"_id": 0}))
     summary = run_matchups_score_build(
         source_workflow=args.source_workflow,
         target_matches=targets,

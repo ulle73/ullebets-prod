@@ -380,7 +380,7 @@ def read_dashboard(
     fixtures = _find_rows(
         database,
         FIXTURES_CANONICAL,
-        {"source_date": selected_date},
+        {"fixture_date_stockholm": selected_date},
         sort=[("start_time", 1)],
     )
     match_keys = [str(row.get("match_key")) for row in fixtures if row.get("match_key")]
@@ -556,12 +556,12 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
     match_key = str(fixture.get("match_key") or "")
     if not match_key:
         return None
-    source_date = str(fixture.get("source_date") or "")
-    date_matchups, matchup_source = _load_matchups(database, [fixture], source_date) if source_date else ([], "missing")
+    fixture_date = str(fixture.get("fixture_date_stockholm") or "")
+    date_matchups, matchup_source = _load_matchups(database, [fixture], fixture_date) if fixture_date else ([], "missing")
     matchup_rows = [row for row in date_matchups if str(row.get("match_key") or "") == match_key]
     league_avg_rows = (
-        _find_rows(database, MATCHUPS_LEAGUE_AVG, {"match_key": match_key, "snapshot_date": source_date})
-        if source_date
+        _find_rows(database, MATCHUPS_LEAGUE_AVG, {"match_key": match_key, "snapshot_date": fixture_date})
+        if fixture_date
         else []
     )
     snapshot_rows = _find_rows(database, MARKET_SNAPSHOTS, {"match_key": match_key}, sort=[("snapshot_time", 1)])
@@ -601,8 +601,8 @@ def read_match_detail(database: Any, match_key: str) -> dict[str, Any] | None:
         home_profile = _current_profile_for_team(database, team_key=home_key, match_type="home", now=now) if home_key else None
         away_profile = _current_profile_for_team(database, team_key=away_key, match_type="away", now=now) if away_key else None
     else:
-        home_profile = _profile_as_of(database, home_key, "home", source_date) if home_key else None
-        away_profile = _profile_as_of(database, away_key, "away", source_date) if away_key else None
+        home_profile = _profile_as_of(database, home_key, "home", fixture_date) if home_key and fixture_date else None
+        away_profile = _profile_as_of(database, away_key, "away", fixture_date) if away_key and fixture_date else None
 
     team_rows = _find_rows(
         database,

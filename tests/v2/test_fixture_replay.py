@@ -68,6 +68,9 @@ def test_build_fixture_documents_maps_support_ids_and_slugs() -> None:
     assert docs["canonical"][0]["away_team_key"] == "brasileirao-serie-a:1959"
     assert docs["canonical"][0]["mapping_confidence"] == "exact_support_ids"
     assert docs["canonical"][0]["status_type"] == "notstarted"
+    # The source endpoint's requested day is provenance only. This fixture
+    # starts at midnight in Stockholm on the following local calendar day.
+    assert docs["canonical"][0]["fixture_date_stockholm"] == "2025-10-09"
 
 
 def test_iter_target_dates_builds_closed_window() -> None:

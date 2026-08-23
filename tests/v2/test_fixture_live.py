@@ -117,6 +117,16 @@ def test_index_plan_contains_fixture_source_links() -> None:
     assert "fixture_source_links" in names
 
 
+def test_fixture_index_plan_supports_stockholm_date_dashboard_reads() -> None:
+    fixture_plan = next(item for item in build_core_index_plan() if item["collection"] == "fixtures_canonical")
+    indexes = {item["name"]: item for item in fixture_plan["indexes"]}
+
+    assert indexes["fixture_date_stockholm_start_time"]["keys"] == [
+        ("fixture_date_stockholm", 1),
+        ("start_time", 1),
+    ]
+
+
 def test_build_category_plan_groups_leagues_by_category() -> None:
     plan = build_category_plan(build_support_docs())
     assert plan == [{"category_id": 13, "league_ids": [325]}]

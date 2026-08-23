@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-22
+Last updated: 2026-08-23
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -191,6 +191,125 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-23 - Stockholm-baserat fixture-datum för matchlistan
+
+Status: `PARTIAL`
+
+Objective:
+Åtgärda den reproducerade datumblandningen i dashboarden utan att förvanska
+källproveniens eller historiska rådata.
+
+Changes:
+
+- Lade till det härledda canonical-fältet `fixture_date_stockholm`, beräknat
+  från `start_time` i `Europe/Stockholm`; `source_date` bevaras oförändrat som
+  den externa källans inläsningsetikett.
+- Uppdaterade dashboarden samt date-bundna matchup- och league-average-läsningar
+  till att använda produktdatumet och lade till ett sammansatt index för
+  `fixture_date_stockholm` och `start_time`.
+- Lade till en V2-säker, idempotent backfill som endast skriver det härledda
+  fältet. Den produktionsanslutna körningen uppdaterade `755/755` canonical
+  fixtures; en efterföljande dry-run krävde `0` ändringar.
+- Lade till regressionstester för tidszonsgräns, 21/22/23-augusti-kontraktet,
+  indexet och backfillens idempotens.
+
+Tests:
+
+```text
+python scripts/forward_v2/backfill_fixture_date_stockholm.py --dry-run
+python scripts/forward_v2/backfill_fixture_date_stockholm.py --batch-size 100
+python scripts/forward_v2/backfill_fixture_date_stockholm.py --dry-run
+python -m pytest tests/v2 -q
+cd frontend && npm test -- --run
+cd frontend && npm run typecheck
+cd frontend && npm run lint
+cd frontend && npm run build
+python -m compileall -q src scripts
+git diff --check
+```
+
+Results:
+
+- Första dry-run: `scanned=755`, `eligible=755`, `would_update=755`.
+  Skrivkörningen uppdaterade exakt `755`; andra dry-run rapporterade
+  `already_correct=755` och `would_update=0`.
+- Det nya indexet finns i den anslutna `fixtures_canonical`-kollektionen.
+- Det aktuella dashboard-kontraktet för `2026-08-22` returnerar `19` matcher:
+  Arsenal - Coventry City (`2026-08-21` Stockholm) utesluts och Hull City -
+  Manchester United (`2026-08-22 13:30` Stockholm) inkluderas. Den bevarade
+  källbatchen innehåller fortfarande fördelningen `3/19/4` över 21/22/23.
+- Backend: `480 passed in 23.98s`. Frontend: `17` filer och `57` tester.
+  TypeScript, lint, produktionsbygge (`2,343` moduler), compileall och
+  whitespace-kontroll passerade.
+
+Insight:
+
+En lyckad inläsning av en källdag betyder inte att alla matcher startar samma
+lokala kalenderdag. Produktens datumfilter måste baseras på den canoniska
+avsparkstiden, medan `source_date` endast ska användas för spårbarhet.
+
+Remaining:
+
+- `PARTIAL`: den publika Vercel-artefakten måste fortfarande verifieras efter
+  att den här committen har publicerats; lokal kod och den produktionsanslutna
+  V2-kontraktläsningen är verifierade.
+
+Next:
+
+- Publicera aktuell `main` till rätt Vercel-projekt och kontrollera dess
+  `/api/v1/dashboard?date=2026-08-22`-svar mot den här kontraktregressionen.
+
+### 2026-08-23 - Dashboardens datumfilter blandar avsparksdagar
+
+Status: `FAILED`
+
+Objective:
+Verifiera varför den valda matchdagen `2026-08-22` visar matcher från andra
+Stockholm-datum i den produktionsanslutna skrivskyddade V2-vyn.
+
+Changes:
+
+- Ingen produktkod, databasdata eller konfiguration ändrades.
+- Dokumenterade den reproducerade read-kontraktsdefekten och sänkte endast den
+  berörda frontend-readiness-raden till `PARTIAL`.
+
+Tests:
+
+```text
+Read-only audit: fixtures_canonical.find({"source_date": "2026-08-22"})
+Read-only contract call: read_dashboard(db, source_date="2026-08-22")
+```
+
+Results:
+
+- Båda läsningarna returnerade 26 matcher för `source_date=2026-08-22`.
+- Avsparksdatum i `Europe/Stockholm` var 3 matcher den 21:a, 19 den 22:a och
+  4 den 23:e. Arsenal - Coventry City startar `2026-08-21T21:00:00+02:00`;
+  Hull City - Manchester United startar `2026-08-22T13:30:00+02:00`.
+- `read_dashboard()` filtrerar `fixtures_canonical` på den externa
+  inläsningsetiketten `source_date`. Fixture-normaliseringen kopierar i sin
+  tur payloadens/frågans datum till samma fält även när händelsens
+  `start_time` tillhör en annan lokal kalenderdag.
+
+Insight:
+
+`source_date` är källproveniens, inte ett säkert användarvalt speldatum.
+Datumvyn måste filtrera på ett separat, härlett datum från `start_time` i
+`Europe/Stockholm`; rått källdatum ska bevaras oförändrat för spårbarhet.
+
+Remaining:
+
+- `FAILED`: den produktionsanslutna matchlistan kan blanda dagar när
+  datuminläsningen innehåller evenemang utanför den begärda kalenderdagen.
+- Ingen regression täcker skillnaden mellan `source_date` och lokalt
+  avsparksdatum.
+
+Next:
+
+- Implementera ett separat, indexerat Stockholm-baserat fixture-datum,
+  migrera/rebygg bara det härledda fältet från befintliga `start_time`-värden,
+  och lägg till en regression med 21/22/23-augusti-fixtures.
 
 ### 2026-08-22 - Stable lazy-route frontend gate
 

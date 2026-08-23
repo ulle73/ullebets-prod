@@ -136,6 +136,10 @@ def build_core_index_plan() -> list[dict[str, Any]]:
             "indexes": [
                 {"keys": [("match_key", 1)], "name": "match_key_unique", "unique": True},
                 {"keys": [("start_time", 1), ("league_key", 1)], "name": "start_time_league_key"},
+                {
+                    "keys": [("fixture_date_stockholm", 1), ("start_time", 1)],
+                    "name": "fixture_date_stockholm_start_time",
+                },
             ],
         },
         {

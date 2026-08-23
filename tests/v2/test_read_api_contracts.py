@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 import ullebets_v2.read_api.http as read_http
 import ullebets_v2.read_api.service as read_service
@@ -102,11 +103,13 @@ def fixture(
     away_name: str = 'Away FC',
     start_time: datetime | None = None,
 ):
+    kickoff = start_time or datetime.fromisoformat(f'{source_date}T18:00:00+00:00')
     return {
         'match_key': match_key,
         'source_match_id': match_key,
         'source_date': source_date,
-        'start_time': start_time or datetime(2026, 8, 13, 18, tzinfo=UTC),
+        'fixture_date_stockholm': kickoff.astimezone(ZoneInfo('Europe/Stockholm')).date().isoformat(),
+        'start_time': kickoff,
         'league_key': league_key,
         'league_name': league_name,
         'home_team_key': home_key,

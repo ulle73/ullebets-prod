@@ -2,6 +2,70 @@ from __future__ import annotations
 
 from typing import Any
 
+from pymongo import UpdateOne
+
+from ullebets_v2.fixtures.dates import fixture_date_stockholm
+
+
+def backfill_fixture_date_stockholm(
+    database: Any,
+    *,
+    batch_size: int = 200,
+    dry_run: bool = False,
+) -> dict[str, int]:
+    """Populate the rebuildable product-date derivative without changing source provenance."""
+    if batch_size < 1:
+        raise ValueError("batch_size must be at least 1")
+
+    collection = database["fixtures_canonical"]
+    summary = {
+        "scanned": 0,
+        "eligible": 0,
+        "would_update": 0,
+        "updated": 0,
+        "already_correct": 0,
+        "missing_start_time": 0,
+        "missing_match_key": 0,
+    }
+    operations: list[UpdateOne] = []
+
+    def flush() -> None:
+        if not operations:
+            return
+        if not dry_run:
+            collection.bulk_write(operations, ordered=False)
+            summary["updated"] += len(operations)
+        operations.clear()
+
+    for row in collection.find(
+        {},
+        projection={"_id": 0, "match_key": 1, "start_time": 1, "fixture_date_stockholm": 1},
+    ):
+        summary["scanned"] += 1
+        match_key = row.get("match_key")
+        if not match_key:
+            summary["missing_match_key"] += 1
+            continue
+        derived_date = fixture_date_stockholm(row.get("start_time"))
+        if derived_date is None:
+            summary["missing_start_time"] += 1
+            continue
+        summary["eligible"] += 1
+        if row.get("fixture_date_stockholm") == derived_date:
+            summary["already_correct"] += 1
+            continue
+        summary["would_update"] += 1
+        operations.append(
+            UpdateOne(
+                {"match_key": str(match_key)},
+                {"$set": {"fixture_date_stockholm": derived_date}},
+            )
+        )
+        if len(operations) >= batch_size:
+            flush()
+    flush()
+    return summary
+
 
 def persist_fixture_records(
     database: Any,

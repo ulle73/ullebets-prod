@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 import ullebets_v2.read_api.service as read_service
 from ullebets_v2.read_api.service import read_auto, read_dashboard, read_match_detail, read_results
@@ -76,10 +77,12 @@ class QueryCapturingCollection(FakeCollection):
 
 
 def fixture_row(*, source_date: str = "2026-08-09", start_time: datetime | None = None) -> dict:
+    kickoff = start_time or datetime(2026, 8, 9, 18, 0, tzinfo=UTC)
     return {
         "match_key": "sofascore:123",
         "source_date": source_date,
-        "start_time": start_time or datetime(2026, 8, 9, 18, 0, tzinfo=UTC),
+        "fixture_date_stockholm": kickoff.astimezone(ZoneInfo("Europe/Stockholm")).date().isoformat(),
+        "start_time": kickoff,
         "league_key": "test-league",
         "league_name": "Test League",
         "home_team_key": "home",
@@ -205,6 +208,37 @@ def test_dashboard_reads_persisted_matchups_instead_of_recomputing(monkeypatch) 
     assert payload["matchups"][0]["rankingMethod"] == "rolling_12_weighted_45d"
     assert payload["matchups"][0]["rankingWindowMatches"] == 12
     assert payload["matchupSource"] == "persisted"
+
+
+def test_dashboard_filters_by_stockholm_fixture_date_not_source_provenance() -> None:
+    fixtures = QueryCapturingCollection(
+        [
+            {
+                **fixture_row(source_date="2026-08-22", start_time=datetime(2026, 8, 21, 19, 0, tzinfo=UTC)),
+                "match_key": "arsenal-21",
+                "fixture_date_stockholm": "2026-08-21",
+            },
+            {
+                **fixture_row(source_date="2026-08-22", start_time=datetime(2026, 8, 22, 11, 30, tzinfo=UTC)),
+                "match_key": "hull-22",
+                "fixture_date_stockholm": "2026-08-22",
+            },
+            {
+                **fixture_row(source_date="2026-08-22", start_time=datetime(2026, 8, 23, 14, 0, tzinfo=UTC)),
+                "match_key": "tomorrow-23",
+                "fixture_date_stockholm": "2026-08-23",
+            },
+        ]
+    )
+    database = FakeDatabase(
+        fixtures_canonical=fixtures,
+        matchups_score=FakeCollection([]),
+    )
+
+    payload = read_dashboard(database, source_date="2026-08-22")
+
+    assert fixtures.last_query == {"fixture_date_stockholm": "2026-08-22"}
+    assert [row["matchKey"] for row in payload["matches"]] == ["hull-22"]
 
 
 def test_dashboard_reranks_current_fixture_rows_after_stale_global_ranks() -> None:

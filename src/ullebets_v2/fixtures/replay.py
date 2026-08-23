@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ullebets_v2.fixtures.dates import fixture_date_stockholm
 from ullebets_v2.support.schemas import slugify
 
 
@@ -224,40 +225,42 @@ def build_fixture_documents(
         source_match_id = event.get("id") or event.get("event", {}).get("id")
         start_timestamp = event.get("startTimestamp") or event.get("event", {}).get("startTimestamp") or 0
         start_time = datetime.fromtimestamp(int(start_timestamp), tz=UTC) if start_timestamp else None
+        local_fixture_date = fixture_date_stockholm(start_time)
         identity_time = start_time.isoformat().replace("+00:00", "Z") if start_time else payload_date
         home_team_key = home_team["team_key"] if home_team else _fallback_team_key(league_key, home_payload)
         away_team_key = away_team["team_key"] if away_team else _fallback_team_key(league_key, away_payload)
         identity_key = "|".join([league_key, identity_time, home_team_key, away_team_key])
         match_key = f"sofascore:{source_match_id}" if source_match_id is not None else f"fixture:{identity_key}"
 
-        canonical_docs.append(
-            {
-                "match_key": match_key,
-                "identity_key": identity_key,
-                "source_match_id": source_match_id,
-                "source_type": "sofascore_scheduled_matches",
-                "raw_payload_hash": payload_hash,
-                "source_date": payload_date,
-                "start_time": start_time,
-                "league_key": league_key,
-                "league_id": league_doc.get("league_id") if league_doc else unique_tournament.get("id"),
-                "league_name": (league_doc or {}).get("league_name")
-                or unique_tournament.get("name")
-                or tournament.get("name"),
-                "home_team_key": home_team_key,
-                "away_team_key": away_team_key,
-                "home_team_name": (home_team or {}).get("team_name") or home_payload.get("name"),
-                "away_team_name": (away_team or {}).get("team_name") or away_payload.get("name"),
-                "status_type": event.get("status", {}).get("type"),
-                "season_id": event.get("season", {}).get("id") or (league_doc or {}).get("season_id"),
-                "mapping_confidence": _determine_mapping_confidence(
-                    league_doc is not None,
-                    home_match_type,
-                    away_match_type,
-                ),
-                "source_path": str(source_path),
-            }
-        )
+        canonical_doc = {
+            "match_key": match_key,
+            "identity_key": identity_key,
+            "source_match_id": source_match_id,
+            "source_type": "sofascore_scheduled_matches",
+            "raw_payload_hash": payload_hash,
+            "source_date": payload_date,
+            "start_time": start_time,
+            "league_key": league_key,
+            "league_id": league_doc.get("league_id") if league_doc else unique_tournament.get("id"),
+            "league_name": (league_doc or {}).get("league_name")
+            or unique_tournament.get("name")
+            or tournament.get("name"),
+            "home_team_key": home_team_key,
+            "away_team_key": away_team_key,
+            "home_team_name": (home_team or {}).get("team_name") or home_payload.get("name"),
+            "away_team_name": (away_team or {}).get("team_name") or away_payload.get("name"),
+            "status_type": event.get("status", {}).get("type"),
+            "season_id": event.get("season", {}).get("id") or (league_doc or {}).get("season_id"),
+            "mapping_confidence": _determine_mapping_confidence(
+                league_doc is not None,
+                home_match_type,
+                away_match_type,
+            ),
+            "source_path": str(source_path),
+        }
+        if local_fixture_date is not None:
+            canonical_doc["fixture_date_stockholm"] = local_fixture_date
+        canonical_docs.append(canonical_doc)
 
     return {
         "raw": raw_doc,
