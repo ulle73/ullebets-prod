@@ -193,6 +193,84 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-23 - Vercel-routing för liga-, lag- och matchdetaljer
+
+Status: `VERIFIED`
+
+Objective:
+Reproduce and permanently repair the production defect where the dashboard
+loaded but every clicked league, team, and match rendered an API error.
+
+Changes:
+
+- Replaced the incompatible Vercel Python catch-all entrypoint with the two
+  filesystem route depths Vercel supports: `api/v1/[resource]` and
+  `api/v1/[resource]/[resource_id]`.
+- Moved the complete HTTP adapter (V2-only database guard, JSON responses,
+  ETags, compression, cache policy, and write rejection) to the single shared
+  module `ullebets_v2.read_api.vercel_adapter`. The two Vercel files only
+  declare route entrypoints; they do not duplicate API behavior.
+- Added regression coverage that starts both entrypoints and verifies that a
+  single-segment path reaches the read dispatcher and an unknown league detail
+  receives V2 JSON `league_not_found`, rather than a Vercel filesystem page.
+
+Tests:
+
+```text
+python -m pytest -q tests/v2/test_vercel_read_api.py -k detail_function
+python -m pytest -q tests/v2/test_vercel_read_api.py -k single_segment
+python -m pytest -q tests/v2/test_vercel_read_api.py
+python -m compileall -q api src/ullebets_v2/read_api
+npm --prefix frontend run lint
+npm --prefix frontend run build
+vercel deploy --yes
+vercel deploy --prod --yes --scope ryds-projects-4371adb0
+vercel inspect dpl_DcbJPcrn5eHBH642oPpmekLStz6J --scope ryds-projects-4371adb0
+```
+
+Results:
+
+- The two new tests each failed first because the required Vercel dynamic
+  entrypoint did not exist. The final focused backend suite passed `6/6`.
+- Compile and whitespace checks, frontend ESLint (zero warnings), and the
+  TypeScript/Vite production build passed.
+- A local `vercel build` first exposed the unsupported catch-all/dynamic-route
+  collision. After the route-depth change it reached dependency installation
+  and stopped only because this workstation has no local `uv`; Vercel's remote
+  build supplies `uv` and completed successfully.
+- Preview deployment `dpl_8ZMAkBm8gLQngtFujRswKW3cMBxp` and production
+  deployment `dpl_DcbJPcrn5eHBH642oPpmekLStz6J` are `Ready`. Each contains
+  exactly `api/v1/[resource]` and `api/v1/[resource]/[resource_id]` Python
+  functions at `14.8 MB`. Production alias:
+  `https://ullebets-prod-preview.vercel.app`.
+- Authenticated production reads returned V2 JSON for
+  `/api/v1/leagues/brasileirao-serie-a` (`league, teams, ranking, matches`),
+  `/api/v1/teams/brasileirao-serie-a%3A1954`
+  (`team, league, contexts, matches`), and
+  `/api/v1/matches/sofascore%3A15235438` (complete match-detail payload).
+- A real-browser Playwright check clicked the same league, Cruzeiro, and
+  Cruzeiro - Flamengo links. The loaded headings were Brasileirão Série A,
+  Cruzeiro, and Cruzeiro mot Flamengo; none rendered the former read error.
+
+Insight:
+
+The previous Python catch-all looked correct in local proxy tests but Vercel
+never invoked it for two-segment filesystem paths. Declaring supported route
+depths while sharing one adapter makes the deployment contract explicit and
+prevents local mocks from masking a routing failure.
+
+Remaining:
+
+- The browser reported pre-existing CORS failures from the independent
+  Coastworks chatbot widget. They do not affect the verified Ullebets API or
+  the three drilldown routes and were not changed in this repair.
+
+Next:
+
+- Treat the drilldown routing as complete; only re-run the focused route test
+  and production smoke when the Vercel function layout or read API contract
+  changes.
+
 ### 2026-08-23 - Coastworks SiteChat widget endpoint update
 
 Status: `VERIFIED`

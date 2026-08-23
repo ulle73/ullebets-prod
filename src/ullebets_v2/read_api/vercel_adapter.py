@@ -6,27 +6,13 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
 import json
 from pathlib import Path
-import sys
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 
-# Vercel executes the function from the project root, while local import-based
-# tests execute it from the repository checkout. Support both execution models.
+# Vercel executes the function from the project root.  Keeping the adapter in
+# the application package makes all Vercel entrypoints use one implementation.
 REPOSITORY_ROOT = Path.cwd()
-
-
-def _configure_source_path() -> None:
-    candidates = [REPOSITORY_ROOT / "src"]
-    candidates.extend(parent / "src" for parent in Path(__file__).resolve().parents)
-    for candidate in candidates:
-        if candidate.exists() and str(candidate) not in sys.path:
-            sys.path.insert(0, str(candidate))
-            return
-
-
-_configure_source_path()
-
 
 _database: Any | None = None
 
