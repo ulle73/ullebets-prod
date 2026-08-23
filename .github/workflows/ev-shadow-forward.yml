@@ -30,6 +30,6 @@ jobs:
           --artifact models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib \
           --manifest models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json \
           --score-only \
-          --selection-policy-registry models/ev/forward_policy_registry_v1.json \
-          --selection-policy-id v6_corners_away_total_forward_v1 \
+          --selection-policy-registry models/ev/forward_policy_registry_v2.json \
+          --selection-policy-id v6_full_domain_checkpoint_journal_v2 \
           --dry-run

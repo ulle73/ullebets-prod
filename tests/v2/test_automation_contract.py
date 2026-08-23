@@ -100,7 +100,8 @@ def test_checkpoint_capture_workflows_score_v6_only_after_new_snapshots() -> Non
         assert "python -m pip install -e ." in workflow
         assert "score_ev_shadow_model.py" in workflow
         assert "ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib" in workflow
-        assert "v6_corners_away_total_forward_v1" in workflow
+        assert "forward_policy_registry_v2.json" in workflow
+        assert "v6_full_domain_checkpoint_journal_v2" in workflow
 
 
 def test_shared_runner_uses_current_node24_actions() -> None:
@@ -339,7 +340,7 @@ def test_legacy_dependency_contract_summarizes_native_vs_legacy_workflows() -> N
     assert rows["ai-bets-daily.yml"]["default_runtime"]["old_repo"] is False
 
 
-def test_ev_forward_workflow_uses_only_registered_v6_primary_policy() -> None:
+def test_ev_forward_workflow_uses_only_registered_checkpoint_journal_policy() -> None:
     workflow = (
         repo_root()
         / ".github"
@@ -352,9 +353,9 @@ def test_ev_forward_workflow_uses_only_registered_v6_primary_policy() -> None:
         "ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib"
         in workflow
     )
-    assert "forward_policy_registry_v1.json" in workflow
+    assert "forward_policy_registry_v2.json" in workflow
     assert (
-        "v6_corners_away_total_forward_v1"
+        "v6_full_domain_checkpoint_journal_v2"
         in workflow
     )
     assert "--selection-policy-registry" in workflow
@@ -362,6 +363,30 @@ def test_ev_forward_workflow_uses_only_registered_v6_primary_policy() -> None:
     assert "ev_logistic_recency45_asof_capped_v3" not in workflow
     assert "ev_nested_logistic_recency45_asof_capped_v4_shadow" not in workflow
     assert "ev_ensemble_v3_75_v4_25_shadow" not in workflow
+
+
+def test_settlement_workflow_refreshes_clv_then_forward_results() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "ev-shadow-settlement.yml"
+    ).read_text(encoding="utf-8")
+
+    settlement_index = workflow.index("settle_forward_bets.py")
+    clv_index = workflow.index("refresh_clv_tracking.py")
+    results_index = workflow.index("refresh_forward_results.py")
+    assert settlement_index < clv_index < results_index
+    assert workflow.count("refresh_clv_tracking.py") == 1
+    assert workflow.count("refresh_forward_results.py") == 1
+    assert re.search(
+        r"refresh_clv_tracking\.py\s+\\\s+--dry-run",
+        workflow,
+    )
+    assert re.search(
+        r"refresh_forward_results\.py\s+\\\s+--dry-run",
+        workflow,
+    )
 
 
 def test_ev_forward_workflow_is_manual_recovery_only() -> None:
