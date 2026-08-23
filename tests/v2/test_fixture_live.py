@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from ullebets_v2.fixtures.live import (
     FixtureSourceConfig,
     HttpJsonResponse,
@@ -176,6 +178,53 @@ def test_fetch_live_fixture_batches_records_endpoint_metadata() -> None:
     assert batches[0]["category_id"] == 13
     assert batches[0]["event_count"] == 1
     assert "categoryId=13" in batches[0]["source_url"]
+
+
+def test_live_fixture_ingest_fails_closed_when_a_category_has_no_reachable_source() -> None:
+    support_docs = build_support_docs()
+    database = FakeDatabase()
+
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
+        return HttpJsonResponse(status=403, headers={}, data=None)
+
+    with pytest.raises(RuntimeError, match="fixture source unavailable for category 13"):
+        run_fixture_ingest_window(
+            mode="live",
+            dates=["2026-06-29"],
+            support_docs=support_docs,
+            source_workflow="import-fixtures-rolling.yml",
+            old_payloads_by_date={},
+            database=database,
+            dry_run=False,
+            source_config=FixtureSourceConfig.from_env({}),
+            transport=transport,
+            source_dir=None,
+        )
+
+    assert database["job_runs"].count_documents() == 1
+    assert database["job_runs"].docs[0]["status"] == "failed"
+    assert database["raw_fixtures"].count_documents() == 0
+
+
+def test_live_fixture_ingest_rejects_a_success_response_without_an_event_list() -> None:
+    support_docs = build_support_docs()
+
+    def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
+        return HttpJsonResponse(status=200, headers={}, data={"message": "quota exhausted"})
+
+    with pytest.raises(RuntimeError, match="fixture source unavailable for category 13"):
+        run_fixture_ingest_window(
+            mode="live",
+            dates=["2026-06-29"],
+            support_docs=support_docs,
+            source_workflow="import-fixtures-rolling.yml",
+            old_payloads_by_date={},
+            database=None,
+            dry_run=True,
+            source_config=FixtureSourceConfig.from_env({}),
+            transport=transport,
+            source_dir=None,
+        )
 
 
 def test_live_fixture_reports_and_persistence_are_rerun_safe() -> None:
@@ -425,7 +474,7 @@ def test_run_fixture_ingest_window_live_handles_empty_requested_date_as_no_targe
     assert summary["audit_status_counts"] == {"ok": 1}
 
 
-def test_run_fixture_ingest_window_live_distinguishes_empty_from_source_failure() -> None:
+def test_run_fixture_ingest_window_live_rejects_source_failure_in_dry_run() -> None:
     support_docs = build_support_docs()
 
     def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
@@ -435,52 +484,40 @@ def test_run_fixture_ingest_window_live_distinguishes_empty_from_source_failure(
             data=None,
         )
 
-    summary = run_fixture_ingest_window(
-        mode="live",
-        dates=["2026-06-29"],
-        support_docs=support_docs,
-        source_workflow="import-fixtures-rolling.yml",
-        old_payloads_by_date={},
-        database=None,
-        dry_run=True,
-        source_config=FixtureSourceConfig.from_env({}),
-        transport=transport,
-        source_dir=Path(r"C:\dev\frontend\ullebets-vecel\matches-for-date"),
-    )
-
-    assert summary["processed_dates"] == 1
-    assert summary["canonical_docs"] == 0
-    assert summary["parity_reports"] == 1
-    assert summary["audit_reports"] == 1
-    assert summary["parity_status_counts"] == {"missing_oracle": 1}
-    assert summary["audit_status_counts"] == {"warn": 1}
+    with pytest.raises(RuntimeError, match="fixture source unavailable for category 13"):
+        run_fixture_ingest_window(
+            mode="live",
+            dates=["2026-06-29"],
+            support_docs=support_docs,
+            source_workflow="import-fixtures-rolling.yml",
+            old_payloads_by_date={},
+            database=None,
+            dry_run=True,
+            source_config=FixtureSourceConfig.from_env({}),
+            transport=transport,
+            source_dir=Path(r"C:\dev\frontend\ullebets-vecel\matches-for-date"),
+        )
 
 
-def test_run_fixture_ingest_window_live_handles_transport_timeout_without_crashing() -> None:
+def test_run_fixture_ingest_window_live_rejects_transport_timeout() -> None:
     support_docs = build_support_docs()
 
     def transport(url: str, headers: dict[str, str], timeout_seconds: int) -> HttpJsonResponse:  # noqa: ARG001
         raise TimeoutError("read timed out")
 
-    summary = run_fixture_ingest_window(
-        mode="live",
-        dates=["2026-06-29"],
-        support_docs=support_docs,
-        source_workflow="import-fixtures-rolling.yml",
-        old_payloads_by_date={},
-        database=None,
-        dry_run=True,
-        source_config=FixtureSourceConfig.from_env({}),
-        transport=transport,
-        source_dir=Path(r"C:\dev\frontend\ullebets-vecel\matches-for-date"),
-    )
-
-    assert summary["processed_dates"] == 1
-    assert summary["canonical_docs"] == 0
-    assert summary["parity_reports"] == 1
-    assert summary["audit_reports"] == 1
-    assert summary["parity_status_counts"] == {"missing_oracle": 1}
-    assert summary["audit_status_counts"] == {"warn": 1}
+    with pytest.raises(RuntimeError, match="fixture source unavailable for category 13"):
+        run_fixture_ingest_window(
+            mode="live",
+            dates=["2026-06-29"],
+            support_docs=support_docs,
+            source_workflow="import-fixtures-rolling.yml",
+            old_payloads_by_date={},
+            database=None,
+            dry_run=True,
+            source_config=FixtureSourceConfig.from_env({}),
+            transport=transport,
+            source_dir=Path(r"C:\dev\frontend\ullebets-vecel\matches-for-date"),
+        )
 
 
 def test_fixture_reports_mark_missing_old_oracle() -> None:

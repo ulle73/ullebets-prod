@@ -76,6 +76,12 @@ class HttpJsonResponse:
     data: Any
 
 
+class FixtureSourceUnavailableError(RuntimeError):
+    def __init__(self, *, date: str, category_id: int, attempts: list[str]) -> None:
+        detail = ", ".join(attempts) if attempts else "no source requests were possible"
+        super().__init__(f"fixture source unavailable for category {category_id} on {date}: {detail}")
+
+
 Transport = Callable[[str, dict[str, str], int], HttpJsonResponse]
 
 
@@ -231,6 +237,10 @@ def normalize_events(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
+def has_event_list(payload: Any) -> bool:
+    return isinstance(payload, dict) and isinstance(payload.get("events"), list)
+
+
 def fetch_live_fixture_batches(
     *,
     date: str,
@@ -255,6 +265,7 @@ def fetch_live_fixture_batches(
         league_ids = {int(league_id) for league_id in entry["league_ids"]}
         endpoints = build_scheduled_match_endpoints(date, category_id, source_config)
         matched_batch: dict[str, Any] | None = None
+        failed_attempts: list[str] = []
 
         for endpoint in endpoints:
             if endpoint["provider"] == "rapidapi":
@@ -267,6 +278,10 @@ def fetch_live_fixture_batches(
                     source_url = append_query_params(endpoint["url"], endpoint["query"])
                     response = perform_request(source_url, headers)
                     if response.status != 200:
+                        failed_attempts.append(f"{endpoint['name']}:{response.status}")
+                        continue
+                    if not has_event_list(response.data):
+                        failed_attempts.append(f"{endpoint['name']}:invalid_payload")
                         continue
                     events = [
                         event
@@ -300,6 +315,10 @@ def fetch_live_fixture_batches(
                 source_url = append_query_params(endpoint["url"], endpoint["query"])
                 response = perform_request(source_url, {})
                 if response.status != 200:
+                    failed_attempts.append(f"{endpoint['name']}:{response.status}")
+                    continue
+                if not has_event_list(response.data):
+                    failed_attempts.append(f"{endpoint['name']}:invalid_payload")
                     continue
                 events = [
                     event
@@ -328,8 +347,13 @@ def fetch_live_fixture_batches(
                 }
                 break
 
-        if matched_batch is not None:
-            batches.append(matched_batch)
+        if matched_batch is None:
+            raise FixtureSourceUnavailableError(
+                date=date,
+                category_id=category_id,
+                attempts=failed_attempts,
+            )
+        batches.append(matched_batch)
 
     return batches
 

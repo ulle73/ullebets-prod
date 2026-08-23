@@ -57,9 +57,10 @@ Valid empty source responses are not failures when no matches or markets exist.
   shotmap, result, canonical result, and 27 canonical primary-stat rows.
 - `VERIFIED`: post-match settlement now contains 64 valid settled operational
   rows and 3 timing-excluded rows; forward results match those counts.
-- `PARTIAL`: source connectivity diagnostics still contain endpoint failures,
-  although the production fixture, enrichment, and odds paths succeeded in
-  tested windows.
+- `FAILED`: the scheduled fixture source returned no successful category batch
+  on 2026-08-23, while the workflow still reported success and persisted zero
+  canonical records. Enrichment and odds evidence does not establish current
+  fixture-schedule coverage.
 - `VERIFIED`: scheduled `V2 EV Shadow Forward` runtime drift exposed by run
   `30668128118` is fixed. Production write-mode run `30672830616` passed all
   four frozen scorers on the manifest-compatible runtime.
@@ -233,6 +234,78 @@ Remaining:
 
 Next:
 - Observe chatbot appearance and responsiveness in live frontend sessions.
+
+### 2026-08-23 - Fail-closed fixture ingestion after current-day coverage loss
+
+Status: `BLOCKED`
+
+Objective:
+Reproduce why the 23 August dashboard shows four fixtures although the supplied
+day schedules show 19, then prevent an upstream outage from being recorded as a
+successful empty import.
+
+Changes:
+
+- `fixtures/live.py` now rejects a live date when any supported league category
+  has no HTTP-successful scheduled-fixture source; an HTTP-successful empty
+  response remains a valid empty category.
+- `fixtures/service.py` creates the V2-safe job run before live retrieval and
+  records it as `failed` if source retrieval aborts. No raw, canonical, link,
+  parity, or audit documents are written for a failed date.
+- Updated fixture regression tests and the readiness checklist to distinguish
+  complete empty days from a provider outage.
+
+Tests:
+
+```text
+vercel curl '/api/v1/dashboard?date=2026-08-23' --scope ryds-projects-4371adb0
+gh run view 32629154864 --log
+python -m pytest tests/v2/test_fixture_live.py::test_live_fixture_ingest_fails_closed_when_a_category_has_no_reachable_source -q
+python -m pytest tests/v2/test_fixture_live.py -q
+python -m pytest tests/v2 -q
+python -m compileall -q src scripts
+git diff --check
+```
+
+Results:
+
+- The protected production API and the V2 canonical query both returned exactly
+  four fixtures for `2026-08-23`: Cruzeiro - Flamengo, Brighton - Aston Villa,
+  Manchester City - Bournemouth, and Angers - Lille.
+- The latest scheduled Actions run `32629154864` was marked `success` although
+  it reported `processed_dates=8`, `raw_docs=8`, `canonical_docs=0`, and
+  `source_link_docs=0`.
+- Direct diagnostics found all 12 configured RapidAPI keys returned 429 or 403
+  across the scheduled-fixture endpoints; the public fallback returned 403.
+  The configured SofaSport provider does not expose a scheduled-events endpoint
+  (its responses were HTTP 404). No missing fixtures exist in V2 under another
+  timestamp or date field.
+- New fixture regression coverage passed: `16 passed in 0.32s`; the complete
+  V2 suite passed `482` tests in `17.18s`. Compile and whitespace checks
+  passed. The red tests first reproduced both the old false-success behavior
+  and the HTTP-200 error-payload gap.
+
+Insight:
+
+The Stockholm date-filter repair is correct but cannot create data that was
+never ingested. This is a live-source entitlement/capacity outage, compounded
+by a workflow bug that treated zero successful source batches as a valid empty
+day.
+
+Remaining:
+
+- `BLOCKED`: restoring all 19 fixtures requires a legitimate scheduled-fixture
+  provider with sufficient active quota. Manually constructing canonical data
+  from screenshots would be untraceable and is deliberately not used.
+- The production workflow will correctly fail after this change until that
+  provider is restored; current dashboard data remains incomplete rather than
+  being falsely declared current.
+
+Next:
+
+- Install or restore an authorised schedule-provider credential, run one
+  `2026-08-23` live ingest, and verify the protected dashboard returns all 19
+  fixtures before accepting current-day coverage.
 
 ### 2026-08-23 - Stockholm-baserat fixture-datum för matchlistan
 
