@@ -541,23 +541,45 @@ def filter_policy_scores(
     scores: list[dict[str, Any]],
     filters: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    def matches(
+        row: dict[str, Any],
+        active_filters: dict[str, Any],
+    ) -> bool:
+        unsupported = sorted(
+            set(active_filters).difference(
+                {*_POLICY_FILTER_COLUMNS, "any_of"}
+            )
+        )
+        if unsupported:
+            raise ValueError(
+                f"unsupported score policy filters: {unsupported}"
+            )
+        for filter_name, values in active_filters.items():
+            if filter_name == "any_of":
+                continue
+            allowed = {str(value) for value in values}
+            column = _POLICY_FILTER_COLUMNS[filter_name]
+            if str(score_feature_value(row, column)) not in allowed:
+                return False
+        any_of = active_filters.get("any_of")
+        if any_of is None:
+            return True
+        if not isinstance(any_of, list) or not any_of or not all(
+            isinstance(clause, dict) for clause in any_of
+        ):
+            raise ValueError(
+                "score policy any_of must be a non-empty list of filters"
+            )
+        return any(matches(row, clause) for clause in any_of)
+
     unsupported = sorted(
-        set(filters).difference(_POLICY_FILTER_COLUMNS)
+        set(filters).difference({*_POLICY_FILTER_COLUMNS, "any_of"})
     )
     if unsupported:
         raise ValueError(
             f"unsupported score policy filters: {unsupported}"
         )
-    filtered = scores
-    for filter_name, values in filters.items():
-        allowed = {str(value) for value in values}
-        column = _POLICY_FILTER_COLUMNS[filter_name]
-        filtered = [
-            row
-            for row in filtered
-            if str(score_feature_value(row, column)) in allowed
-        ]
-    return filtered
+    return [row for row in scores if matches(row, filters)]
 
 
 def build_registered_policy_evaluation(

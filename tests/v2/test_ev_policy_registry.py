@@ -128,3 +128,77 @@ def test_forward_registry_promotes_exact_v6_policy_without_mutating_v5() -> None
             },
         }
     ]
+
+
+def test_v2_forward_registry_adds_full_domain_checkpoint_journal() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+
+    resolved = load_policy_registry(
+        repo_root / "models" / "ev" / "forward_policy_registry_v2.json"
+    )
+
+    policies = {
+        row["policy_id"]: row
+        for row in resolved["policies"]
+    }
+    assert resolved["registry_id"] == "forward_policy_registry_v2"
+    assert policies["v6_corners_away_total_forward_v1"] == {
+        "policy_id": "v6_corners_away_total_forward_v1",
+        "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+        "status": "forward_test_primary",
+        "minimum_ev": 0.075,
+        "maximum_ev": 0.25,
+        "filters": {
+            "stat_keys": ["cornerKicks"],
+            "scopes": ["away", "total"],
+        },
+    }
+    assert policies["v6_full_domain_checkpoint_journal_v2"] == {
+        "policy_id": "v6_full_domain_checkpoint_journal_v2",
+        "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+        "status": "forward_test_exploratory",
+        "minimum_ev": 0.0,
+        "maximum_ev": None,
+        "selection_granularity": "checkpoint_observation",
+        "stake_units": 1.0,
+        "filters": {
+            "periods": ["1ST", "2ND", "ALL"],
+            "scopes": ["home", "away", "total"],
+            "any_of": [
+                {
+                    "stat_keys": ["cornerKicks"],
+                    "directions": ["over", "under"],
+                },
+                {
+                    "stat_keys": ["shotsOnGoal", "totalShots"],
+                    "directions": ["over"],
+                },
+            ],
+        },
+    }
+
+
+def test_v6_market_support_rejects_untrained_stats_and_shot_unders() -> None:
+    from ullebets_v2.ev_model.support import classify_v6_market_support
+
+    assert classify_v6_market_support(
+        "cornerKicks", "home", "1ST"
+    ) == {
+        "status": "supported",
+        "reason": "v6_supported",
+        "directions": ["over", "under"],
+    }
+    assert classify_v6_market_support(
+        "shotsOnGoal", "away", "ALL"
+    ) == {
+        "status": "partially_supported",
+        "reason": "v6_over_only",
+        "directions": ["over"],
+    }
+    assert classify_v6_market_support(
+        "fouls", "away", "ALL"
+    ) == {
+        "status": "model_missing",
+        "reason": "stat_key_not_trained",
+        "directions": [],
+    }

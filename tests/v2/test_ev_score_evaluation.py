@@ -8,6 +8,7 @@ from ullebets_v2.ev_model.score_evaluation import (
     _evaluate_selection_clv,
     build_registered_policy_evaluation,
     build_score_policy_evaluation,
+    filter_policy_scores,
     fingerprint_policy_registry,
 )
 
@@ -289,6 +290,53 @@ def test_registered_policy_filters_are_frozen_before_settlement() -> None:
     assert report["policy_registry_fingerprint"]
 
 
+def test_policy_filter_any_of_keeps_only_supported_stat_directions() -> None:
+    scores = [
+        _score(
+            model_id="v6",
+            direction=direction,
+            probability=0.60,
+            odds=2.0,
+            snapshot_key=f"{stat_key}-{direction}",
+            stat_key=stat_key,
+            scope="home",
+        )
+        for stat_key in (
+            "cornerKicks",
+            "shotsOnGoal",
+            "totalShots",
+            "fouls",
+        )
+        for direction in ("over", "under")
+    ]
+
+    filtered = filter_policy_scores(
+        scores,
+        {
+            "periods": ["ALL"],
+            "scopes": ["home", "away", "total"],
+            "any_of": [
+                {
+                    "stat_keys": ["cornerKicks"],
+                    "directions": ["over", "under"],
+                },
+                {
+                    "stat_keys": ["shotsOnGoal", "totalShots"],
+                    "directions": ["over"],
+                },
+            ],
+        },
+    )
+
+    assert [
+        (row["stat_key"], row["direction"])
+        for row in filtered
+    ] == [
+        ("cornerKicks", "over"),
+        ("cornerKicks", "under"),
+        ("shotsOnGoal", "over"),
+        ("totalShots", "over"),
+    ]
 def test_registry_fingerprint_covers_promotion_gate() -> None:
     registry = {
         "registry_id": "v1",

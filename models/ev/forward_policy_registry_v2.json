@@ -1,0 +1,50 @@
+{
+  "base_registry": "forward_policy_registry_v1.json",
+  "registry_id": "forward_policy_registry_v2",
+  "registered_at": "2026-08-23T14:30:56Z",
+  "registered_before_checkpoint_journal_settlement": true,
+  "immutable_after_first_checkpoint_journal_settlement": true,
+  "additional_policies": [
+    {
+      "policy_id": "v6_full_domain_checkpoint_journal_v2",
+      "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+      "status": "forward_test_exploratory",
+      "minimum_ev": 0.0,
+      "maximum_ev": null,
+      "selection_granularity": "checkpoint_observation",
+      "stake_units": 1.0,
+      "filters": {
+        "periods": [
+          "1ST",
+          "2ND",
+          "ALL"
+        ],
+        "scopes": [
+          "home",
+          "away",
+          "total"
+        ],
+        "any_of": [
+          {
+            "stat_keys": [
+              "cornerKicks"
+            ],
+            "directions": [
+              "over",
+              "under"
+            ]
+          },
+          {
+            "stat_keys": [
+              "shotsOnGoal",
+              "totalShots"
+            ],
+            "directions": [
+              "over"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
