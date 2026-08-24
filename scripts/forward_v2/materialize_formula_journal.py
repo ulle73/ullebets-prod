@@ -36,6 +36,10 @@ from ullebets_v2.storage.collections import (
     JOB_RUNS,
 )
 from ullebets_v2.storage.mongo import get_database
+from ullebets_v2.storage.indexes import (
+    bootstrap_indexes,
+    build_formula_journal_index_plan,
+)
 from ullebets_v2.support.loaders import load_support_documents
 
 
@@ -130,6 +134,12 @@ def main() -> int:
         league_urls_path=config.default_league_urls_path(),
     )
     database = get_database(config)
+    index_summary: list[dict[str, Any]] = []
+    if not args.dry_run:
+        index_summary = bootstrap_indexes(
+            database,
+            plan=build_formula_journal_index_plan(),
+        )
     oracle = V2JsModelOracle(database, support_docs, runtime_root=runtime_root)
     run_doc = build_job_run_started_doc(
         job_name=JOB_NAME,
@@ -168,6 +178,7 @@ def main() -> int:
                 ],
                 "runtime_sha256": runtime_sha256,
                 "created_at": now.isoformat(),
+                "index_bootstrap": index_summary,
             }
         )
         report_path = _write_report(config, run_doc["run_id"], summary)

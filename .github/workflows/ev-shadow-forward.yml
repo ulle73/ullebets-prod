@@ -21,7 +21,7 @@ jobs:
     uses: ./.github/workflows/v2-python-job.yml
     secrets: inherit
     with:
-      timeout_minutes: 20
+      timeout_minutes: 60
       checkout_legacy_repo: false
       dry_run: ${{ inputs.dry_run || false }}
       run_command: |

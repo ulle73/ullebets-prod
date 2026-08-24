@@ -25,6 +25,10 @@ from ullebets_v2.storage.collections import (
     JOB_RUNS,
 )
 from ullebets_v2.storage.mongo import get_database
+from ullebets_v2.storage.indexes import (
+    bootstrap_indexes,
+    build_formula_journal_index_plan,
+)
 
 
 JOB_NAME = "refresh_formula_results"
@@ -71,6 +75,12 @@ def main() -> int:
     config.ensure_directories()
     now = _as_utc(args.now)
     database = get_database(config)
+    index_summary: list[dict[str, Any]] = []
+    if not args.dry_run:
+        index_summary = bootstrap_indexes(
+            database,
+            plan=build_formula_journal_index_plan(),
+        )
     run_doc = build_job_run_started_doc(
         job_name=JOB_NAME,
         source_workflow=SOURCE_WORKFLOW,
@@ -91,6 +101,7 @@ def main() -> int:
                 "job": JOB_NAME,
                 "run_id": run_doc["run_id"],
                 "refreshed_at": now.isoformat(),
+                "index_bootstrap": index_summary,
             }
         )
         report_path = _write_report(config, run_doc["run_id"], summary)

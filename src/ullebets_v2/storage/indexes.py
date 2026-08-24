@@ -498,6 +498,16 @@ def build_core_index_plan() -> list[dict[str, Any]]:
     ]
 
 
+def build_formula_journal_index_plan() -> list[dict[str, Any]]:
+    """Return only the indexes required by the independently runnable journal jobs."""
+    formula_collections = {FORMULA_OBSERVATIONS, FORMULA_RESULTS}
+    return [
+        collection_plan
+        for collection_plan in build_core_index_plan()
+        if collection_plan["collection"] in formula_collections
+    ]
+
+
 def _derive_clv_key(row: dict[str, Any]) -> str | None:
     for field in ("prediction_key", "tracking_key", "selection_key", "clv_key"):
         value = row.get(field)

@@ -38,11 +38,12 @@ jobs:
     uses: ./.github/workflows/v2-python-job.yml
     secrets: inherit
     with:
-      timeout_minutes: 45
+      timeout_minutes: 60
       checkout_legacy_repo: false
       dependency_profile: lean
       dry_run: ${{ inputs.dry_run || false }}
       run_command: |
+        CAPTURE_SUMMARY="$(mktemp)"
         ARGS=(--mode fixture-db --source-workflow run-unibet-odds-checkpoints.yml --max-days-ahead "${{ inputs.days_ahead || '7' }}" --exclude-checkpoint T_MINUS_30M --exclude-checkpoint T_MINUS_10M --dry-run)
         if [ -n "${{ inputs.date }}" ]; then
           ARGS+=(--date "${{ inputs.date }}")
@@ -53,4 +54,29 @@ jobs:
         if [ -n "${{ inputs.now }}" ]; then
           ARGS+=(--now "${{ inputs.now }}")
         fi
-        python scripts/forward_v2/capture_odds_checkpoints.py "${ARGS[@]}"
+        python scripts/forward_v2/capture_odds_checkpoints.py "${ARGS[@]}" | tee "$CAPTURE_SUMMARY"
+        CAPTURED_SNAPSHOTS="$(python - "$CAPTURE_SUMMARY" <<'PY'
+        import json
+        import sys
+
+        with open(sys.argv[1], encoding="utf-8") as handle:
+            summary = json.load(handle)
+        print(int(summary.get("market_snapshot_upserts") or 0))
+        PY
+        )"
+
+        if [ "${ULLEBETS_V2_DRY_RUN:-false}" = "true" ]; then
+          echo "Skipping all-model scoring after dry-run capture."
+        elif [ "$CAPTURED_SNAPSHOTS" -gt 0 ]; then
+          python -m pip install -e .
+          python scripts/forward_v2/score_registered_shadow_models.py \
+            --repo-root . \
+            --registry models/ev/shadow_formula_registry_v1.json \
+            --dry-run
+          python scripts/forward_v2/materialize_formula_journal.py \
+            --repo-root . \
+            --registry models/ev/shadow_formula_registry_v1.json \
+            --dry-run
+        else
+          echo "Skipping all-model scoring: checkpoint capture wrote no new snapshots."
+        fi

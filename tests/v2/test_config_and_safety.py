@@ -10,10 +10,34 @@ from ullebets_v2.safety import (
 )
 from ullebets_v2.storage.collections import (
     CANONICAL_COLLECTION_NAMES,
+    FORMULA_OBSERVATIONS,
+    FORMULA_RESULTS,
     MARKET_BIAS_OBSERVATIONS,
     MARKET_BIAS_PROFILES,
 )
-from ullebets_v2.storage.indexes import build_core_index_plan
+from ullebets_v2.storage.indexes import (
+    build_core_index_plan,
+    build_formula_journal_index_plan,
+)
+
+
+def test_formula_journal_has_a_focused_bootstrap_index_plan() -> None:
+    plan = build_formula_journal_index_plan()
+
+    assert [row["collection"] for row in plan] == [
+        FORMULA_OBSERVATIONS,
+        FORMULA_RESULTS,
+    ]
+    assert plan[0]["indexes"][0] == {
+        "keys": [("observation_key", 1)],
+        "name": "observation_key_unique",
+        "unique": True,
+    }
+    assert plan[1]["indexes"][0] == {
+        "keys": [("observation_key", 1)],
+        "name": "formula_result_observation_unique",
+        "unique": True,
+    }
 
 
 def test_market_bias_collections_are_canonical_and_indexed() -> None:

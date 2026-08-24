@@ -82,6 +82,7 @@ def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watc
 def test_checkpoint_capture_workflows_score_registry_and_materialize_after_new_snapshots() -> None:
     workflows = {
         "v2-odds-scheduler.yml": "capture_odds_checkpoints.py",
+        "run-unibet-odds-checkpoints.yml": "capture_odds_checkpoints.py",
         "run-unibet-closing.yml": "capture_closing_snapshots.py",
     }
 
