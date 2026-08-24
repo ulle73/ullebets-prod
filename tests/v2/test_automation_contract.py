@@ -79,7 +79,7 @@ def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watc
     assert "--exclude-checkpoint T_MINUS_10M" in workflow
 
 
-def test_checkpoint_capture_workflows_score_v6_only_after_new_snapshots() -> None:
+def test_checkpoint_capture_workflows_score_registry_and_materialize_after_new_snapshots() -> None:
     workflows = {
         "v2-odds-scheduler.yml": "capture_odds_checkpoints.py",
         "run-unibet-closing.yml": "capture_closing_snapshots.py",
@@ -98,10 +98,25 @@ def test_checkpoint_capture_workflows_score_v6_only_after_new_snapshots() -> Non
         assert 'summary.get("market_snapshot_upserts")' in workflow
         assert 'if [ "$CAPTURED_SNAPSHOTS" -gt 0 ]; then' in workflow
         assert "python -m pip install -e ." in workflow
-        assert "score_ev_shadow_model.py" in workflow
-        assert "ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib" in workflow
-        assert "forward_policy_registry_v2.json" in workflow
-        assert "v6_full_domain_checkpoint_journal_v2" in workflow
+        assert "score_registered_shadow_models.py" in workflow
+        assert "materialize_formula_journal.py" in workflow
+        assert "shadow_formula_registry_v1.json" in workflow
+
+
+def test_manual_shadow_recovery_scores_registry_then_materializes_journal() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "ev-shadow-forward.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "score_registered_shadow_models.py" in workflow
+    assert "materialize_formula_journal.py" in workflow
+    assert "shadow_formula_registry_v1.json" in workflow
+    assert workflow.index("score_registered_shadow_models.py") < workflow.index(
+        "materialize_formula_journal.py"
+    )
 
 
 def test_shared_runner_uses_current_node24_actions() -> None:
@@ -340,7 +355,7 @@ def test_legacy_dependency_contract_summarizes_native_vs_legacy_workflows() -> N
     assert rows["ai-bets-daily.yml"]["default_runtime"]["old_repo"] is False
 
 
-def test_ev_forward_workflow_uses_only_registered_checkpoint_journal_policy() -> None:
+def test_ev_forward_workflow_uses_registry_with_only_v6_checkpoint_journal_policy() -> None:
     workflow = (
         repo_root()
         / ".github"
@@ -348,21 +363,26 @@ def test_ev_forward_workflow_uses_only_registered_checkpoint_journal_policy() ->
         / "ev-shadow-forward.yml"
     ).read_text(encoding="utf-8")
 
-    assert workflow.count("score_ev_shadow_model.py") == 1
-    assert (
-        "ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib"
-        in workflow
+    assert workflow.count("score_registered_shadow_models.py") == 1
+    assert workflow.count("materialize_formula_journal.py") == 1
+    registry = json.loads(
+        (repo_root() / "models" / "ev" / "shadow_formula_registry_v1.json").read_text(
+            encoding="utf-8"
+        )
     )
-    assert "forward_policy_registry_v2.json" in workflow
-    assert (
+    assert len(registry["frozen_models"]) == 5
+    policy_models = [
+        row for row in registry["frozen_models"] if row.get("selection_policy_id")
+    ]
+    assert [row["model_id"] for row in policy_models] == [
+        "ev_scope_interaction_recency45_asof_capped_v6_shadow"
+    ]
+    assert policy_models[0]["selection_policy_registry"].endswith(
+        "forward_policy_registry_v2.json"
+    )
+    assert policy_models[0]["selection_policy_id"] == (
         "v6_full_domain_checkpoint_journal_v2"
-        in workflow
     )
-    assert "--selection-policy-registry" in workflow
-    assert "--selection-policy-id" in workflow
-    assert "ev_logistic_recency45_asof_capped_v3" not in workflow
-    assert "ev_nested_logistic_recency45_asof_capped_v4_shadow" not in workflow
-    assert "ev_ensemble_v3_75_v4_25_shadow" not in workflow
 
 
 def test_settlement_workflow_refreshes_clv_then_forward_results() -> None:

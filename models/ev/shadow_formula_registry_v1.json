@@ -55,7 +55,7 @@
       "family": "frozen_ml",
       "artifact": "models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib",
       "manifest": "models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json",
-      "selection_policy_registry": "models/ev/online_selection_policy_registry_v2.json",
+      "selection_policy_registry": "models/ev/forward_policy_registry_v2.json",
       "selection_policy_id": "v6_full_domain_checkpoint_journal_v2"
     }
   ]

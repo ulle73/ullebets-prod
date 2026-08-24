@@ -25,11 +25,11 @@ jobs:
       checkout_legacy_repo: false
       dry_run: ${{ inputs.dry_run || false }}
       run_command: |
-        python scripts/forward_v2/score_ev_shadow_model.py \
+        python scripts/forward_v2/score_registered_shadow_models.py \
           --repo-root . \
-          --artifact models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib \
-          --manifest models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json \
-          --score-only \
-          --selection-policy-registry models/ev/forward_policy_registry_v2.json \
-          --selection-policy-id v6_full_domain_checkpoint_journal_v2 \
+          --registry models/ev/shadow_formula_registry_v1.json \
+          --dry-run
+        python scripts/forward_v2/materialize_formula_journal.py \
+          --repo-root . \
+          --registry models/ev/shadow_formula_registry_v1.json \
           --dry-run

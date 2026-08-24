@@ -245,7 +245,11 @@ def build_ml_observation_docs(
             or ""
         )
         domain_valid = (
-            explicit_domain_status not in {"out_of_domain", "missing_domain_feature"}
+            (
+                explicit_domain_status == "in_domain"
+                if explicit_domain_status
+                else True
+            )
             and score.get("valid_for_policy_evaluation") is True
             and score.get("invalid_for_model") is not True
         )
@@ -261,7 +265,7 @@ def build_ml_observation_docs(
         exclusion_reason = (
             None
             if valid_for_comparison and positive
-            else "out_of_domain"
+            else domain_status
             if not domain_valid
             else "invalid_timing"
             if not timing_valid
