@@ -1,0 +1,62 @@
+{
+  "registry_id": "shadow_formula_registry_v1",
+  "status": "active",
+  "description": "Active reproducible V2 JS formulas and frozen ML artifacts eligible for immutable shadow observation materialization.",
+  "js_formulas": {
+    "evPct": {"label": "Basformel", "family": "heuristic"},
+    "evPctWithMultiplier": {"label": "Multiplikator", "family": "heuristic"},
+    "evPctLeagueAvg": {"label": "Liga-snitt", "family": "heuristic"},
+    "evPctMultifactor": {"label": "Multifaktor", "family": "heuristic"},
+    "evPctOptaRank": {"label": "Ranking", "family": "support_adjusted"},
+    "evPctOptaRating": {"label": "Rating", "family": "support_adjusted"},
+    "evPctOptaCombined": {"label": "Ranking + rating", "family": "support_adjusted"},
+    "evPctOptaPlusBase": {"label": "Support + bas", "family": "support_adjusted"},
+    "evPctOptaPlusLeagueAvg": {"label": "Support + liga-snitt", "family": "support_adjusted"},
+    "evPctShotsAdvanced": {"label": "Skott avancerad", "family": "stat_specialist"},
+    "evPctSoTAdvanced": {"label": "Skott på mål avancerad", "family": "stat_specialist"},
+    "evPctFoulsAdvanced": {"label": "Frisparkar avancerad", "family": "stat_specialist"},
+    "evPctGoalKicksAdvanced": {"label": "Insparkar avancerad", "family": "stat_specialist"},
+    "evPctThrowInsAdvanced": {"label": "Inkast avancerad", "family": "stat_specialist"},
+    "evPctUniversalOptimized": {"label": "Universell optimerad", "family": "optimized_heuristic"},
+    "legacyEvPct": {"label": "Legacy-bas", "family": "legacy_heuristic"}
+  },
+  "frozen_models": [
+    {
+      "model_id": "ev_logistic_recency45_asof_v2",
+      "label": "V2 logistisk",
+      "family": "frozen_ml",
+      "artifact": "models/ev/ev_logistic_recency45_asof_v2/ev_logistic_recency45_asof_v2.joblib",
+      "manifest": "models/ev/ev_logistic_recency45_asof_v2/model_manifest.json"
+    },
+    {
+      "model_id": "ev_logistic_recency45_asof_capped_v3",
+      "label": "V3 capped logistisk",
+      "family": "frozen_ml",
+      "artifact": "models/ev/ev_logistic_recency45_asof_capped_v3/ev_logistic_recency45_asof_capped_v3.joblib",
+      "manifest": "models/ev/ev_logistic_recency45_asof_capped_v3/model_manifest.json"
+    },
+    {
+      "model_id": "ev_nested_logistic_recency45_asof_capped_v4_shadow",
+      "label": "V4 nested logistisk",
+      "family": "frozen_ml",
+      "artifact": "models/ev/ev_nested_logistic_recency45_asof_capped_v4_shadow/ev_nested_logistic_recency45_asof_capped_v4_shadow.joblib",
+      "manifest": "models/ev/ev_nested_logistic_recency45_asof_capped_v4_shadow/model_manifest.json"
+    },
+    {
+      "model_id": "ev_ensemble_v3_75_v4_25_shadow",
+      "label": "V5 ensemble",
+      "family": "frozen_ml",
+      "artifact": "models/ev/ev_ensemble_v3_75_v4_25_shadow/ev_ensemble_v3_75_v4_25_shadow.joblib",
+      "manifest": "models/ev/ev_ensemble_v3_75_v4_25_shadow/model_manifest.json"
+    },
+    {
+      "model_id": "ev_scope_interaction_recency45_asof_capped_v6_shadow",
+      "label": "V6 scope interaction",
+      "family": "frozen_ml",
+      "artifact": "models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/ev_scope_interaction_recency45_asof_capped_v6_shadow.joblib",
+      "manifest": "models/ev/ev_scope_interaction_recency45_asof_capped_v6_shadow/model_manifest.json",
+      "selection_policy_registry": "models/ev/online_selection_policy_registry_v2.json",
+      "selection_policy_id": "v6_full_domain_checkpoint_journal_v2"
+    }
+  ]
+}

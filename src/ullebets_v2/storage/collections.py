@@ -35,6 +35,8 @@ MARKET_OFFERS = "market_offers"
 MARKET_SNAPSHOTS = "market_snapshots"
 MODEL_SNAPSHOTS = "model_snapshots"
 EV_MODEL_SCORES = "ev_model_scores"
+FORMULA_OBSERVATIONS = "formula_observations"
+FORMULA_RESULTS = "formula_results"
 
 SETTLED_BETS = "settled_bets"
 CLOSING_LINES = "closing_lines"
@@ -77,6 +79,8 @@ CANONICAL_COLLECTION_NAMES = (
     MARKET_SNAPSHOTS,
     MODEL_SNAPSHOTS,
     EV_MODEL_SCORES,
+    FORMULA_OBSERVATIONS,
+    FORMULA_RESULTS,
     SETTLED_BETS,
     CLOSING_LINES,
     CLV_TRACKING,
