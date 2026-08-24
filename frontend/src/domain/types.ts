@@ -465,6 +465,60 @@ export interface ModelResponse {
   officialClvCount: number;
 }
 
+export type FormulaEvidenceLevel = 'early' | 'growing' | 'comparable';
+
+export interface FormulaPerformanceMetrics {
+  formulaId: string | null;
+  formulaLabel: string | null;
+  formulaFamily: string | null;
+  observations: number;
+  shadowBets: number;
+  settled: number;
+  settledBets: number;
+  uniqueMatches: number;
+  uniqueSettledMatches: number;
+  wins: number;
+  losses: number;
+  pushes: number;
+  stakeUnits: number;
+  pnlUnits: number;
+  roiPct: number | null;
+  averagePredictedProbabilityPct: number | null;
+  averageEvPct: number | null;
+  calibrationObservations: number;
+  brierScore: number | null;
+  logLoss: number | null;
+  officialClvObservations: number;
+  averageClvPct: number | null;
+  beatClosingLine: number;
+  clvBeatRatePct: number | null;
+  evidenceLevel: FormulaEvidenceLevel;
+}
+
+export interface FormulaPerformanceFacet {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export interface FormulaPerformanceResponse {
+  generatedAt: string;
+  mode: 'positive_ev' | 'all_scores';
+  summary: FormulaPerformanceMetrics;
+  facets: {
+    formulas: FormulaPerformanceFacet[];
+    families: FormulaPerformanceFacet[];
+    stats: FormulaPerformanceFacet[];
+    scopes: FormulaPerformanceFacet[];
+    periods: FormulaPerformanceFacet[];
+    directions: FormulaPerformanceFacet[];
+    leagues: FormulaPerformanceFacet[];
+    checkpoints: FormulaPerformanceFacet[];
+  };
+  page: PageInfo;
+  groups: FormulaPerformanceMetrics[];
+}
+
 export interface SystemResponse {
   jobs: Record<string, unknown>[];
   health: Record<string, unknown>[];

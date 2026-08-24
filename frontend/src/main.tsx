@@ -10,6 +10,7 @@ import './styles/auto-exposures.css';
 import './styles/match-detail.css';
 import './styles/drilldowns.css';
 import './styles/workflow-pages.css';
+import './styles/formula-performance.css';
 import './styles/shell-hardening.css';
 
 const root = document.getElementById('root');

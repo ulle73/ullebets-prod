@@ -3,6 +3,7 @@ import {
   fetchAuto,
   fetchDashboard,
   fetchLeague,
+  fetchFormulaPerformance,
   fetchMatchDetail,
   fetchMatches,
   fetchModel,
@@ -10,6 +11,7 @@ import {
   fetchSystem,
   fetchTeam,
   type AutoQuery,
+  type FormulaPerformanceQuery,
   type ResultsQuery,
 } from './api';
 
@@ -85,6 +87,15 @@ export function useTeam(teamKey?: string) {
 
 export function useModel() {
   return useQuery({ queryKey: ['model'], queryFn: ({ signal }) => fetchModel(signal), staleTime: 30_000 });
+}
+
+export function useFormulaPerformance(query: FormulaPerformanceQuery = {}) {
+  return useQuery({
+    queryKey: ['formula-performance', query],
+    queryFn: ({ signal }) => fetchFormulaPerformance(query, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
 }
 
 export function useSystemStatus() {
