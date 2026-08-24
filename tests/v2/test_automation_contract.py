@@ -385,7 +385,7 @@ def test_ev_forward_workflow_uses_registry_with_only_v6_checkpoint_journal_polic
     )
 
 
-def test_settlement_workflow_refreshes_clv_then_forward_results() -> None:
+def test_settlement_workflow_refreshes_clv_forward_results_then_formula_results() -> None:
     workflow = (
         repo_root()
         / ".github"
@@ -396,15 +396,21 @@ def test_settlement_workflow_refreshes_clv_then_forward_results() -> None:
     settlement_index = workflow.index("settle_forward_bets.py")
     clv_index = workflow.index("refresh_clv_tracking.py")
     results_index = workflow.index("refresh_forward_results.py")
-    assert settlement_index < clv_index < results_index
+    formula_results_index = workflow.index("refresh_formula_results.py")
+    assert settlement_index < clv_index < results_index < formula_results_index
     assert workflow.count("refresh_clv_tracking.py") == 1
     assert workflow.count("refresh_forward_results.py") == 1
+    assert workflow.count("refresh_formula_results.py") == 1
     assert re.search(
         r"refresh_clv_tracking\.py\s+\\\s+--dry-run",
         workflow,
     )
     assert re.search(
         r"refresh_forward_results\.py\s+\\\s+--dry-run",
+        workflow,
+    )
+    assert re.search(
+        r"refresh_formula_results\.py\s+\\\s+--dry-run",
         workflow,
     )
 

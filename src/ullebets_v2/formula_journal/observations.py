@@ -92,6 +92,7 @@ def _market_fields(source: dict[str, Any], context: dict[str, Any]) -> dict[str,
         "away_team_name": source.get("away_team_name") or context.get("away_team_name"),
         "match_start_time": _utc_datetime(source.get("match_start_time") or context.get("match_start_time")),
         "snapshot_key": snapshot_key,
+        "offer_key": source.get("offer_key") or context.get("offer_key"),
         "snapshot_label": source.get("snapshot_label") or context.get("snapshot_label"),
         "snapshot_type": source.get("snapshot_type") or context.get("snapshot_type"),
         "odds_snapshot_time": _utc_datetime(source.get("odds_snapshot_time") or context.get("odds_snapshot_time")),
@@ -209,6 +210,7 @@ def build_js_observation_docs(
                 "is_positive_ev": positive,
                 "shadow_stake_units": 1.0 if valid_for_comparison and positive else 0.0,
                 "exclusion_reason": exclusion_reason,
+                "prediction_created_at": created_at,
                 "journaled_at": created_at,
             }
             docs.append(_finish_observation(doc))
@@ -297,6 +299,7 @@ def build_ml_observation_docs(
             "is_positive_ev": positive,
             "shadow_stake_units": 1.0 if valid_for_comparison and positive else 0.0,
             "exclusion_reason": exclusion_reason,
+            "prediction_created_at": score_created_at,
             "journaled_at": created_at,
         }
         if not doc["source_score_key"]:

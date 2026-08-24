@@ -208,6 +208,7 @@ def materialize_formula_observations(
                     **line,
                     "match_key": match_key,
                     "snapshot_key": snapshot["snapshot_key"],
+                    "offer_key": snapshot.get("offer_key"),
                     "snapshot_label": snapshot.get("snapshot_label"),
                     "snapshot_type": snapshot.get("snapshot_type"),
                     "odds_snapshot_time": snapshot.get("snapshot_time"),
@@ -294,4 +295,3 @@ def materialize_formula_observations(
         "persistence": persistence,
         "dry_run": dry_run,
     }
-

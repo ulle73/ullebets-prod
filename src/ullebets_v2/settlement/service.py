@@ -19,10 +19,15 @@ from ullebets_v2.settlement.reports import (
     build_settlement_parity_rows,
 )
 from ullebets_v2.settlement.rules import settle_line
-from ullebets_v2.storage.collections import FORWARD_BETS, MODEL_SNAPSHOTS
+from ullebets_v2.storage.collections import (
+    FORMULA_OBSERVATIONS,
+    FORWARD_BETS,
+    MODEL_SNAPSHOTS,
+)
 
 MODEL_SNAPSHOT_SELECTION_SOURCE = "model_snapshot"
 FORWARD_BET_SELECTION_SOURCE = "forward_bet"
+FORMULA_OBSERVATION_SELECTION_SOURCE = "formula_observation"
 
 SETTLEMENT_CONTRACTS = {
     MODEL_SNAPSHOT_SELECTION_SOURCE: {
@@ -78,6 +83,10 @@ def _selection_stake(row: dict[str, Any]) -> Any:
 
 
 def _selection_settlement_key(row: dict[str, Any], *, selection_source: str) -> str:
+    if selection_source == FORMULA_OBSERVATION_SELECTION_SOURCE:
+        value = row.get("observation_key") or row.get("selection_key")
+        if value:
+            return str(value)
     if selection_source == FORWARD_BET_SELECTION_SOURCE:
         for field_name in ("prediction_key", "selection_key", "tracking_key", "offer_key"):
             value = row.get(field_name)
@@ -99,6 +108,8 @@ def _selection_settlement_key(row: dict[str, Any], *, selection_source: str) -> 
 def _selection_source_collection(selection_source: str) -> str:
     if selection_source == FORWARD_BET_SELECTION_SOURCE:
         return FORWARD_BETS
+    if selection_source == FORMULA_OBSERVATION_SELECTION_SOURCE:
+        return FORMULA_OBSERVATIONS
     return MODEL_SNAPSHOTS
 
 
@@ -118,7 +129,10 @@ def build_settled_docs(
         normalized_selected_odds = _selection_odds(selection)
         timing = (
             evaluate_forward_timing(selection)
-            if selection_source == FORWARD_BET_SELECTION_SOURCE
+            if selection_source in {
+                FORWARD_BET_SELECTION_SOURCE,
+                FORMULA_OBSERVATION_SELECTION_SOURCE,
+            }
             else None
         )
         base_doc = {

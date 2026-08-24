@@ -121,6 +121,7 @@ def test_js_formula_values_become_independent_shadow_observations() -> None:
     assert {row["predicted_win_probability"] for row in docs} == {0.55, 0.52}
     assert all(row["shadow_stake_units"] == 1.0 for row in docs)
     assert all(row["valid_for_comparison"] is True for row in docs)
+    assert all(row["prediction_created_at"] == NOW for row in docs)
     assert len({row["observation_key"] for row in docs}) == 2
 
 
@@ -157,6 +158,7 @@ def test_out_of_domain_ml_score_is_archived_without_stake() -> None:
     assert doc["domain_status"] == "out_of_domain"
     assert doc["shadow_stake_units"] == 0.0
     assert doc["exclusion_reason"] == "out_of_domain"
+    assert doc["prediction_created_at"] == NOW
 
 
 def test_persistence_replays_identical_doc_and_rejects_changed_immutable_evidence() -> None:

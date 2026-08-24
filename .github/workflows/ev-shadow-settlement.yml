@@ -41,6 +41,8 @@ jobs:
           --dry-run
         python scripts/forward_v2/refresh_forward_results.py \
           --dry-run
+        python scripts/forward_v2/refresh_formula_results.py \
+          --dry-run
         python scripts/forward_v2/audit_ev_forward_model.py \
           --repo-root . \
           --model-id ev_logistic_recency45_asof_v2 \
