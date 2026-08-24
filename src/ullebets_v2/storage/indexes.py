@@ -12,6 +12,8 @@ from ullebets_v2.storage.collections import (
     CLOSING_LINES,
     CLV_TRACKING,
     EV_MODEL_SCORES,
+    FORMULA_OBSERVATIONS,
+    FORMULA_RESULTS,
     FIXTURES_CANONICAL,
     FIXTURE_SOURCE_LINKS,
     FORWARD_BETS,
@@ -345,6 +347,61 @@ def build_core_index_plan() -> list[dict[str, Any]]:
                         ("match_start_time", 1),
                     ],
                     "name": "valid_policy_match_start",
+                },
+            ],
+        },
+        {
+            "collection": FORMULA_OBSERVATIONS,
+            "indexes": [
+                {
+                    "keys": [("observation_key", 1)],
+                    "name": "observation_key_unique",
+                    "unique": True,
+                },
+                {
+                    "keys": [
+                        ("source_type", 1),
+                        ("formula_id", 1),
+                        ("odds_snapshot_time", -1),
+                    ],
+                    "name": "formula_source_observed_at",
+                },
+                {
+                    "keys": [
+                        ("match_key", 1),
+                        ("snapshot_label", 1),
+                        ("formula_id", 1),
+                    ],
+                    "name": "formula_match_checkpoint",
+                },
+            ],
+        },
+        {
+            "collection": FORMULA_RESULTS,
+            "indexes": [
+                {
+                    "keys": [("observation_key", 1)],
+                    "name": "formula_result_observation_unique",
+                    "unique": True,
+                },
+                {
+                    "keys": [
+                        ("valid_for_performance", 1),
+                        ("stat_key", 1),
+                        ("scope", 1),
+                        ("period", 1),
+                        ("snapshot_label", 1),
+                        ("formula_id", 1),
+                    ],
+                    "name": "formula_performance_dimensions",
+                },
+                {
+                    "keys": [
+                        ("formula_id", 1),
+                        ("settlement_status", 1),
+                        ("match_key", 1),
+                    ],
+                    "name": "formula_settlement_match",
                 },
             ],
         },

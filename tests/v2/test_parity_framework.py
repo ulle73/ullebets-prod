@@ -61,6 +61,31 @@ def test_ev_model_scores_have_immutable_score_key_index() -> None:
     assert score_key_index["unique"] is True
 
 
+def test_formula_journal_indexes_support_immutable_identity_and_performance_filters() -> None:
+    plan = build_core_index_plan()
+    observations = next(
+        item for item in plan if item["collection"] == "formula_observations"
+    )
+    results = next(
+        item for item in plan if item["collection"] == "formula_results"
+    )
+
+    observation_key = next(
+        index for index in observations["indexes"]
+        if index["name"] == "observation_key_unique"
+    )
+    result_key = next(
+        index for index in results["indexes"]
+        if index["name"] == "formula_result_observation_unique"
+    )
+    assert observation_key["unique"] is True
+    assert result_key["unique"] is True
+    assert any(
+        index["name"] == "formula_performance_dimensions"
+        for index in results["indexes"]
+    )
+
+
 def test_forward_bets_index_supports_registered_policy_dedupe() -> None:
     plan = build_core_index_plan()
     forward_plan = next(

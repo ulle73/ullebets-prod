@@ -24,6 +24,7 @@ from ullebets_v2.read_api.service import (
     read_system_status,
     read_team,
 )
+from ullebets_v2.read_api.formula_performance import read_formula_performance
 
 
 def _json_bytes(payload: Any) -> bytes:
@@ -140,7 +141,7 @@ def _cache_policy(path_with_query: str) -> _CachePolicy | None:
         return _CachePolicy(max_age=10, stale_while_revalidate=30)
     if path.startswith("/api/v1/teams/"):
         return _CachePolicy(max_age=300, stale_while_revalidate=900)
-    if path in {"/api/v1/auto", "/api/v1/results", "/api/v1/model"}:
+    if path in {"/api/v1/auto", "/api/v1/results", "/api/v1/model", "/api/v1/formula-performance"}:
         return _CachePolicy(max_age=30, stale_while_revalidate=120)
     if path.startswith("/api/v1/matches/"):
         return _CachePolicy(max_age=30, stale_while_revalidate=120)
@@ -187,6 +188,22 @@ def dispatch_get(database: Any, path: str, query: dict[str, list[str]]) -> tuple
         )
     if normalized_path == "/api/v1/model":
         return HTTPStatus.OK, read_model(database)
+    if normalized_path == "/api/v1/formula-performance":
+        return HTTPStatus.OK, read_formula_performance(
+            database,
+            limit=_positive_int(query, "limit", 100, minimum=1),
+            offset=_positive_int(query, "offset", 0),
+            formula_id=_first(query, "formula"),
+            family=_first(query, "family"),
+            stat_key=_first(query, "stat"),
+            scope=_first(query, "scope"),
+            period=_first(query, "period"),
+            direction=_first(query, "direction"),
+            league_key=_first(query, "league"),
+            checkpoint=_first(query, "checkpoint"),
+            status=_first(query, "status"),
+            mode=_first(query, "mode") or "positive_ev",
+        )
     if normalized_path == "/api/v1/system":
         return HTTPStatus.OK, read_system_status(database)
     if normalized_path.startswith("/api/v1/matches/"):
