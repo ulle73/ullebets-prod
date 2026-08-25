@@ -9,6 +9,7 @@ from typing import Any, Iterable
 from pymongo import UpdateOne
 
 from ullebets_v2.clv_tracking.service import build_clv_tracking_docs
+from ullebets_v2.formula_journal.observations import JS_OBSERVATION_SCHEMA_VERSION
 from ullebets_v2.settlement.service import (
     FORMULA_OBSERVATION_SELECTION_SOURCE,
     build_settled_docs,
@@ -116,6 +117,24 @@ def _excluded_result(
     }
 
 
+def _settlement_eligible_observation(observation: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(observation)
+    if (
+        normalized.get("source_type") == "js_formula"
+        and normalized.get("observation_schema_version")
+        != JS_OBSERVATION_SCHEMA_VERSION
+    ):
+        normalized.update(
+            {
+                "valid_for_comparison": False,
+                "is_positive_ev": False,
+                "shadow_stake_units": 0.0,
+                "exclusion_reason": "superseded_js_observation_schema",
+            }
+        )
+    return normalized
+
+
 def build_formula_result_docs(
     *,
     observations: list[dict[str, Any]],
@@ -124,8 +143,13 @@ def build_formula_result_docs(
     closing_line_docs: list[dict[str, Any]],
     refreshed_at: datetime,
 ) -> list[dict[str, Any]]:
+    normalized_observations = [
+        _settlement_eligible_observation(row) for row in observations
+    ]
     valid_observations = [
-        row for row in observations if row.get("valid_for_comparison") is True
+        row
+        for row in normalized_observations
+        if row.get("valid_for_comparison") is True
     ]
     tracking_docs = [_tracking_doc(row) for row in valid_observations]
     settled_docs = build_settled_docs(
@@ -150,7 +174,7 @@ def build_formula_result_docs(
         if row.get("selection_key")
     }
     results: list[dict[str, Any]] = []
-    for observation in observations:
+    for observation in normalized_observations:
         key = str(observation["observation_key"])
         if observation.get("valid_for_comparison") is not True:
             result = _excluded_result(observation, refreshed_at=refreshed_at)

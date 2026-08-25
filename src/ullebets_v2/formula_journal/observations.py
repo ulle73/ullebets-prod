@@ -16,6 +16,7 @@ FINGERPRINT_EXCLUDED_FIELDS = {
     "journaled_at",
     "observation_fingerprint_sha256",
 }
+JS_OBSERVATION_SCHEMA_VERSION = "js-v2"
 
 
 class ImmutableFormulaObservationConflict(RuntimeError):
@@ -196,7 +197,8 @@ def build_js_observation_docs(
                 "formula_id": f"js:{value_key}",
                 "formula_label": str(metadata.get("label") or value_key),
                 "formula_family": str(metadata.get("family") or "js_formula"),
-                "formula_version": runtime_sha256,
+                "formula_version": f"{runtime_sha256}:{JS_OBSERVATION_SCHEMA_VERSION}",
+                "observation_schema_version": JS_OBSERVATION_SCHEMA_VERSION,
                 "runtime_sha256": runtime_sha256,
                 "model_id": None,
                 "artifact_sha256": None,
@@ -212,7 +214,7 @@ def build_js_observation_docs(
                 "is_positive_ev": positive,
                 "shadow_stake_units": 1.0 if valid_for_comparison and positive else 0.0,
                 "exclusion_reason": exclusion_reason,
-                "prediction_created_at": created_at,
+                "prediction_created_at": fields["odds_snapshot_time"],
                 "journaled_at": created_at,
             }
             docs.append(_finish_observation(doc))

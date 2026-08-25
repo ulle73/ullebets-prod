@@ -143,6 +143,33 @@ def test_js_formula_values_become_independent_shadow_observations() -> None:
     assert len({row["observation_key"] for row in docs}) == 2
 
 
+def test_js_replay_uses_snapshot_time_and_a_versioned_schema_identity() -> None:
+    first = build_js_observation_docs(
+        lines=[_js_line()],
+        context=_context(),
+        runtime_sha256="a" * 64,
+        registry=_registry(),
+        journaled_at=NOW,
+    )
+    replay = build_js_observation_docs(
+        lines=[_js_line()],
+        context=_context(),
+        runtime_sha256="a" * 64,
+        registry=_registry(),
+        journaled_at=NOW.replace(minute=30),
+    )
+
+    assert [row["observation_key"] for row in replay] == [
+        row["observation_key"] for row in first
+    ]
+    assert [row["observation_fingerprint_sha256"] for row in replay] == [
+        row["observation_fingerprint_sha256"] for row in first
+    ]
+    assert all(row["prediction_created_at"] == NOW for row in replay)
+    assert all(row["observation_schema_version"] == "js-v2" for row in replay)
+    assert all(row["formula_version"].endswith(":js-v2") for row in replay)
+
+
 def test_unregistered_numeric_js_formula_is_still_archived_with_stable_fallback_metadata() -> None:
     line = _js_line()
     line["evDetails"] = {"evPctNewRuntimeFormula": -2.0}
