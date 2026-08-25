@@ -47,8 +47,6 @@ class _Accumulator:
         pnl = _number(row.get("pnl_units")) or 0.0
         if stake > 0.0:
             self.shadow_bets += 1
-        self.stake_units += stake
-        self.pnl_units += pnl
 
         settlement_status = row.get("settlement_status")
         settlement_result = row.get("settlement_result")
@@ -56,14 +54,16 @@ class _Accumulator:
             self.settled += 1
             if stake > 0.0:
                 self.settled_bets += 1
+                self.stake_units += stake
+                self.pnl_units += pnl
                 if match_key:
                     self.settled_bet_matches.add(match_key)
-            if settlement_result == "win":
-                self.wins += 1
-            elif settlement_result == "loss":
-                self.losses += 1
-            elif settlement_result == "push":
-                self.pushes += 1
+                if settlement_result == "win":
+                    self.wins += 1
+                elif settlement_result == "loss":
+                    self.losses += 1
+                elif settlement_result == "push":
+                    self.pushes += 1
 
         probability = _number(row.get("predicted_win_probability"))
         if probability is not None and 0.0 <= probability <= 1.0:

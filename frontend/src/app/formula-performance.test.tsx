@@ -95,5 +95,7 @@ describe('formula performance', () => {
     });
 
     expect((await screen.findAllByText('—')).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('40 öppna 1u-spel väntar på rättning')).toBeVisible();
+    expect(screen.getByText('Väntar på officiell T-10-closing')).toBeVisible();
   });
 });

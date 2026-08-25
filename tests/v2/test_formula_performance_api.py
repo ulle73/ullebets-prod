@@ -191,3 +191,27 @@ def test_formula_performance_all_scores_mode_keeps_non_positive_rows_but_default
 
     assert default_payload["summary"]["observations"] == 3
     assert all_payload["summary"]["observations"] == 4
+
+
+def test_open_shadow_bet_never_renders_zero_roi_before_settlement() -> None:
+    pending = _row(key="pending", match_key="match-pending")
+    pending.update(
+        {
+            "settlement_status": "pending_result",
+            "settlement_result": None,
+            "settlement_valid_for_calibration": False,
+            "pnl_units": 0.0,
+            "official_clv": False,
+            "clv_pct": None,
+            "beat_closing_line": None,
+        }
+    )
+    database = FakeDatabase({FORMULA_RESULTS: FakeCollection([pending])})
+
+    _, payload = dispatch_get(database, "/api/v1/formula-performance", {})
+
+    assert payload["summary"]["shadowBets"] == 1
+    assert payload["summary"]["settledBets"] == 0
+    assert payload["summary"]["stakeUnits"] == 0.0
+    assert payload["summary"]["pnlUnits"] == 0.0
+    assert payload["summary"]["roiPct"] is None
