@@ -4,6 +4,41 @@ This log records every material offline model experiment, including failed
 experiments. A model is not eligible for forward use merely because its
 historical ROI is positive.
 
+## All-formula forward journal is infrastructure, not a model result
+
+Status on 2026-08-25: `VERIFIED` as immutable evaluation infrastructure and
+`UNPROVEN` as evidence of comparative performance.
+
+The active shadow registry now evaluates 16 frozen JS formula entrypoints and
+the five existing frozen ML artifacts at each eligible exact odds snapshot.
+Every valid positive-EV observation is tracked as a virtual 1u evaluation;
+non-positive scores remain 0u calibration observations. This broad journal is
+strictly separate from registered real selections. Only the frozen V6 policy
+remains attached to the production forward-bet path.
+
+No historical JS formula backfill is accepted as forward evidence. The JS
+implementations depend on capture-time support inputs, so replaying old prices
+with today's mutable support/team state would leak later information. Active
+`js-v3` evidence therefore starts from actual first capture and preserves that
+exact input payload, source fingerprint, probability, EV, and capture time.
+Superseded unversioned and `js-v2` rows remain audit-only and stake-free.
+
+The journal is designed to answer, after sufficient untouched outcomes:
+
+- which formula family is calibrated and profitable for each exact
+  statkey/scope/period/direction context;
+- whether a formula's signal is stronger at T-3D, T-2D, T-1D, T-2H, T-30, or
+  T-10 without collapsing those price observations into one fake bet;
+- whether captured prices beat the official T-10 closing line; and
+- whether apparent ROI survives sufficient settled bets, unique match
+  clusters, league/time splits, CLV coverage, and multiple-comparison control.
+
+Production volume at creation was 9,358 active observations, including 2,913
+open positive-EV virtual bets over 4 matches. That count is operational proof
+only. With 0 settled rows and 0 official closings it establishes neither ROI,
+calibration, CLV, formula ranking, nor future edge. Groups are therefore shown
+by evidence volume, never sorted as a leaderboard from early inspected ROI.
+
 ## Evaluation protocol
 
 - Historical source: the normalized Offline V1 Parquet corpus.

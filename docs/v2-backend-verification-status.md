@@ -1,11 +1,65 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-23
+Last updated: 2026-08-25
 Branch: `main`
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## All-Formula Immutable Shadow Journal On 2026-08-25
+
+The production checkpoint contract now materializes every registered active EV
+formula into a dedicated immutable shadow journal. It does not widen the real
+selection policy: only the frozen V6 registry can create registered production
+forward bets. The additional JS heuristics and V2-V5/V6 model outputs are
+evaluation observations only.
+
+The observation identity includes the exact odds snapshot, formula and schema
+version, market dimensions, direction, and line. First capture owns the
+evidence. Replays validate the stored source/artifact fingerprint and reuse the
+row without recalculating later mutable support/team context. Active JS rows
+use schema `js-v3`, canonical float precision, odds-snapshot capture time, and
+the platform-independent runtime hash
+`e1168ea08c0efda1034343397d89525097654130495312269490180dbfd67cd5`.
+Older unversioned and `js-v2` rows remain immutable audit material with 0u and
+are excluded from active result refresh.
+
+`formula_results` uses the existing canonical settlement and official-closing
+services. A valid positive-EV row is a virtual 1u evaluation; a non-positive
+row is stake-free calibration evidence after settlement. Pending rows do not
+enter stake, PnL, ROI, win/loss, calibration, or CLV denominators.
+Out-of-domain rows remain excluded from all performance evidence.
+
+Current evidence:
+
+- full backend regression: 555 passed;
+- hosted materializer replay `32796556700`: 9,358 candidates, 8,896 JS plus
+  462 frozen-ML observations, 2,913 positive EV, 0 inserts, 9,358 existing,
+  0 conflicts, 0 oracle errors, and the expected runtime hash;
+- hosted result refresh `32796715652`: 9,358 result documents inserted, 9,358
+  pending, 0 settled, 0 excluded, and 0 official CLV observations because the
+  four underlying matches had not finished;
+- live production API: positive-EV mode returned 2,913 open virtual bets over
+  4 matches, 0 settled bets, 0 stake units, and null ROI. The exact
+  `cornerKicks` + `away` + `ALL` + `T_MINUS_3D` slice returned 109 observations
+  over 3 matches;
+- Vercel deployment `dpl_6ZioyK3fT8Tzpt6aRavmZizQ6oso` was `Ready`, and
+  browser checks verified `/modell` on desktop and at 390px width.
+- a cold protected request reproduced the previous 10-second function timeout;
+  the serverless read budget is now 30 seconds with its existing edge-cache
+  contract retained, and the duration floor is regression-tested.
+
+Diagnostic failures were preserved as evidence. Run `32793933250` exposed
+capture-time instability, `32794550081` exposed float replay drift, and
+`32796005030` exposed recomputation of mutable support inputs. Each now has a
+regression-tested fail-closed or first-capture safeguard.
+
+Status: `VERIFIED` for observation immutability, replay, hosted materialization,
+result-document creation, filtered read API, and UI presentation. It remains
+`UNPROVEN` for the first completed-match formula settlement, comparative ROI,
+calibration, official CLV, beat-close rate, and any claim that one formula has
+a durable edge.
 
 ## Self-Healing Post-Match Recovery On 2026-08-23
 

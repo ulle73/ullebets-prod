@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-23
+Last updated: 2026-08-25
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -30,8 +30,8 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: raw and canonical/derived data are separated.
 - `VERIFIED`: V2 collection names are suffix-free; old `*_v2` names are legacy
   cleanup aliases only.
-- `VERIFIED`: the full V2 Python test suite currently passes, `528/528` in
-  the post-match recovery checkout.
+- `VERIFIED`: the full V2 Python test suite currently passes, `555/555` in
+  the all-formula production-hardening checkout.
 
 ### Backend
 
@@ -114,6 +114,22 @@ Valid empty source responses are not failures when no matches or markets exist.
   whose actual is unresolved. The production repair enriched all 7 affected
   22 August matches and settled all 11 V6 journal exposures: 5 wins, 6 losses,
   and 0 missing actuals.
+- `VERIFIED`: every registered active EV formula now writes an immutable,
+  first-capture shadow observation for each exact odds snapshot. Positive EV is
+  a virtual 1u evaluation; non-positive scores remain stake-free calibration
+  evidence. This journal is separate from the real V6 forward-selection
+  policy.
+- `VERIFIED`: production replay run `32796556700` reused all 9,358 active
+  observations with zero inserts and zero immutable conflicts. Settlement run
+  `32796715652` created 9,358 formula-result rows; all remain legitimately
+  pending because the four underlying matches had not finished.
+- `VERIFIED`: the live formula-performance API and `/modell` UI expose formula,
+  statkey, scope, period, direction, league, checkpoint, status, and all-score
+  versus +EV filters. Open virtual bets are excluded from stake, PnL, and ROI,
+  so the current 2,913 open +EV observations render ROI as unavailable rather
+  than as a false 0% result.
+- `UNPROVEN`: all-formula forward ROI, official CLV, and comparative model
+  efficacy require completed matches and future official T-10 closings.
 
 Detailed backend state:
 [v2-backend-verification-status.md](v2-backend-verification-status.md).
@@ -141,6 +157,10 @@ Overall product readiness:
   all from Brasileirão Série A and all outside the fitted training domain.
   There are 0 in-domain V6 scores, selections, settlements, ROI rows, or CLV
   rows.
+- `VERIFIED`: the broader all-formula journal is evaluation infrastructure,
+  not a promotion of the JS heuristics or older ML artifacts. Only the frozen
+  V6 registry remains attached to real production selection; all other
+  registered formulas are shadow-only.
 
 Supported V6 leagues are A-League Men, Bundesliga, La Liga, Ligue 1, Premier
 League, and Italian Serie A. Brazilian scores must remain diagnostic only.
@@ -197,6 +217,119 @@ Detailed model history:
    exist.
 
 ## Chronological entries
+
+### 2026-08-25 - Immutable all-formula EV journal and comparison UI
+
+Status: `VERIFIED` for implementation, immutable replay, hosted automation,
+live read API, and responsive UI; `UNPROVEN` for settled comparative efficacy
+and official CLV.
+
+Objective:
+Score every registered active formula at every exact odds capture, retain each
+score as leakage-safe forward evidence, treat every valid positive-EV signal as
+a virtual 1u evaluation, settle it from canonical post-match data, attach only
+official closing evidence, and make the comparison understandable and
+filterable without changing the real V6 selection policy.
+
+Permanent contract:
+
+- `models/ev/shadow_formula_registry_v1.json` freezes 16 JS formulas and the
+  five existing frozen ML artifacts. Registry identity, source or artifact
+  fingerprint, formula version, exact odds-snapshot identity, inputs,
+  probability, EV, domain status, checkpoint, and capture time are immutable.
+- `formula_observations` owns first-capture evidence. A replay validates the
+  stored formula fingerprint and reuses the row; it never recomputes mutable
+  support/team context into the identity of an already captured price. Direct
+  conflicting writes still fail closed.
+- Active JS evidence uses schema `js-v3`, canonical numeric precision, and a
+  line-ending-independent runtime hash
+  `e1168ea08c0efda1034343397d89525097654130495312269490180dbfd67cd5`.
+  Earlier unversioned and `js-v2` rows are retained for audit with 0u and are
+  excluded from active result refresh.
+- `formula_results` shares the canonical settlement and closing-line
+  contracts. Valid positive-EV observations use 1u; non-positive observations
+  use 0u but can contribute calibration after settlement. Out-of-domain rows
+  never enter ROI, CLV, calibration, or promotion evidence.
+- The read API aggregates only after filtering and reports observation count,
+  virtual bets, settled bets, unique matches, flat-stake PnL/ROI, official CLV,
+  beat-close rate, Brier score, and log loss. Groups are ordered by evidence
+  volume, not inspected ROI.
+- `/modell` keeps the broad shadow comparison visibly separate from the real
+  registered V6 forward proof. Its summary, explanations, evidence labels,
+  filters, query-string state, all-score view, and comparison table use the
+  same read contract.
+
+Files and subsystems changed:
+
+- formula registry, immutable observation/materialization/result services,
+  settlement integration, storage collections/indexes, read API, CLI runners,
+  checkpoint/closing/settlement workflows, model page, query state, filters,
+  comparison table, responsive styles, and backend/frontend contract tests;
+- design and execution records in
+  `docs/specs/2026-08-25-all-model-shadow-journal.md` and
+  `docs/plans/2026-08-25-all-model-shadow-journal.md`.
+
+Exact verification:
+
+- `python -m pytest -q`: 555 passed in 32.12 seconds after the final hosted
+  cold-start guard was added;
+- `npm --prefix frontend test -- --run`: 18 files and 59 tests passed;
+- `npm --prefix frontend run lint`: passed;
+- `npm --prefix frontend run build`: passed, 2,347 modules transformed and a
+  production bundle built in 7.82 seconds;
+- hosted replay run `32796556700`: 9,358 candidates, 8,896 JS plus 462 ML
+  observations, 2,913 positive-EV virtual bets, 0 inserts, 9,358 immutable
+  replays, 0 conflicts, 0 oracle errors, and 0 domain-unverified rows;
+- hosted settlement run `32796715652`: 9,358 result documents inserted, 9,358
+  pending, 0 settled, 0 excluded, and 0 official CLV observations;
+- Vercel production deployment `dpl_6ZioyK3fT8Tzpt6aRavmZizQ6oso` was `Ready`
+  on the production aliases. The live positive-EV API returned 2,913 open
+  virtual bets over 4 matches, 0 settled, 0 stake units, and null ROI. The
+  combined `cornerKicks` + `away` + `ALL` + `T_MINUS_3D` filter returned 109
+  observations over 3 matches;
+- real-browser desktop and 390px mobile checks of `/modell` confirmed the
+  summary, null ROI/CLV states, filter URL state, comparison table, and
+  responsive layout. Switching that combined slice to `all_scores` showed 480
+  scores while preserving 109 virtual +EV bets.
+- the first cold protected API request reproduced Vercel's former 10-second
+  function timeout, while the warm request completed in roughly 2-3 seconds.
+  The read-only Python function budget is now 30 seconds, retaining edge cache
+  and stale-while-revalidate behavior; a regression test freezes that minimum.
+
+Failures that produced permanent safeguards:
+
+- run `32793933250` exposed capture-time instability; JS prediction time is
+  now the immutable odds-snapshot time;
+- run `32794550081` exposed floating-point replay drift; active evidence now
+  uses canonical precision and schema-versioned formula identities;
+- run `32796005030` exposed mutable support-data recomputation on replay;
+  materialization now treats the earliest captured evidence as authoritative.
+- the live cold-read timeout exposed an unsafe serverless duration margin;
+  `vercel.json` now allows 30 seconds for the existing filtered aggregation
+  instead of failing a legitimate cold database connection at 10 seconds.
+
+New technical and data insight:
+Idempotency is not merely rebuilding the same formula today. Forward evidence
+must preserve what the formula knew when the price was captured. Mutable
+support features may be used on the first capture, but cannot later be
+recomputed into the same immutable observation identity.
+
+What remains unproven:
+
+- none of the current 9,358 rows had a finished-match outcome at verification
+  time, so no all-formula win/loss, ROI, calibration, or comparative ranking is
+  yet evidence;
+- no current row has an official T-10 closing line, so CLV and beat-close rate
+  remain unavailable;
+- the current surface covers only the statkeys and contexts present in the four
+  safe forward fixtures. Coverage expands from future odds captures; it is not
+  fabricated for unsupported markets.
+
+Next justified test:
+Allow the scheduled post-match workflow to run after these four fixtures have
+finished, then verify exact canonical actuals, win/loss/push settlement,
+idempotent result replay, stake/PnL/ROI, and any genuinely official closing
+coverage without changing formulas, thresholds, or stored observations.
 
 ### 2026-08-23 - Self-healing post-match enrichment and settlement recovery
 

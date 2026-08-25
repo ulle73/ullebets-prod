@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from http.server import ThreadingHTTPServer
 from importlib import import_module, reload
 from importlib.util import module_from_spec, spec_from_file_location
@@ -14,6 +15,7 @@ from urllib.request import Request, urlopen
 
 FUNCTION_PATH = Path(__file__).resolve().parents[2] / "api" / "v1" / "[resource].py"
 DETAIL_FUNCTION_PATH = FUNCTION_PATH.parent / "[resource]" / "[resource_id].py"
+VERCEL_CONFIG_PATH = FUNCTION_PATH.parents[2] / "vercel.json"
 
 
 def _load_function_module(function_path: Path = FUNCTION_PATH):
@@ -40,6 +42,12 @@ class FakeDatabase:
 class EmptyCollection:
     def find_one(self, query: dict[str, str], projection: dict[str, int] | None = None):
         return None
+
+
+def test_vercel_read_functions_allow_cold_formula_aggregation_to_finish() -> None:
+    config = json.loads(VERCEL_CONFIG_PATH.read_text(encoding="utf-8"))
+
+    assert config["functions"]["api/**/*.py"]["maxDuration"] >= 30
 
 
 def _request(url: str, *, method: str = "GET"):

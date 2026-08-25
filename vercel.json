@@ -4,7 +4,7 @@
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/**/*.py": {
-      "maxDuration": 10,
+      "maxDuration": 30,
       "includeFiles": "src/**",
       "excludeFiles": "{tests/**,data/**,docs/**,frontend/**,.github/**}"
     }

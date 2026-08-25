@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-23
+Last updated: 2026-08-25
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -32,6 +32,9 @@ Status details and evidence:
   oracle so V2 can run independently.
 - [ ] `PARTIAL` Production Vercel hosting and the server-side V2 read API are
   verified; monitoring, alerting, and full operational acceptance remain.
+- [ ] `UNPROVEN` Settle the first active all-formula `js-v3`/frozen-ML shadow
+  observations after their real matches finish and verify comparative ROI,
+  calibration, and any available official CLV without altering captured rows.
 
 ## 1. Database and safety
 
@@ -153,6 +156,14 @@ Current acceptance window:
 - [x] Registry V5 resolves to 20 immutable policies with a stable fingerprint.
 - [x] Production forward scoring is configured to use only the frozen V6
   artifact and a separate immutable V6 forward-policy registry.
+- [x] A separate all-formula shadow registry freezes 16 JS entrypoints and the
+  five existing ML artifacts. It writes immutable first-capture observations
+  for evaluation only and cannot create registered real selections outside the
+  V6 forward policy.
+- [x] Active JS formula evidence uses the odds-snapshot time, canonical numeric
+  precision, schema `js-v3`, and a platform-independent source fingerprint.
+  Replays validate and reuse first-capture evidence instead of recalculating
+  mutable support/team inputs into the same observation identity.
 - [x] Immutable score persistence preserves stored rows and accepts only
   machine-precision-equivalent raw feature values (absolute tolerance
   `1e-12`) while independently validating derived feature fingerprints;
@@ -189,6 +200,16 @@ Current acceptance window:
   immutable match identity before the hourly settlement chain. The 2026-08-23
   production repair enriched 7 missed fixtures and settled all 11 affected
   22 August V6 journal exposures (5 wins, 6 losses, 0 missing actuals).
+- [x] Formula shadow results share canonical settlement and official-closing
+  contracts. Positive EV carries a virtual 1u stake, non-positive scores remain
+  0u calibration evidence, and pending or excluded rows cannot enter ROI, PnL,
+  win/loss, calibration, or CLV denominators.
+- [x] Hosted result refresh `32796715652` created 9,358 formula-result rows with
+  9,358 pending, 0 settled, 0 excluded, and 0 official CLV observations. This
+  verifies result lifecycle creation, not post-match settlement.
+- [ ] `UNPROVEN` Run the formula-result chain after the four current fixtures
+  finish and verify exact actual, win/loss/push, stake, PnL, and idempotent
+  replay on settled production rows.
 - [ ] `UNPROVEN` Produce model-specific in-domain forward ROI.
 - [ ] `UNPROVEN` Produce model-specific in-domain CLV and beat-close rate.
 
@@ -231,6 +252,11 @@ Current acceptance window:
 - [x] EV shadow runtime versions are pinned to the frozen manifests; hosted
   production write-mode run `30672830616` passed all four scorers. It produced
   zero rows because no upcoming canonical model markets existed.
+- [x] Every accepted checkpoint/closing capture now invokes the registered
+  all-formula materializer for the exact persisted match keys, and the
+  settlement workflow refreshes formula results after canonical settlement
+  and CLV. Hosted replay `32796556700` reused all 9,358 observations with 0
+  inserts, 9,358 existing, 0 conflicts, and 0 oracle errors.
 - [ ] `PARTIAL` Prove every scheduled workflow in real write mode through a
   complete prematch-to-postmatch lifecycle.
 - [ ] `PARTIAL` Post-match recovery has distinct concurrency, exact unresolved
@@ -279,15 +305,24 @@ Current acceptance window:
   offers as model-missing. Feature commit `1243355` is on `origin/main`, and
   Vercel production deployment `dpl_7yabEkwkhqdA2dkcQkeEph1DFUFa` is `Ready`.
   Hosted write-mode lifecycle evidence remains unchecked above.
+- [x] `VERIFIED` `/api/v1/formula-performance` and `/modell` expose the separate
+  all-formula shadow comparison with formula, family, statkey, scope, period,
+  direction, league, checkpoint, status, and +EV/all-score filters. The UI
+  explains 1u, evidence volume, ROI, official CLV, beat-close rate, and Brier;
+  sorts by evidence rather than inspected ROI; and shows unavailable metrics
+  as `—`. Live desktop and 390px browser checks on deployment
+  `dpl_6ZioyK3fT8Tzpt6aRavmZizQ6oso` reproduced a four-filter slice of 109 +EV
+  observations over 3 matches and 480 total scores.
 - [ ] `PARTIAL` Data freshness, missing-data, exclusion, health, and audit states are shown on the relevant surfaces, but uniform freshness metadata across every product section still depends on the source/read contract carrying it.
-- [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, and production build all pass on `style-1` run `31648971262`; the current checkpoint-journal checkout additionally passes 57 frontend tests, lint, and production build locally.
+- [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, and production build all pass on `style-1` run `31648971262`; the current all-formula checkout additionally passes 59 frontend tests, lint, production build, and live desktop/390px browser checks.
 
 ## 12. Release readiness
 
 - [x] README, `.env.example`, healthcheck, smoke test, work log, and agent
   instructions exist.
-- [x] Current V2 regression suite passes `522/522` on the merged local `main`
-  checkout. The earlier hosted `434/434`
+- [x] Current V2 regression suite passes `555/555` on the all-formula checkout;
+  the frontend passes 59 tests across 18 files, lint, and production build. The
+  earlier hosted `434/434`
   backend-isolation run `31648971290` remains preserved as historical
   evidence.
 - [x] The V2 worktree was committed and merge-verified without secrets,
