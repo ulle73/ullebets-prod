@@ -38,7 +38,7 @@ function RuntimeProof({ data }: { data: ModelResponse }) {
       <div className="section-heading">
         <div><p className="eyebrow">Registrerad produktion</p><h2 id="runtime-proof-title">Modell & proof</h2></div>
       </div>
-      <p className="proof-caveat">Det här är driftstatus för de riktiga förregistrerade valen. Den hålls separat från den breda skuggjämförelsen ovan.</p>
+      <p className="proof-caveat">Det här är driftstatus för de riktiga förregistrerade valen. Den hålls separat från den breda skuggjämförelsen ovan. Antal observationer är inte proof. Positiv forward-ROI eller CLV måste verifieras separat innan det får behandlas som evidens för framtida beslut.</p>
       <div className="metric-tile-grid metric-tile-grid--4">
         <MetricTile label="Modellscorer" value={data.scoreCount} detail="Registrerade scorer" icon={<Activity size={14} />} />
         <MetricTile label="Forward-val" value={data.forwardSelectionCount} detail="Förregistrerade observationer" tone="brand" icon={<GitBranch size={14} />} />

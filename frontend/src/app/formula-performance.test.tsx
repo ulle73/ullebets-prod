@@ -71,7 +71,13 @@ describe('formula performance', () => {
 
     await userEvent.selectOptions(screen.getByLabelText('Statistik'), 'cornerKicks');
     await waitFor(() => {
-      const urls = fetchMock.mock.calls.map(([input]) => String(input));
+      const urls = fetchMock.mock.calls.map(([input]) => (
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url
+      ));
       expect(urls.some((url) => url.includes('/api/v1/formula-performance?') && url.includes('stat=cornerKicks'))).toBe(true);
     });
   });
