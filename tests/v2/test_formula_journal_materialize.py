@@ -68,6 +68,15 @@ class FakeCollection:
         self.rows.append(deepcopy(update["$setOnInsert"]))
         return SimpleNamespace(upserted_id=str(len(self.rows)))
 
+    def bulk_write(self, operations, *, ordered=False):
+        assert ordered is False
+        upserted_count = 0
+        for operation in operations:
+            if self.find_one(operation._filter) is None:
+                self.rows.append(deepcopy(operation._doc["$setOnInsert"]))
+                upserted_count += 1
+        return SimpleNamespace(upserted_count=upserted_count)
+
     def distinct(self, field):
         return sorted({row[field] for row in self.rows if row.get(field) is not None})
 

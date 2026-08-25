@@ -354,4 +354,3 @@ def read_formula_performance(
         },
         "groups": page_rows,
     }
-

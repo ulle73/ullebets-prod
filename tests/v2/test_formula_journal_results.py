@@ -111,6 +111,7 @@ def _closing() -> list[dict]:
 class FakeCollection:
     def __init__(self, rows=()) -> None:
         self.rows = [deepcopy(row) for row in rows]
+        self.bulk_write_calls = 0
 
     @staticmethod
     def _matches(row: dict, query: dict) -> bool:
@@ -141,6 +142,41 @@ class FakeCollection:
         doc = deepcopy(update.get("$setOnInsert") or update.get("$set") or {})
         self.rows.append(doc)
         return SimpleNamespace(upserted_id=str(len(self.rows)), modified_count=0)
+
+    def bulk_write(self, operations, *, ordered=False):
+        assert ordered is False
+        self.bulk_write_calls += 1
+        upserted_count = 0
+        matched_count = 0
+        for operation in operations:
+            existing_index = next(
+                (
+                    index
+                    for index, row in enumerate(self.rows)
+                    if self._matches(row, operation._filter)
+                ),
+                None,
+            )
+            if existing_index is not None:
+                matched_count += 1
+                if "$set" in operation._doc:
+                    self.rows[existing_index] = {
+                        **self.rows[existing_index],
+                        **deepcopy(operation._doc["$set"]),
+                    }
+            elif operation._upsert:
+                self.rows.append(
+                    deepcopy(
+                        operation._doc.get("$setOnInsert")
+                        or operation._doc.get("$set")
+                        or {}
+                    )
+                )
+                upserted_count += 1
+        return SimpleNamespace(
+            upserted_count=upserted_count,
+            matched_count=matched_count,
+        )
 
 
 class FakeDatabase(dict):
@@ -215,6 +251,7 @@ def test_persisted_settled_outcome_is_immutable_but_clv_can_refresh() -> None:
     official = deepcopy(row)
     official.update({"clv_status": "tracked", "official_clv": True, "clv_pct": 11.1})
     assert persist_formula_results(collection, [official])["updated"] == 1
+    assert collection.bulk_write_calls == 2
 
     changed_outcome = deepcopy(official)
     changed_outcome["settlement_result"] = "loss"

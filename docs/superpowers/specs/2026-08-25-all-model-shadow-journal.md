@@ -71,4 +71,3 @@ Filter ska ligga i URL-parametrar, vara tillgängliga med labels och fungera på
 - En out-of-domain-rad syns i revisionsvolym men påverkar inte ROI.
 - Read API kan filtrera och summera utan att blanda in `forward_bets`.
 - Frontend visar tomt, laddning, fel, litet underlag och filtrerad data utan påhittade reservvärden.
-

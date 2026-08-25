@@ -6,6 +6,8 @@ import json
 import math
 from typing import Any, Iterable
 
+from pymongo import UpdateOne
+
 from ullebets_v2.formula_journal.registry import frozen_model_registry_by_id
 
 
@@ -331,26 +333,80 @@ def persist_formula_observations(
             )
         incoming_by_key[key] = doc
 
-    for key, doc in incoming_by_key.items():
-        existing = collection.find_one({"observation_key": key}, projection={"_id": 0})
-        if existing is not None:
+    batch_size = 500
+    incoming_items = list(incoming_by_key.items())
+    for offset in range(0, len(incoming_items), batch_size):
+        batch = incoming_items[offset : offset + batch_size]
+        batch_by_key = dict(batch)
+        existing_rows = list(
+            collection.find(
+                {"observation_key": {"$in": list(batch_by_key)}},
+                projection={"_id": 0},
+            )
+        )
+        existing_by_key = {
+            str(row.get("observation_key") or ""): row
+            for row in existing_rows
+        }
+        for key, existing in existing_by_key.items():
+            existing_fingerprint = immutable_observation_fingerprint(existing)
             if (
-                existing.get("observation_fingerprint_sha256") != immutable_observation_fingerprint(existing)
-                or immutable_observation_fingerprint(existing) != immutable_observation_fingerprint(doc)
+                existing.get("observation_fingerprint_sha256") != existing_fingerprint
+                or existing_fingerprint != immutable_observation_fingerprint(batch_by_key[key])
             ):
                 metrics["conflicts"] += 1
                 raise ImmutableFormulaObservationConflict(
                     f"immutable formula observation conflict: {key}"
                 )
-            metrics["existing"] += 1
+        metrics["existing"] += len(existing_by_key)
+
+        missing = [
+            (key, doc)
+            for key, doc in batch
+            if key not in existing_by_key
+        ]
+        if not missing:
             continue
-        result = collection.update_one(
-            {"observation_key": key},
-            {"$setOnInsert": doc},
-            upsert=True,
+        result = collection.bulk_write(
+            [
+                UpdateOne(
+                    {"observation_key": key},
+                    {"$setOnInsert": doc},
+                    upsert=True,
+                )
+                for key, doc in missing
+            ],
+            ordered=False,
         )
-        if result.upserted_id is not None:
-            metrics["inserted"] += 1
-        else:
-            metrics["existing"] += 1
+        inserted = int(result.upserted_count)
+        raced = len(missing) - inserted
+        metrics["inserted"] += inserted
+        metrics["existing"] += raced
+        if raced:
+            raced_rows = list(
+                collection.find(
+                    {"observation_key": {"$in": [key for key, _ in missing]}},
+                    projection={"_id": 0},
+                )
+            )
+            raced_by_key = {
+                str(row.get("observation_key") or ""): row
+                for row in raced_rows
+            }
+            for key, doc in missing:
+                stored = raced_by_key.get(key)
+                if stored is None:
+                    metrics["conflicts"] += 1
+                    raise ImmutableFormulaObservationConflict(
+                        f"formula observation disappeared after concurrent insert: {key}"
+                    )
+                stored_fingerprint = immutable_observation_fingerprint(stored)
+                if (
+                    stored.get("observation_fingerprint_sha256") != stored_fingerprint
+                    or stored_fingerprint != immutable_observation_fingerprint(doc)
+                ):
+                    metrics["conflicts"] += 1
+                    raise ImmutableFormulaObservationConflict(
+                        f"immutable formula observation conflict after concurrent insert: {key}"
+                    )
     return metrics

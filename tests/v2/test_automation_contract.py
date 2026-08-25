@@ -97,6 +97,9 @@ def test_checkpoint_capture_workflows_score_registry_and_materialize_after_new_s
         assert capture_command in workflow
         assert "CAPTURED_SNAPSHOTS=" in workflow
         assert 'summary.get("market_snapshot_upserts")' in workflow
+        assert 'summary.get("due_targets")' in workflow
+        assert "SCOPED_MATCH_ARGS" in workflow
+        assert "--match-key" in workflow
         assert 'if [ "$CAPTURED_SNAPSHOTS" -gt 0 ]; then' in workflow
         assert "python -m pip install -e ." in workflow
         assert "score_registered_shadow_models.py" in workflow

@@ -72,4 +72,3 @@ def frozen_model_registry_by_id(registry: dict[str, Any]) -> dict[str, dict[str,
         str(row["model_id"]): dict(row)
         for row in registry.get("frozen_models", [])
     }
-

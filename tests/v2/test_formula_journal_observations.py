@@ -91,6 +91,24 @@ def _ml_score(*, valid: bool = True) -> dict:
 class FakeCollection:
     def __init__(self) -> None:
         self.rows: dict[str, dict] = {}
+        self.find_calls = 0
+        self.bulk_write_calls = 0
+
+    def find(self, query: dict, projection: dict | None = None):  # noqa: ANN201, ARG002
+        self.find_calls += 1
+        keys = set(query["observation_key"]["$in"])
+        return [deepcopy(row) for key, row in self.rows.items() if key in keys]
+
+    def bulk_write(self, operations: list, *, ordered: bool = False) -> SimpleNamespace:
+        assert ordered is False
+        self.bulk_write_calls += 1
+        upserted_count = 0
+        for operation in operations:
+            key = operation._filter["observation_key"]
+            if key not in self.rows:
+                self.rows[key] = deepcopy(operation._doc["$setOnInsert"])
+                upserted_count += 1
+        return SimpleNamespace(upserted_count=upserted_count)
 
     def find_one(self, query: dict, projection: dict | None = None) -> dict | None:  # noqa: ARG002
         row = self.rows.get(query["observation_key"])
@@ -180,6 +198,8 @@ def test_persistence_replays_identical_doc_and_rejects_changed_immutable_evidenc
         "existing": 1,
         "conflicts": 0,
     }
+    assert collection.find_calls == 2
+    assert collection.bulk_write_calls == 1
 
     changed = deepcopy(doc)
     changed["offered_odds"] = 9.0

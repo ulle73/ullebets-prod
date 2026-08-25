@@ -6,6 +6,8 @@ import json
 import math
 from typing import Any, Iterable
 
+from pymongo import UpdateOne
+
 from ullebets_v2.clv_tracking.service import build_clv_tracking_docs
 from ullebets_v2.settlement.service import (
     FORMULA_OBSERVATION_SELECTION_SOURCE,
@@ -223,36 +225,101 @@ def persist_formula_results(
         "unchanged": 0,
         "conflicts": 0,
     }
+    prepared: dict[str, dict[str, Any]] = {}
     for source in docs:
         doc = dict(source)
         key = str(doc.get("observation_key") or "")
         if not key:
             raise ValueError("formula result requires observation_key")
         doc["result_fingerprint_sha256"] = _result_fingerprint(doc)
-        existing = collection.find_one({"observation_key": key}, projection={"_id": 0})
-        if existing is None:
-            result = collection.update_one(
-                {"observation_key": key},
-                {"$setOnInsert": doc},
-                upsert=True,
-            )
-            if result.upserted_id is not None:
-                metrics["inserted"] += 1
-            else:
-                metrics["unchanged"] += 1
-            continue
-        if existing.get("settlement_status") == "settled" and _settled_fields_changed(existing, doc):
+        duplicate = prepared.get(key)
+        if duplicate is not None and _result_fingerprint(duplicate) != _result_fingerprint(doc):
             metrics["conflicts"] += 1
-            raise FormulaResultConflict(f"settled formula result conflict: {key}")
-        if _result_fingerprint(existing) == _result_fingerprint(doc):
-            metrics["unchanged"] += 1
-            continue
-        collection.update_one(
-            {"observation_key": key},
-            {"$set": doc},
-            upsert=False,
-        )
-        metrics["updated"] += 1
+            raise FormulaResultConflict(f"duplicate formula result conflict: {key}")
+        prepared[key] = doc
+
+    prepared_items = list(prepared.items())
+    batch_size = 500
+    for offset in range(0, len(prepared_items), batch_size):
+        batch = prepared_items[offset : offset + batch_size]
+        batch_by_key = dict(batch)
+        existing_by_key = {
+            str(row.get("observation_key") or ""): row
+            for row in collection.find(
+                {"observation_key": {"$in": list(batch_by_key)}},
+                projection={"_id": 0},
+            )
+        }
+        inserts: list[tuple[str, dict[str, Any]]] = []
+        updates: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+        for key, doc in batch:
+            existing = existing_by_key.get(key)
+            if existing is None:
+                inserts.append((key, doc))
+                continue
+            if existing.get("settlement_status") == "settled" and _settled_fields_changed(existing, doc):
+                metrics["conflicts"] += 1
+                raise FormulaResultConflict(f"settled formula result conflict: {key}")
+            if _result_fingerprint(existing) == _result_fingerprint(doc):
+                metrics["unchanged"] += 1
+                continue
+            updates.append((key, existing, doc))
+
+        if inserts:
+            result = collection.bulk_write(
+                [
+                    UpdateOne(
+                        {"observation_key": key},
+                        {"$setOnInsert": doc},
+                        upsert=True,
+                    )
+                    for key, doc in inserts
+                ],
+                ordered=False,
+            )
+            inserted = int(result.upserted_count)
+            raced = len(inserts) - inserted
+            metrics["inserted"] += inserted
+            metrics["unchanged"] += raced
+            if raced:
+                raced_by_key = {
+                    str(row.get("observation_key") or ""): row
+                    for row in collection.find(
+                        {"observation_key": {"$in": [key for key, _ in inserts]}},
+                        projection={"_id": 0},
+                    )
+                }
+                for key, doc in inserts:
+                    stored = raced_by_key.get(key)
+                    if stored is None or _result_fingerprint(stored) != _result_fingerprint(doc):
+                        metrics["conflicts"] += 1
+                        raise FormulaResultConflict(
+                            f"formula result conflict after concurrent insert: {key}"
+                        )
+
+        if updates:
+            result = collection.bulk_write(
+                [
+                    UpdateOne(
+                        {
+                            "observation_key": key,
+                            "result_fingerprint_sha256": existing.get(
+                                "result_fingerprint_sha256"
+                            ),
+                        },
+                        {"$set": doc},
+                        upsert=False,
+                    )
+                    for key, existing, doc in updates
+                ],
+                ordered=False,
+            )
+            if int(result.matched_count) != len(updates):
+                metrics["conflicts"] += 1
+                raise FormulaResultConflict(
+                    "formula result changed concurrently during refresh"
+                )
+            metrics["updated"] += len(updates)
     return metrics
 
 
