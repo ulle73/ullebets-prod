@@ -16,7 +16,9 @@ FINGERPRINT_EXCLUDED_FIELDS = {
     "journaled_at",
     "observation_fingerprint_sha256",
 }
-JS_OBSERVATION_SCHEMA_VERSION = "js-v2"
+JS_OBSERVATION_SCHEMA_VERSION = "js-v3"
+JS_EV_PERCENT_DECIMALS = 9
+JS_PROBABILITY_DECIMALS = 12
 
 
 class ImmutableFormulaObservationConflict(RuntimeError):
@@ -164,7 +166,7 @@ def build_js_observation_docs(
                 continue
             if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
                 continue
-            expected_ev_pct = float(raw_value)
+            expected_ev_pct = round(float(raw_value), JS_EV_PERCENT_DECIMALS)
             if not math.isfinite(expected_ev_pct):
                 continue
             expected_roi_units = expected_ev_pct / 100.0
@@ -175,6 +177,7 @@ def build_js_observation_docs(
                     expected_roi_units=expected_roi_units,
                     offered_odds=fields["offered_odds"],
                 )
+                probability = round(probability, JS_PROBABILITY_DECIMALS)
             except ValueError:
                 probability = None
                 probability_valid = False

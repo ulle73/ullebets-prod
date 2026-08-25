@@ -230,3 +230,12 @@ def test_runtime_fingerprint_changes_when_js_source_changes(tmp_path) -> None:
     (tmp_path / "a.js").write_text("export const a = 2;", encoding="utf-8")
 
     assert before != fingerprint_js_runtime(tmp_path)
+
+
+def test_runtime_fingerprint_is_independent_of_checkout_line_endings(tmp_path) -> None:
+    source = tmp_path / "runtime.js"
+    source.write_bytes(b"export const value = 1;\nexport default value;\n")
+    unix_fingerprint = fingerprint_js_runtime(tmp_path)
+    source.write_bytes(b"export const value = 1;\r\nexport default value;\r\n")
+
+    assert fingerprint_js_runtime(tmp_path) == unix_fingerprint

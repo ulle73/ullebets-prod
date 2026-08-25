@@ -31,7 +31,7 @@ def fingerprint_js_runtime(runtime_root: Path) -> str:
         relative = path.relative_to(runtime_root).as_posix().encode("utf-8")
         digest.update(len(relative).to_bytes(4, "big"))
         digest.update(relative)
-        content = path.read_bytes()
+        content = path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
         digest.update(len(content).to_bytes(8, "big"))
         digest.update(content)
     return digest.hexdigest()

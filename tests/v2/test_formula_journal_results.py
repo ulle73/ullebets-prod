@@ -40,7 +40,7 @@ def _observation(
         "formula_label": "Basformel",
         "formula_family": "heuristic",
         "formula_version": "a" * 64,
-        "observation_schema_version": "js-v2",
+        "observation_schema_version": "js-v3",
         "match_key": "match-1",
         "league_key": "premier-league",
         "league_name": "Premier League",
@@ -241,6 +241,24 @@ def test_invalid_domain_observation_is_excluded_from_settlement_and_clv() -> Non
 def test_superseded_unversioned_js_observation_is_audited_but_never_staked() -> None:
     observation = _observation()
     observation.pop("observation_schema_version")
+
+    [row] = build_formula_result_docs(
+        observations=[observation],
+        match_stats_canonical=_stats(),
+        match_results_canonical=_results(),
+        closing_line_docs=_closing(),
+        refreshed_at=NOW,
+    )
+
+    assert row["settlement_status"] == "excluded"
+    assert row["stake_units"] == 0.0
+    assert row["valid_for_performance"] is False
+    assert row["exclusion_reason"] == "superseded_js_observation_schema"
+
+
+def test_superseded_v2_js_observation_is_audited_but_never_staked() -> None:
+    observation = _observation()
+    observation["observation_schema_version"] = "js-v2"
 
     [row] = build_formula_result_docs(
         observations=[observation],

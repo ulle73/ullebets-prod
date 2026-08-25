@@ -158,6 +158,18 @@ def test_js_replay_uses_snapshot_time_and_a_versioned_schema_identity() -> None:
         registry=_registry(),
         journaled_at=NOW.replace(minute=30),
     )
+    noisy_line = _js_line()
+    noisy_line["evDetails"] = {
+        key: value + 4e-12
+        for key, value in noisy_line["evDetails"].items()
+    }
+    numerically_equivalent_replay = build_js_observation_docs(
+        lines=[noisy_line],
+        context=_context(),
+        runtime_sha256="a" * 64,
+        registry=_registry(),
+        journaled_at=NOW.replace(minute=45),
+    )
 
     assert [row["observation_key"] for row in replay] == [
         row["observation_key"] for row in first
@@ -165,9 +177,13 @@ def test_js_replay_uses_snapshot_time_and_a_versioned_schema_identity() -> None:
     assert [row["observation_fingerprint_sha256"] for row in replay] == [
         row["observation_fingerprint_sha256"] for row in first
     ]
+    assert [
+        row["observation_fingerprint_sha256"]
+        for row in numerically_equivalent_replay
+    ] == [row["observation_fingerprint_sha256"] for row in first]
     assert all(row["prediction_created_at"] == NOW for row in replay)
-    assert all(row["observation_schema_version"] == "js-v2" for row in replay)
-    assert all(row["formula_version"].endswith(":js-v2") for row in replay)
+    assert all(row["observation_schema_version"] == "js-v3" for row in replay)
+    assert all(row["formula_version"].endswith(":js-v3") for row in replay)
 
 
 def test_unregistered_numeric_js_formula_is_still_archived_with_stable_fallback_metadata() -> None:
