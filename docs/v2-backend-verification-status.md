@@ -44,11 +44,13 @@ Current evidence:
   4 matches, 0 settled bets, 0 stake units, and null ROI. The exact
   `cornerKicks` + `away` + `ALL` + `T_MINUS_3D` slice returned 109 observations
   over 3 matches;
-- Vercel deployment `dpl_6ZioyK3fT8Tzpt6aRavmZizQ6oso` was `Ready`, and
+- Vercel deployment `dpl_7XCf1Hmv5sFcGQvdwRq6Rj8YPWmk` was `Ready`, and
   browser checks verified `/modell` on desktop and at 390px width.
 - a cold protected request reproduced the previous 10-second function timeout;
   the serverless read budget is now 30 seconds with its existing edge-cache
-  contract retained, and the duration floor is regression-tested.
+  contract retained, and the duration floor is regression-tested. The first
+  request against the new deployment succeeded end to end in 9.96 seconds and
+  returned 2,913 open bets, 0 settled stake units, and null ROI.
 
 Diagnostic failures were preserved as evidence. Run `32793933250` exposed
 capture-time instability, `32794550081` exposed float replay drift, and

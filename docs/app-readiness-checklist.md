@@ -310,8 +310,9 @@ Current acceptance window:
   direction, league, checkpoint, status, and +EV/all-score filters. The UI
   explains 1u, evidence volume, ROI, official CLV, beat-close rate, and Brier;
   sorts by evidence rather than inspected ROI; and shows unavailable metrics
-  as `—`. Live desktop and 390px browser checks on deployment
-  `dpl_6ZioyK3fT8Tzpt6aRavmZizQ6oso` reproduced a four-filter slice of 109 +EV
+  as `—`. Live desktop and 390px browser checks plus a successful first-request
+  read on deployment `dpl_7XCf1Hmv5sFcGQvdwRq6Rj8YPWmk` reproduced a
+  four-filter slice of 109 +EV
   observations over 3 matches and 480 total scores.
 - [ ] `PARTIAL` Data freshness, missing-data, exclusion, health, and audit states are shown on the relevant surfaces, but uniform freshness metadata across every product section still depends on the source/read contract carrying it.
 - [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, and production build all pass on `style-1` run `31648971262`; the current all-formula checkout additionally passes 59 frontend tests, lint, production build, and live desktop/390px browser checks.

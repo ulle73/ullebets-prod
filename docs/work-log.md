@@ -282,7 +282,7 @@ Exact verification:
   replays, 0 conflicts, 0 oracle errors, and 0 domain-unverified rows;
 - hosted settlement run `32796715652`: 9,358 result documents inserted, 9,358
   pending, 0 settled, 0 excluded, and 0 official CLV observations;
-- Vercel production deployment `dpl_6ZioyK3fT8Tzpt6aRavmZizQ6oso` was `Ready`
+- Vercel production deployment `dpl_7XCf1Hmv5sFcGQvdwRq6Rj8YPWmk` was `Ready`
   on the production aliases. The live positive-EV API returned 2,913 open
   virtual bets over 4 matches, 0 settled, 0 stake units, and null ROI. The
   combined `cornerKicks` + `away` + `ALL` + `T_MINUS_3D` filter returned 109
@@ -295,6 +295,9 @@ Exact verification:
   function timeout, while the warm request completed in roughly 2-3 seconds.
   The read-only Python function budget is now 30 seconds, retaining edge cache
   and stale-while-revalidate behavior; a regression test freezes that minimum.
+  The first protected request to the new deployment then completed successfully
+  with the same 2,913/0/null-ROI contract in 9.96 seconds end to end through
+  Vercel CLI.
 
 Failures that produced permanent safeguards:
 
