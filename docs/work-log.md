@@ -334,6 +334,55 @@ finished, then verify exact canonical actuals, win/loss/push settlement,
 idempotent result replay, stake/PnL/ROI, and any genuinely official closing
 coverage without changing formulas, thresholds, or stored observations.
 
+### 2026-08-25 - Ullebets chatbot tenant binding repair
+
+Status: `PARTIAL`
+
+Objective:
+Repair the hosted Ullebets widget's tenant binding after its generic chat error
+was traced to the Golfkuponger site ID being embedded on the Ullebets origin.
+
+Changes:
+
+- `frontend/index.html` now loads the Coastworks SiteChat widget with Ullebets
+  site ID `56e53c18828b`; it no longer identifies the Ullebets origin as
+  Golfkuponger (`dc0db006c4de`).
+- `frontend/src/app/chatbot-loader.test.ts` now locks the Ullebets ID.
+
+Tests:
+
+```text
+cd frontend && npm test -- --run src/app/chatbot-loader.test.ts
+cd frontend && npm run build
+PowerShell source/built-template/assertion check for data-site-id="56e53c18828b"
+```
+
+Results:
+
+- The isolated Vitest command started but did not reach test execution or
+  produce a pass/fail result; its local process was stopped after it hung.
+- The production build passed: TypeScript completed and Vite built 2,347
+  modules in 6.99 seconds.
+- The exact Ullebets ID is present in the source template, built `dist` HTML,
+  and the regression assertion.
+
+Insight:
+
+The crawler and the SiteChat index were not the cause of this particular chat
+failure. The widget was requesting the Golfkuponger tenant from the Ullebets
+browser origin, so SiteChat's tenant/origin boundary rejected the browser
+request and the widget rendered its generic fallback.
+
+Remaining:
+
+- `UNPROVEN`: the pushed Vercel deployment must serve the corrected loader and
+  the live browser widget must complete an Ullebets chat request.
+
+Next:
+
+- Push the correction to `main`, verify the production alias exposes the new
+  site ID, and repeat the exact-origin SiteChat chat request.
+
 ### 2026-08-23 - Self-healing post-match enrichment and settlement recovery
 
 Status: `PARTIAL`
