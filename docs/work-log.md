@@ -336,7 +336,8 @@ coverage without changing formulas, thresholds, or stored observations.
 
 ### 2026-08-25 - Ullebets chatbot tenant binding repair
 
-Status: `PARTIAL`
+Status: `VERIFIED` for the deployed loader and the exact-origin SiteChat chat
+contract; a manual visual click-through in a user browser remains unobserved.
 
 Objective:
 Repair the hosted Ullebets widget's tenant binding after its generic chat error
@@ -365,6 +366,13 @@ Results:
   modules in 6.99 seconds.
 - The exact Ullebets ID is present in the source template, built `dist` HTML,
   and the regression assertion.
+- Vercel production deployment `dpl_DEYhRR5cSMAWMCqJaPLLN9VRiBo9` is `Ready`
+  and its `ullebets-prod-preview.vercel.app` alias serves
+  `data-site-id="56e53c18828b"` with HTTP `200`.
+- A production `POST /api/chat` with Origin
+  `https://ullebets-prod-preview.vercel.app`, the Ullebets site ID, and a
+  valid session ID returned HTTP `200`, that exact CORS origin, a 183-character
+  answer, and 3 sources.
 
 Insight:
 
@@ -375,13 +383,14 @@ request and the widget rendered its generic fallback.
 
 Remaining:
 
-- `UNPROVEN`: the pushed Vercel deployment must serve the corrected loader and
-  the live browser widget must complete an Ullebets chat request.
+- `UNPROVEN`: a manual visual click-through of the hosted widget in a user
+  browser has not been recorded. Its deployed loader, browser-origin CORS, and
+  chat response contract are verified.
 
 Next:
 
-- Push the correction to `main`, verify the production alias exposes the new
-  site ID, and repeat the exact-origin SiteChat chat request.
+- Refresh the Ullebets page and send a normal widget message; it should now
+  receive the verified Ullebets response rather than the generic error.
 
 ### 2026-08-23 - Self-healing post-match enrichment and settlement recovery
 
