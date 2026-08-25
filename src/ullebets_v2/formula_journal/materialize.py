@@ -10,6 +10,7 @@ from ullebets_v2.ev_model.domain import score_feature_value
 from ullebets_v2.formula_journal.observations import (
     build_js_observation_docs,
     build_ml_observation_docs,
+    partition_unseen_formula_observations,
     persist_formula_observations,
 )
 from ullebets_v2.storage.collections import (
@@ -273,10 +274,15 @@ def materialize_formula_observations(
     all_docs = [*js_docs, *ml_docs]
     persistence = {"inserted": 0, "existing": 0, "conflicts": 0}
     if not dry_run:
-        persistence = persist_formula_observations(
+        unseen_docs, existing_count = partition_unseen_formula_observations(
             database[FORMULA_OBSERVATIONS],
             all_docs,
         )
+        persistence = persist_formula_observations(
+            database[FORMULA_OBSERVATIONS],
+            unseen_docs,
+        )
+        persistence["existing"] += existing_count
     return {
         "snapshot_rows": len(snapshot_rows),
         "snapshot_groups": len(grouped_snapshots),

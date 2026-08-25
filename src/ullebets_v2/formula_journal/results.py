@@ -361,7 +361,18 @@ def refresh_formula_results(
     dry_run: bool = False,
 ) -> dict[str, Any]:
     timestamp = refreshed_at or datetime.now(tz=UTC)
-    observations = _find_rows(database[FORMULA_OBSERVATIONS], {})
+    observations = _find_rows(
+        database[FORMULA_OBSERVATIONS],
+        {
+            "$or": [
+                {"source_type": "frozen_ml_model"},
+                {
+                    "source_type": "js_formula",
+                    "observation_schema_version": JS_OBSERVATION_SCHEMA_VERSION,
+                },
+            ]
+        },
+    )
     match_keys = sorted(
         {str(row["match_key"]) for row in observations if row.get("match_key")}
     )

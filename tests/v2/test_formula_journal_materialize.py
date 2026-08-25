@@ -89,6 +89,9 @@ class FakeDatabase(dict):
 
 
 class FakeOracle:
+    def __init__(self, ev_pct: float = 10.0) -> None:
+        self.ev_pct = ev_pct
+
     def build_match_lines(self, *, match_info, offers, defaults=None):  # noqa: ARG002
         assert match_info["homeTeam"] == "Arsenal"
         [offer] = offers
@@ -103,7 +106,7 @@ class FakeOracle:
                     "line": offer["line"],
                     "direction": "over",
                     "odds": offer["odds"]["over"],
-                    "evDetails": {"evPct": 10.0, "evPctLeagueAvg": 5.0},
+                    "evDetails": {"evPct": self.ev_pct, "evPctLeagueAvg": 5.0},
                 }
             ],
         }
@@ -212,7 +215,7 @@ def test_materializer_replay_is_idempotent() -> None:
     )
     second = materialize_formula_observations(
         database=database,
-        oracle=FakeOracle(),
+        oracle=FakeOracle(ev_pct=10.000001),
         registry=_registry(),
         runtime_sha256="a" * 64,
         now=NOW,
@@ -221,6 +224,9 @@ def test_materializer_replay_is_idempotent() -> None:
     assert first["persistence"]["inserted"] == 2
     assert second["persistence"]["existing"] == 2
     assert second["persistence"]["conflicts"] == 0
+    assert database[FORMULA_OBSERVATIONS].find_one(
+        {"formula_id": "js:evPct"}
+    )["expected_ev_pct"] == 10.0
 
 
 def test_runtime_fingerprint_changes_when_js_source_changes(tmp_path) -> None:

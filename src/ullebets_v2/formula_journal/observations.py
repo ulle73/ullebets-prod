@@ -315,6 +315,50 @@ def build_ml_observation_docs(
     return docs
 
 
+def partition_unseen_formula_observations(
+    collection: Any,
+    docs: Iterable[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    """Keep the first immutable observation for an already claimed identity.
+
+    Predictor support data can legitimately advance after an odds snapshot was
+    captured. A replay must therefore reuse the evidence first journaled for
+    that snapshot/formula identity instead of recomputing mutable context into
+    the same key. Stored rows are still fingerprint-validated before reuse.
+    """
+    candidates = [dict(row) for row in docs]
+    existing_keys: set[str] = set()
+    batch_size = 500
+    for offset in range(0, len(candidates), batch_size):
+        batch = candidates[offset : offset + batch_size]
+        keys = [str(row.get("observation_key") or "") for row in batch]
+        if any(not key for key in keys):
+            raise ImmutableFormulaObservationConflict(
+                "formula observation candidate is missing observation_key"
+            )
+        stored_rows = list(
+            collection.find(
+                {"observation_key": {"$in": keys}},
+                projection={"_id": 0},
+            )
+        )
+        for stored in stored_rows:
+            key = str(stored.get("observation_key") or "")
+            if (
+                not key
+                or stored.get("observation_fingerprint_sha256")
+                != immutable_observation_fingerprint(stored)
+            ):
+                raise ImmutableFormulaObservationConflict(
+                    f"stored immutable formula observation is corrupt: {key}"
+                )
+            existing_keys.add(key)
+    return (
+        [row for row in candidates if str(row["observation_key"]) not in existing_keys],
+        len(existing_keys),
+    )
+
+
 def persist_formula_observations(
     collection: Any,
     docs: Iterable[dict[str, Any]],

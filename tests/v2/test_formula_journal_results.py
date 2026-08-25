@@ -117,6 +117,10 @@ class FakeCollection:
     @staticmethod
     def _matches(row: dict, query: dict) -> bool:
         for key, expected in query.items():
+            if key == "$or":
+                if not any(FakeCollection._matches(row, branch) for branch in expected):
+                    return False
+                continue
             actual = row.get(key)
             if isinstance(expected, dict) and "$in" in expected:
                 if actual not in expected["$in"]:
@@ -296,10 +300,12 @@ def test_persisted_settled_outcome_is_immutable_but_clv_can_refresh() -> None:
         persist_formula_results(collection, [changed_outcome])
 
 
-def test_refresh_formula_results_reads_all_sources_and_is_idempotent() -> None:
+def test_refresh_formula_results_reads_only_active_schema_and_is_idempotent() -> None:
+    superseded = _observation(key="old-obs")
+    superseded["observation_schema_version"] = "js-v2"
     database = FakeDatabase(
         {
-            FORMULA_OBSERVATIONS: FakeCollection([_observation()]),
+            FORMULA_OBSERVATIONS: FakeCollection([_observation(), superseded]),
             MATCH_STATS_CANONICAL: FakeCollection(_stats()),
             MATCH_RESULTS_CANONICAL: FakeCollection(_results()),
             CLOSING_LINES: FakeCollection(_closing()),
@@ -311,5 +317,6 @@ def test_refresh_formula_results_reads_all_sources_and_is_idempotent() -> None:
     second = refresh_formula_results(database=database, refreshed_at=NOW)
 
     assert first["result_docs"] == 1
+    assert first["observations"] == 1
     assert first["persistence"]["inserted"] == 1
     assert second["persistence"]["unchanged"] == 1
