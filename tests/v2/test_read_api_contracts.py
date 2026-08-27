@@ -508,6 +508,11 @@ def test_auto_contract_filters_counts_and_paginates_before_frontend_rendering() 
         'groups': 2,
         'valid': 1,
         'excluded': 1,
+        'acceptedClvCount': 0,
+        't30ClvCount': 0,
+        't10ClvCount': 0,
+        'beatClosingLineCount': 0,
+        'averageAcceptedClvPct': None,
     }
     assert payload['page'] == {'limit': 1, 'offset': 1, 'hasMore': False}
     assert [row['selectionKey'] for row in payload['selections']] == ['s2']
@@ -609,6 +614,135 @@ def test_auto_groups_checkpoint_rows_after_filtering_and_keeps_observation_total
     assert filtered['summary']['groups'] == 1
     assert filtered['selections'][0]['selectionKey'] == 'p-t3d'
     assert filtered['selections'][0]['observationCount'] == 1
+
+
+def test_auto_exposes_accepted_t30_clv_and_exact_market_odds_history() -> None:
+    shared = {
+        'prediction_type': 'ev_registered_score_policy',
+        'model_id': 'ev_scope_interaction_recency45_asof_capped_v6_shadow',
+        'selection_policy_id': 'v6_full_domain_checkpoint_journal_v2',
+        'selection_granularity': 'checkpoint_observation',
+        'prediction_key': 'p-t3d',
+        'selection_key': 'p-t3d',
+        'match_key': 'm1',
+        'offer_key': 'offer-exact',
+        'stat_key': 'cornerKicks',
+        'period': 'ALL',
+        'scope': 'total',
+        'direction': 'over',
+        'line_value': 10.5,
+        'snapshot_label': 'T_MINUS_3D',
+        'selected_odds': 1.95,
+        'valid_for_forward_evaluation': True,
+        'invalid_for_model': False,
+        'match_start_time': datetime(2026, 8, 15, 12, tzinfo=UTC),
+    }
+    database = MemoryDatabase(
+        forward_bets=MemoryCollection([shared]),
+        forward_results=MemoryCollection(
+            [
+                shared | {
+                    'result_loop_key': 'p-t3d',
+                    'settlement_status': 'settled',
+                    'settlement_result': 'win',
+                    'valid_for_performance': True,
+                    'accepted_clv': True,
+                    'eligible_for_promotion_clv': False,
+                    'official_clv': False,
+                    'closing_quality': 't30_fallback',
+                    'closing_checkpoint': 'T_MINUS_30M',
+                    'closing_snapshot_label': 'T_MINUS_30M',
+                    'closing_odds': 1.8,
+                    'clv_status': 'tracked_fallback_t30',
+                    'clv_pct': 8.3,
+                    'beat_closing_line': True,
+                    'price_history': [
+                        {
+                            'snapshot_label': 'T_MINUS_3D',
+                            'observed_at': '2026-08-12T12:00:00Z',
+                            'odds': 1.95,
+                            'line_value': 10.5,
+                            'direction': 'over',
+                        },
+                        {
+                            'snapshot_label': 'T_MINUS_2H',
+                            'observed_at': '2026-08-15T10:00:00Z',
+                            'odds': 1.88,
+                            'line_value': 10.5,
+                            'direction': 'over',
+                        },
+                        {
+                            'snapshot_label': 'T_MINUS_30M',
+                            'observed_at': '2026-08-15T11:30:00Z',
+                            'odds': 1.8,
+                            'line_value': 10.5,
+                            'direction': 'over',
+                        },
+                        {
+                            'snapshot_label': 'T_MINUS_30M',
+                            'observed_at': '2026-08-15T11:30:00Z',
+                            'odds': 2.0,
+                            'line_value': 11.5,
+                            'direction': 'over',
+                        },
+                        {
+                            'snapshot_label': 'T_MINUS_30M',
+                            'observed_at': '2026-08-15T11:30:00Z',
+                            'odds': 2.05,
+                            'line_value': 10.5,
+                            'direction': 'under',
+                        },
+                    ],
+                }
+            ]
+        ),
+        fixtures_canonical=MemoryCollection([fixture('m1')]),
+    )
+
+    payload = read_service.read_auto(database)
+
+    assert payload['summary']['acceptedClvCount'] == 1
+    assert payload['summary']['t30ClvCount'] == 1
+    assert payload['summary']['t10ClvCount'] == 0
+    assert payload['summary']['beatClosingLineCount'] == 1
+    assert payload['summary']['averageAcceptedClvPct'] == 8.3
+    row = payload['selections'][0]
+    assert row['acceptedClv'] is True
+    assert row['officialClv'] is False
+    assert row['closingStatus'] == 'accepted'
+    assert row['closingQuality'] == 't30_fallback'
+    assert row['closingCheckpoint'] == 'T_MINUS_30M'
+    assert row['closingOdds'] == 1.8
+    assert row['clvPct'] == 8.3
+    assert row['clvDistancePct'] == 8.3
+    assert row['beatClosingLine'] is True
+    assert row['acceptedClvCount'] == 1
+    assert row['oddsHistory'] == [
+        {
+            'snapshotLabel': 'T_MINUS_3D',
+            'observedAt': '2026-08-12T12:00:00Z',
+            'odds': 1.95,
+            'lineValue': 10.5,
+            'selected': True,
+            'closing': False,
+        },
+        {
+            'snapshotLabel': 'T_MINUS_2H',
+            'observedAt': '2026-08-15T10:00:00Z',
+            'odds': 1.88,
+            'lineValue': 10.5,
+            'selected': False,
+            'closing': False,
+        },
+        {
+            'snapshotLabel': 'T_MINUS_30M',
+            'observedAt': '2026-08-15T11:30:00Z',
+            'odds': 1.8,
+            'lineValue': 10.5,
+            'selected': False,
+            'closing': True,
+        },
+    ]
 
 
 def test_results_contract_is_typed_filtered_paginated_and_entity_joined() -> None:

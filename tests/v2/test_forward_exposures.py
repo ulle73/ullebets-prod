@@ -171,3 +171,38 @@ def test_display_group_uses_best_ev_and_aggregates_every_one_unit_observation() 
     assert row["beat_closing_line_count"] == 1
     assert row["clv_beat_rate"] == 0.5
     assert row["average_clv_pct"] == 1.0
+
+
+def test_display_group_counts_t30_as_accepted_clv_without_promoting_it_to_official() -> None:
+    first = _v6_row() | {
+        "prediction_key": "journal|score-t3d",
+        "selection_key": "journal|score-t3d",
+        "selection_policy_id": "v6_full_domain_checkpoint_journal_v2",
+        "selection_granularity": "checkpoint_observation",
+        "snapshot_label": "T_MINUS_3D",
+        "expected_roi_units": 0.08,
+        "eligible_for_promotion_clv": False,
+        "official_clv": False,
+        "closing_quality": "t30_fallback",
+        "clv_status": "tracked_fallback_t30",
+        "beat_closing_line": True,
+        "clv_pct": 4.0,
+    }
+    later = first | {
+        "prediction_key": "journal|score-t2h",
+        "selection_key": "journal|score-t2h",
+        "snapshot_label": "T_MINUS_2H",
+        "expected_roi_units": 0.12,
+        "beat_closing_line": False,
+        "clv_pct": -2.0,
+    }
+
+    row = group_forward_observation_docs([first, later])[0]
+
+    assert row["accepted_clv_count"] == 2
+    assert row["t30_clv_count"] == 2
+    assert row["t10_clv_count"] == 0
+    assert row["accepted_beat_closing_line_count"] == 1
+    assert row["average_accepted_clv_pct"] == 1.0
+    assert row["accepted_clv_beat_rate"] == 0.5
+    assert row["official_clv_count"] == 0

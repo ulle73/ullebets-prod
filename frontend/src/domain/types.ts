@@ -330,9 +330,23 @@ export interface AutoSelection {
   bestExpectedRoiUnits?: number | null;
   settledObservationCount?: number;
   officialClvCount?: number;
+  acceptedClvCount?: number;
+  t30ClvCount?: number;
+  t10ClvCount?: number;
   beatClosingLineCount?: number;
   clvBeatRate?: number | null;
   averageClvPct?: number | null;
+  acceptedClv?: boolean;
+  officialClv?: boolean;
+  closingStatus?: 'accepted' | 'not_accepted' | 'missing';
+  closingQuality?: string | null;
+  closingCheckpoint?: string | null;
+  closingOdds?: number | null;
+  clvStatus?: string | null;
+  clvPct?: number | null;
+  clvDistancePct?: number | null;
+  beatClosingLine?: boolean | null;
+  oddsHistory?: OddsHistoryPoint[];
   offerKey: string | null;
   oddsSnapshotTime: string | null;
   predictionCreatedAt: string | null;
@@ -360,9 +374,28 @@ export interface AutoResponse {
   excludedComboLegCount: number;
   excludedShadowPredictionCount: number;
   collapsedDuplicateCount: number;
-  summary: { total: number; groups?: number; valid: number; excluded: number };
+  summary: {
+    total: number;
+    groups?: number;
+    valid: number;
+    excluded: number;
+    acceptedClvCount?: number;
+    t30ClvCount?: number;
+    t10ClvCount?: number;
+    beatClosingLineCount?: number;
+    averageAcceptedClvPct?: number | null;
+  };
   page: PageInfo;
   selections: AutoSelection[];
+}
+
+export interface OddsHistoryPoint {
+  snapshotLabel: string | null;
+  observedAt: string | null;
+  odds: number;
+  lineValue: number | null;
+  selected: boolean;
+  closing: boolean;
 }
 
 export interface ForwardResult {
@@ -421,16 +454,24 @@ export interface ForwardResult {
   closingQuality: string | null;
   closingSnapshotLabel: string | null;
   closingSnapshotTime: string | null;
+  acceptedClv?: boolean;
   officialClv: boolean;
   clvBasis: string | null;
   clvStatus: string | null;
   clvPct: number | null;
+  clvDistancePct?: number | null;
   beatClosingLine: boolean | null;
+  closingStatus?: 'accepted' | 'not_accepted' | 'missing';
+  closingCheckpoint?: string | null;
+  acceptedClvCount?: number;
+  t30ClvCount?: number;
+  t10ClvCount?: number;
   officialClvCount?: number;
   beatClosingLineCount?: number;
   clvBeatRate?: number | null;
   averageClvPct?: number | null;
   prematchObservationCount: number | null;
+  oddsHistory?: OddsHistoryPoint[];
   refreshedAt: string | null;
 }
 

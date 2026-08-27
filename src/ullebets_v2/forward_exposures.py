@@ -19,6 +19,43 @@ CHECKPOINT_ORDER = {
     "T_MINUS_10M": 6,
 }
 
+PRODUCT_ACCEPTED_CLOSING_QUALITIES = {"t10", "t30_fallback"}
+
+
+def is_accepted_clv(row: dict[str, Any]) -> bool:
+    """Return product acceptance without weakening promotion evidence."""
+    if row.get("accepted_clv") is True:
+        return True
+    if row.get("accepted_clv") is False:
+        return False
+    if row.get("official_clv") is True:
+        return True
+    return bool(
+        str(row.get("closing_quality") or "")
+        in PRODUCT_ACCEPTED_CLOSING_QUALITIES
+        and _to_float(row.get("clv_pct")) is not None
+        and str(row.get("clv_status") or "")
+        in {"available", "tracked", "tracked_fallback_t30"}
+    )
+
+
+def accepted_clv_checkpoint(row: dict[str, Any]) -> str | None:
+    if not is_accepted_clv(row):
+        return None
+    checkpoint = str(
+        row.get("closing_checkpoint")
+        or row.get("closing_snapshot_label")
+        or ""
+    )
+    if checkpoint in {"T_MINUS_10M", "T_MINUS_30M"}:
+        return checkpoint
+    quality = str(row.get("closing_quality") or "")
+    if quality == "t10":
+        return "T_MINUS_10M"
+    if quality == "t30_fallback":
+        return "T_MINUS_30M"
+    return None
+
 
 def forward_selection_family(row: dict[str, Any]) -> ForwardSelectionFamily:
     prediction_type = str(row.get("prediction_type") or "").lower()
@@ -214,6 +251,12 @@ def group_forward_observation_docs(
             for row in official_clv_rows
             if (value := _to_float(row.get("clv_pct"))) is not None
         ]
+        accepted_clv_rows = [row for row in ordered if is_accepted_clv(row)]
+        accepted_clv_values = [
+            value
+            for row in accepted_clv_rows
+            if (value := _to_float(row.get("clv_pct"))) is not None
+        ]
         total_stake = sum(stakes) if stakes else None
         total_pnl = sum(pnl_values) if pnl_values else None
         observation_keys = [_observation_key(row) for row in ordered]
@@ -247,6 +290,24 @@ def group_forward_observation_docs(
                     if official_clv_values
                     else None
                 ),
+                "accepted_clv_count": len(accepted_clv_rows),
+                "t30_clv_count": sum(
+                    accepted_clv_checkpoint(row) == "T_MINUS_30M"
+                    for row in accepted_clv_rows
+                ),
+                "t10_clv_count": sum(
+                    accepted_clv_checkpoint(row) == "T_MINUS_10M"
+                    for row in accepted_clv_rows
+                ),
+                "accepted_beat_closing_line_count": sum(
+                    row.get("beat_closing_line") is True
+                    for row in accepted_clv_rows
+                ),
+                "average_accepted_clv_pct": (
+                    sum(accepted_clv_values) / len(accepted_clv_values)
+                    if accepted_clv_values
+                    else None
+                ),
             }
         )
         if total_stake is not None:
@@ -259,6 +320,12 @@ def group_forward_observation_docs(
             representative["beat_closing_line_count"]
             / representative["official_clv_count"]
             if representative["official_clv_count"]
+            else None
+        )
+        representative["accepted_clv_beat_rate"] = (
+            representative["accepted_beat_closing_line_count"]
+            / representative["accepted_clv_count"]
+            if representative["accepted_clv_count"]
             else None
         )
         grouped.append(representative)

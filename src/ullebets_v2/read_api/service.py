@@ -5,9 +5,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ullebets_v2.forward_exposures import (
+    accepted_clv_checkpoint,
     canonicalize_forward_bet_docs,
     forward_selection_family,
     group_forward_observation_docs,
+    is_accepted_clv,
 )
 from ullebets_v2.ev_model.support import classify_v6_market_support
 from ullebets_v2.matchups.service import build_matchups_score_docs
@@ -888,6 +890,80 @@ def _with_forward_results(
     return combined
 
 
+def _same_market_value(left: Any, right: Any) -> bool:
+    try:
+        return abs(float(left) - float(right)) < 1e-9
+    except (TypeError, ValueError):
+        return str(left or "") == str(right or "")
+
+
+def _odds_history_read_model(row: dict[str, Any]) -> list[dict[str, Any]]:
+    direction = str(row.get("direction") or "").lower()
+    line_value = row.get("line_value")
+    selected_labels = {
+        str(label)
+        for label in (
+            list(row.get("snapshot_labels") or [])
+            or [row.get("snapshot_label")]
+        )
+        if label
+    }
+    closing_checkpoint = str(
+        row.get("closing_checkpoint")
+        or row.get("closing_snapshot_label")
+        or ""
+    )
+    history: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, float]] = set()
+    for item in list(row.get("price_history") or []):
+        item_direction = str(item.get("direction") or "").lower()
+        if item_direction and direction and item_direction != direction:
+            continue
+        item_line = item.get("line_value", item.get("line"))
+        if item_line is not None and not _same_market_value(item_line, line_value):
+            continue
+        odds = item.get("odds")
+        if odds is None:
+            odds = item.get("under_odds") if direction == "under" else item.get("over_odds")
+        try:
+            odds_value = float(odds)
+        except (TypeError, ValueError):
+            continue
+        observed_at = _iso(item.get("observed_at") or item.get("snapshot_time"))
+        snapshot_label = str(item.get("snapshot_label") or "")
+        dedupe_key = (snapshot_label, str(observed_at or ""), odds_value)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        history.append(
+            {
+                "snapshotLabel": snapshot_label or None,
+                "observedAt": observed_at,
+                "odds": odds_value,
+                "lineValue": line_value,
+                "selected": snapshot_label in selected_labels,
+                "closing": bool(
+                    closing_checkpoint and snapshot_label == closing_checkpoint
+                ),
+            }
+        )
+    history.sort(
+        key=lambda item: (
+            str(item.get("observedAt") or ""),
+            str(item.get("snapshotLabel") or ""),
+        )
+    )
+    return history
+
+
+def _closing_status(row: dict[str, Any]) -> str:
+    if int(row.get("accepted_clv_count") or 0) > 0 or is_accepted_clv(row):
+        return "accepted"
+    if row.get("closing_odds") is not None:
+        return "not_accepted"
+    return "missing"
+
+
 def _forward_selection_read_model(
     row: dict[str, Any],
     fixture: dict[str, Any],
@@ -931,11 +1007,35 @@ def _forward_selection_read_model(
             "settled_observation_count", 0
         ),
         "officialClvCount": row.get("official_clv_count", 0),
+        "acceptedClvCount": row.get("accepted_clv_count", 0),
+        "t30ClvCount": row.get("t30_clv_count", 0),
+        "t10ClvCount": row.get("t10_clv_count", 0),
         "beatClosingLineCount": row.get(
-            "beat_closing_line_count", 0
+            "accepted_beat_closing_line_count",
+            row.get("beat_closing_line_count", 0),
         ),
-        "clvBeatRate": row.get("clv_beat_rate"),
-        "averageClvPct": row.get("average_clv_pct"),
+        "clvBeatRate": row.get(
+            "accepted_clv_beat_rate", row.get("clv_beat_rate")
+        ),
+        "averageClvPct": row.get(
+            "average_accepted_clv_pct", row.get("average_clv_pct")
+        ),
+        "acceptedClv": is_accepted_clv(row),
+        "officialClv": bool(row.get("official_clv")),
+        "closingStatus": _closing_status(row),
+        "closingQuality": row.get("closing_quality"),
+        "closingCheckpoint": row.get("closing_checkpoint")
+        or row.get("closing_snapshot_label"),
+        "closingOdds": row.get("closing_odds"),
+        "clvStatus": row.get("clv_status"),
+        "clvPct": row.get("clv_pct"),
+        "clvDistancePct": (
+            abs(float(row["clv_pct"]))
+            if row.get("clv_pct") is not None
+            else None
+        ),
+        "beatClosingLine": row.get("beat_closing_line"),
+        "oddsHistory": _odds_history_read_model(row),
         "offerKey": row.get("offer_key"),
         "oddsSnapshotTime": _iso(row.get("odds_snapshot_time")),
         "predictionCreatedAt": _iso(row.get("prediction_created_at")),
@@ -988,9 +1088,8 @@ def read_auto(
     raw_rows = _find_rows(database, FORWARD_BETS, query)
     canonical_rows, exposure_audit = canonicalize_forward_bet_docs(raw_rows)
     result_lookup = _forward_result_lookup(database, canonical_rows)
-    grouped_rows = group_forward_observation_docs(
-        _with_forward_results(canonical_rows, result_lookup)
-    )
+    enriched_rows = _with_forward_results(canonical_rows, result_lookup)
+    grouped_rows = group_forward_observation_docs(enriched_rows)
     grouped_rows.sort(
         key=lambda row: (
             str(_iso(row.get("match_start_time")) or ""),
@@ -1007,7 +1106,30 @@ def read_auto(
             for row in canonical_rows
         ),
         "excluded": 0,
+        "acceptedClvCount": sum(is_accepted_clv(row) for row in enriched_rows),
+        "t30ClvCount": sum(
+            accepted_clv_checkpoint(row) == "T_MINUS_30M"
+            for row in enriched_rows
+        ),
+        "t10ClvCount": sum(
+            accepted_clv_checkpoint(row) == "T_MINUS_10M"
+            for row in enriched_rows
+        ),
+        "beatClosingLineCount": sum(
+            is_accepted_clv(row) and row.get("beat_closing_line") is True
+            for row in enriched_rows
+        ),
     }
+    accepted_clv_values = [
+        float(row["clv_pct"])
+        for row in enriched_rows
+        if is_accepted_clv(row) and row.get("clv_pct") is not None
+    ]
+    summary["averageAcceptedClvPct"] = (
+        sum(accepted_clv_values) / len(accepted_clv_values)
+        if accepted_clv_values
+        else None
+    )
     summary["excluded"] = summary["total"] - summary["valid"]
     rows = grouped_rows[page_offset:page_offset + page_limit]
     fixtures = _fixture_lookup(database, [str(row.get("match_key")) for row in rows if row.get("match_key")])
@@ -1094,11 +1216,23 @@ def _result_read_model(row: dict[str, Any], fixture: dict[str, Any]) -> dict[str
         "closingQuality": row.get("closing_quality"),
         "closingSnapshotLabel": row.get("closing_snapshot_label"),
         "closingSnapshotTime": _iso(row.get("closing_snapshot_time")),
+        "acceptedClv": is_accepted_clv(row),
         "officialClv": bool(row.get("official_clv")),
         "clvBasis": row.get("clv_basis"),
         "clvStatus": row.get("clv_status"),
         "clvPct": row.get("clv_pct"),
+        "clvDistancePct": (
+            abs(float(row["clv_pct"]))
+            if row.get("clv_pct") is not None
+            else None
+        ),
         "beatClosingLine": row.get("beat_closing_line"),
+        "closingStatus": _closing_status(row),
+        "closingCheckpoint": row.get("closing_checkpoint")
+        or row.get("closing_snapshot_label"),
+        "acceptedClvCount": row.get("accepted_clv_count", 0),
+        "t30ClvCount": row.get("t30_clv_count", 0),
+        "t10ClvCount": row.get("t10_clv_count", 0),
         "officialClvCount": row.get("official_clv_count", 0),
         "beatClosingLineCount": row.get(
             "beat_closing_line_count", 0
@@ -1106,6 +1240,7 @@ def _result_read_model(row: dict[str, Any], fixture: dict[str, Any]) -> dict[str
         "clvBeatRate": row.get("clv_beat_rate"),
         "averageClvPct": row.get("average_clv_pct"),
         "prematchObservationCount": row.get("prematch_observation_count"),
+        "oddsHistory": _odds_history_read_model(row),
         "refreshedAt": _iso(row.get("refreshed_at")),
     }
 
