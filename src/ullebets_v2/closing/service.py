@@ -22,6 +22,9 @@ from ullebets_v2.odds.service import run_unibet_odds_ingest
 
 CLOSING_CAPTURE_CHECKPOINTS = ("T_MINUS_30M", "T_MINUS_10M")
 PRODUCTION_CLOSING_LABELS = frozenset(CLOSING_CAPTURE_CHECKPOINTS)
+CLOSING_POLICY_VERSION = "accepted_t30_t10_v2"
+PRODUCT_ACCEPTED_QUALITIES = frozenset({"t30", "t30_fallback", "t10"})
+PROMOTION_ELIGIBLE_QUALITIES = frozenset({"t10"})
 
 
 def utc_now() -> datetime:
@@ -147,6 +150,14 @@ def build_closing_line_docs(
                 "closing_over_odds": closing_row.get("over_odds"),
                 "closing_under_odds": closing_row.get("under_odds"),
                 "closing_quality": closing_quality,
+                "closing_policy_version": CLOSING_POLICY_VERSION,
+                "closing_checkpoint": closing_row.get("snapshot_label"),
+                "accepted_for_product_clv": (
+                    closing_quality in PRODUCT_ACCEPTED_QUALITIES
+                ),
+                "eligible_for_promotion_clv": (
+                    closing_quality in PROMOTION_ELIGIBLE_QUALITIES
+                ),
                 "closing_is_official": closing_quality == "t10",
                 "closing_age_minutes": closing_age_minutes,
                 "prematch_observation_count": len(valid_rows),

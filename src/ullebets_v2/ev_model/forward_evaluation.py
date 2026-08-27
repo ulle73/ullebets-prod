@@ -166,7 +166,9 @@ def build_forward_evaluation_report(
         official_clv = bool(
             clv
             and (
-                clv.get("official_clv") is True
+                clv.get("eligible_for_promotion_clv") is True
+                if "eligible_for_promotion_clv" in clv
+                else clv.get("official_clv") is True
                 or closing_label == "T_MINUS_10M"
                 or closing_quality == "t10"
             )

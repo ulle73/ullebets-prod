@@ -40,6 +40,33 @@ def test_score_evaluation_reports_t30_without_using_it_for_official_clv() -> Non
     assert report["fallback_t30_coverage_pct"] == 100.0
 
 
+def test_score_evaluation_respects_explicit_promotion_clv_eligibility() -> None:
+    report = _evaluate_selection_clv(
+        [
+            {
+                "offer_key": "offer-1",
+                "direction": "over",
+                "offered_odds": 2.0,
+                "match_start_time": datetime(2026, 7, 30, 14, tzinfo=UTC),
+            }
+        ],
+        closing_lines=[
+            {
+                "offer_key": "offer-1",
+                "closing_snapshot_time": datetime(2026, 7, 30, 13, 50, tzinfo=UTC),
+                "closing_snapshot_label": "T_MINUS_10M",
+                "closing_quality": "t10",
+                "closing_is_official": True,
+                "eligible_for_promotion_clv": False,
+                "closing_over_odds": 1.8,
+            }
+        ],
+    )
+
+    assert report["rows_with_clv"] == 0
+    assert report["coverage_pct"] == 0.0
+
+
 def _score(
     *,
     model_id: str,

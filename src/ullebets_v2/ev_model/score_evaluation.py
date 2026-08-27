@@ -362,7 +362,9 @@ def _evaluate_selection_clv(
             closing.get("closing_quality") or ""
         )
         official_closing = bool(
-            closing.get("closing_is_official") is True
+            closing.get("eligible_for_promotion_clv") is True
+            if "eligible_for_promotion_clv" in closing
+            else closing.get("closing_is_official") is True
             or closing_label == "T_MINUS_10M"
             or closing_quality == "t10"
         )

@@ -3,7 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from ullebets_v2.closing.service import build_closing_line_docs
+from ullebets_v2.closing.service import (
+    CLOSING_POLICY_VERSION,
+    PRODUCT_ACCEPTED_QUALITIES,
+    PROMOTION_ELIGIBLE_QUALITIES,
+    build_closing_line_docs,
+)
 from ullebets_v2.clv_tracking.persistence import persist_clv_tracking_records
 from ullebets_v2.clv_tracking.reports import (
     build_clv_tracking_audit_rows,
@@ -472,7 +477,23 @@ def build_clv_tracking_docs(
 
         direction = "under" if str(tracked.get("direction") or "").lower() == "under" else "over"
         closing_quality = _closing_quality(closing)
-        official_clv = closing_quality == "t10"
+        accepted_for_product_clv = bool(
+            closing
+            and (
+                closing.get("accepted_for_product_clv") is True
+                if "accepted_for_product_clv" in closing
+                else closing_quality in PRODUCT_ACCEPTED_QUALITIES
+            )
+        )
+        eligible_for_promotion_clv = bool(
+            closing
+            and (
+                closing.get("eligible_for_promotion_clv") is True
+                if "eligible_for_promotion_clv" in closing
+                else closing_quality in PROMOTION_ELIGIBLE_QUALITIES
+            )
+        )
+        official_clv = eligible_for_promotion_clv
         opening_odds = None
         latest_odds = None
         closing_odds = None
@@ -504,6 +525,10 @@ def build_clv_tracking_docs(
             clv_pct = round(((saved_odds / closing_odds) - 1.0) * 100, 1)
             implied_edge_delta = round(((1.0 / closing_odds) - (1.0 / saved_odds)) * 100, 2)
             beat_closing_line = saved_odds > closing_odds
+        accepted_clv = bool(
+            accepted_for_product_clv
+            and clv_status in {"tracked", "tracked_fallback_t30"}
+        )
 
         price_history: list[dict[str, Any]] = []
         for history_row in list(closing.get("price_history") or []) if closing else []:
@@ -581,6 +606,21 @@ def build_clv_tracking_docs(
                 "closing_snapshot_time": closing.get("closing_snapshot_time") if closing else None,
                 "closing_snapshot_label": closing.get("closing_snapshot_label") if closing else None,
                 "closing_quality": closing_quality,
+                "closing_policy_version": (
+                    closing.get("closing_policy_version")
+                    if closing
+                    else CLOSING_POLICY_VERSION
+                )
+                or CLOSING_POLICY_VERSION,
+                "closing_checkpoint": (
+                    closing.get("closing_checkpoint")
+                    or closing.get("closing_snapshot_label")
+                    if closing
+                    else None
+                ),
+                "accepted_for_product_clv": accepted_for_product_clv,
+                "accepted_clv": accepted_clv,
+                "eligible_for_promotion_clv": eligible_for_promotion_clv,
                 "closing_age_minutes": closing.get("closing_age_minutes") if closing else None,
                 "official_clv": official_clv,
                 "clv_basis": closing.get("closing_snapshot_label") if closing else None,
@@ -701,6 +741,9 @@ def run_clv_tracking_refresh(
             1
             for row in clv_docs
             if row.get("clv_status") == "tracked" and row.get("official_clv") is True
+        ),
+        "accepted_clv_rows": sum(
+            1 for row in clv_docs if row.get("accepted_clv") is True
         ),
         "fallback_clv_rows": sum(
             1 for row in clv_docs if row.get("clv_status") == "tracked_fallback_t30"

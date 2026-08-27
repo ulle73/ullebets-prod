@@ -90,6 +90,9 @@ def test_build_closing_line_docs_keeps_latest_valid_prematch_snapshot() -> None:
     assert closing["closing_over_odds"] == 1.8
     assert closing["closing_snapshot_label"] == "T_MINUS_10M"
     assert closing["closing_quality"] == "t10"
+    assert closing["closing_policy_version"] == "accepted_t30_t10_v2"
+    assert closing["accepted_for_product_clv"] is True
+    assert closing["eligible_for_promotion_clv"] is True
     assert closing["closing_is_official"] is True
     assert closing["closing_age_minutes"] == 10
     assert closing["prematch_observation_count"] == 2
@@ -122,6 +125,9 @@ def test_build_closing_line_docs_marks_t30_as_fallback_and_t10_upgrades_it() -> 
     )
 
     assert t30_docs[0]["closing_quality"] == "t30_fallback"
+    assert t30_docs[0]["closing_policy_version"] == "accepted_t30_t10_v2"
+    assert t30_docs[0]["accepted_for_product_clv"] is True
+    assert t30_docs[0]["eligible_for_promotion_clv"] is False
     assert t30_docs[0]["closing_is_official"] is False
     assert t30_docs[0]["closing_age_minutes"] == 30
 
@@ -147,6 +153,9 @@ def test_build_closing_line_docs_marks_t30_as_fallback_and_t10_upgrades_it() -> 
 
     assert t10_docs[0]["closing_snapshot_label"] == "T_MINUS_10M"
     assert t10_docs[0]["closing_quality"] == "t10"
+    assert t10_docs[0]["closing_policy_version"] == "accepted_t30_t10_v2"
+    assert t10_docs[0]["accepted_for_product_clv"] is True
+    assert t10_docs[0]["eligible_for_promotion_clv"] is True
     assert t10_docs[0]["closing_is_official"] is True
 
 

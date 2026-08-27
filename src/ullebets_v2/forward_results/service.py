@@ -7,6 +7,7 @@ from ullebets_v2.forward_exposures import (
     canonicalize_forward_bet_docs,
     forward_selection_family,
 )
+from ullebets_v2.closing.service import CLOSING_POLICY_VERSION
 from ullebets_v2.clv_tracking.service import build_clv_tracking_docs, load_closing_line_docs
 from ullebets_v2.forward_timing import evaluate_forward_timing
 from ullebets_v2.forward_results.persistence import persist_forward_result_records
@@ -181,6 +182,34 @@ def build_forward_result_docs(
             status_reason = timing_status
 
         tracked_closing_odds = _to_float(clv_row.get("closing_odds")) if clv_row else None
+        recognized_closing = bool(
+            clv_row
+            and (
+                clv_row.get("closing_quality") in {"t10", "t30", "t30_fallback"}
+                or clv_row.get("closing_snapshot_label")
+                in {"T_MINUS_10M", "T_MINUS_30M"}
+            )
+        )
+        accepted_clv = bool(
+            clv_row
+            and (
+                clv_row.get("accepted_clv") is True
+                if "accepted_clv" in clv_row
+                else recognized_closing
+                and clv_status in {"tracked", "tracked_fallback_t30"}
+                and tracked_closing_odds is not None
+            )
+        )
+        eligible_for_promotion_clv = bool(
+            clv_row
+            and (
+                clv_row.get("eligible_for_promotion_clv") is True
+                if "eligible_for_promotion_clv" in clv_row
+                else clv_row.get("official_clv") is True
+                or clv_row.get("closing_quality") == "t10"
+                or clv_row.get("closing_snapshot_label") == "T_MINUS_10M"
+            )
+        )
         docs.append(
             {
                 "result_loop_key": result_loop_key,
@@ -259,6 +288,20 @@ def build_forward_result_docs(
                 "closing_snapshot_label": clv_row.get("closing_snapshot_label") if clv_row else None,
                 "closing_snapshot_time": clv_row.get("closing_snapshot_time") if clv_row else None,
                 "closing_quality": clv_row.get("closing_quality") if clv_row else None,
+                "closing_policy_version": (
+                    clv_row.get("closing_policy_version")
+                    if clv_row
+                    else None
+                )
+                or (CLOSING_POLICY_VERSION if recognized_closing else None),
+                "closing_checkpoint": (
+                    clv_row.get("closing_checkpoint")
+                    or clv_row.get("closing_snapshot_label")
+                    if clv_row
+                    else None
+                ),
+                "accepted_clv": accepted_clv,
+                "eligible_for_promotion_clv": eligible_for_promotion_clv,
                 "closing_age_minutes": clv_row.get("closing_age_minutes") if clv_row else None,
                 "official_clv": clv_row.get("official_clv") if clv_row else False,
                 "clv_basis": clv_row.get("clv_basis") if clv_row else None,
@@ -409,6 +452,23 @@ def run_forward_result_refresh(
     clv_fallback_rows = [
         row for row in result_docs if row.get("clv_status") == "tracked_fallback_t30"
     ]
+    accepted_clv_rows = [
+        row
+        for row in result_docs
+        if row.get("accepted_clv") is True and row.get("clv_pct") is not None
+    ]
+    t10_clv_rows = [
+        row
+        for row in accepted_clv_rows
+        if row.get("closing_quality") == "t10"
+        or row.get("closing_snapshot_label") == "T_MINUS_10M"
+    ]
+    t30_clv_rows = [
+        row
+        for row in accepted_clv_rows
+        if row.get("closing_quality") in {"t30", "t30_fallback"}
+        or row.get("closing_snapshot_label") == "T_MINUS_30M"
+    ]
     pnl_units = round(sum(_to_float(row.get("pnl_units")) or 0.0 for row in settled_rows_only), 2)
     performance_rows = [
         row for row in result_docs if row.get("valid_for_performance")
@@ -461,6 +521,19 @@ def run_forward_result_refresh(
             for status in sorted({row.get("timing_status") for row in result_docs})
         },
         "beat_close_count": sum(1 for row in clv_tracked_rows if row.get("beat_closing_line") is True),
+        "accepted_clv_count": len(accepted_clv_rows),
+        "t10_clv_count": len(t10_clv_rows),
+        "t30_clv_count": len(t30_clv_rows),
+        "average_accepted_clv_pct": round(
+            sum(_to_float(row.get("clv_pct")) or 0.0 for row in accepted_clv_rows)
+            / len(accepted_clv_rows),
+            2,
+        )
+        if accepted_clv_rows
+        else None,
+        "accepted_beat_closing_line_count": sum(
+            1 for row in accepted_clv_rows if row.get("beat_closing_line") is True
+        ),
         "fallback_t30_clv_count": len(clv_fallback_rows),
         "avg_clv_pct": round(sum(_to_float(row.get("clv_pct")) or 0.0 for row in clv_tracked_rows) / len(clv_tracked_rows), 2)
         if clv_tracked_rows

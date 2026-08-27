@@ -83,6 +83,10 @@ def test_run_clv_tracking_refresh_dry_run_tracks_direction_specific_closing_odds
     under_doc = next(row for row in summary["clv_docs"] if row["tracking_key"] == "sel-under")
     assert over_doc["closing_odds"] == 1.8
     assert over_doc["closing_quality"] == "t10"
+    assert over_doc["closing_policy_version"] == "accepted_t30_t10_v2"
+    assert over_doc["accepted_clv"] is True
+    assert over_doc["eligible_for_promotion_clv"] is True
+    assert over_doc["closing_checkpoint"] == "T_MINUS_10M"
     assert over_doc["official_clv"] is True
     assert over_doc["opening_odds"] is None
     assert over_doc["saved_odds"] == 2.0
@@ -139,7 +143,12 @@ def test_run_clv_tracking_keeps_t30_fallback_separate_from_official_clv() -> Non
     assert row["clv_status"] == "tracked_fallback_t30"
     assert row["clv_pct"] == 11.1
     assert row["closing_quality"] == "t30_fallback"
+    assert row["closing_policy_version"] == "accepted_t30_t10_v2"
+    assert row["accepted_clv"] is True
+    assert row["eligible_for_promotion_clv"] is False
+    assert row["closing_checkpoint"] == "T_MINUS_30M"
     assert row["official_clv"] is False
+    assert summary["accepted_clv_rows"] == 1
     assert summary["official_clv_rows"] == 0
     assert summary["fallback_clv_rows"] == 1
 

@@ -105,6 +105,41 @@ def test_forward_evaluation_excludes_t30_fallback_from_official_clv_gate() -> No
     assert report["clv"]["coverage_pct"] == 0.0
 
 
+def test_forward_evaluation_respects_explicit_promotion_clv_eligibility() -> None:
+    prediction = {
+        "prediction_key": "p1",
+        "model_id": "model-v3",
+        "match_key": "m1",
+        "stat_key": "cornerKicks",
+        "period": "ALL",
+        "scope": "total",
+        "line_value": 10.5,
+        "direction": "over",
+        "odds_snapshot_time": datetime(2026, 1, 1, 10, tzinfo=UTC),
+        "prediction_created_at": datetime(2026, 1, 1, 11, tzinfo=UTC),
+        "match_start_time": datetime(2026, 1, 1, 14, tzinfo=UTC),
+    }
+    report = build_forward_evaluation_report(
+        predictions=[prediction],
+        settled_rows=[],
+        clv_rows=[
+            {
+                "prediction_key": "p1",
+                "clv_pct": 3.0,
+                "beat_closing_line": True,
+                "closing_snapshot_label": "T_MINUS_10M",
+                "official_clv": True,
+                "eligible_for_promotion_clv": False,
+            }
+        ],
+        model_id="model-v3",
+        bootstrap_iterations=100,
+    )
+
+    assert report["clv"]["rows"] == 0
+    assert report["clv"]["coverage_pct"] == 0.0
+
+
 def test_forward_evaluation_excludes_snapshot_created_after_prediction() -> None:
     prediction = {
         "prediction_key": "invalid",

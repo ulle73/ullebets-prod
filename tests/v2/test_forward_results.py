@@ -102,6 +102,9 @@ def test_run_forward_result_refresh_dry_run_builds_settled_clv_tracked_rows() ->
     assert row["result_loop_status"] == "settled"
     assert row["closing_odds"] == 1.8
     assert row["closing_quality"] == "t10"
+    assert row["closing_policy_version"] == "accepted_t30_t10_v2"
+    assert row["accepted_clv"] is True
+    assert row["eligible_for_promotion_clv"] is True
     assert row["official_clv"] is True
     assert row["settlement_result"] == "win"
     assert row["odds_captured_after_start"] is False
@@ -172,6 +175,9 @@ def test_forward_results_report_t30_fallback_separately() -> None:
                 "closing_snapshot_label": "T_MINUS_30M",
                 "closing_snapshot_time": "2026-07-28T09:30:00Z",
                 "closing_quality": "t30_fallback",
+                "closing_policy_version": "accepted_t30_t10_v2",
+                "accepted_clv": True,
+                "eligible_for_promotion_clv": False,
                 "closing_age_minutes": 30,
                 "official_clv": False,
                 "clv_basis": "T_MINUS_30M",
@@ -187,9 +193,15 @@ def test_forward_results_report_t30_fallback_separately() -> None:
     )
 
     assert summary["fallback_t30_clv_count"] == 1
+    assert summary["accepted_clv_count"] == 1
+    assert summary["t30_clv_count"] == 1
+    assert summary["t10_clv_count"] == 0
+    assert summary["average_accepted_clv_pct"] == 11.1
+    assert summary["accepted_beat_closing_line_count"] == 1
     assert summary["avg_fallback_t30_clv_pct"] == 11.1
     assert summary["avg_clv_pct"] is None
     assert summary["result_docs"][0]["official_clv"] is False
+    assert summary["result_docs"][0]["accepted_clv"] is True
 
 
 def test_run_forward_result_refresh_dry_run_marks_timing_and_missing_layers() -> None:
