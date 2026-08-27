@@ -106,7 +106,7 @@ WORKFLOW_PARITY_MATRIX = [
         "old_workflow": "run-unibet-closing.yml",
         "old_inputs": ["near-kickoff fixtures", "Unibet/Kambi"],
         "old_outputs": ["closing captures in unibet-backtest style docs"],
-        "v2_job": "capture_closing_snapshots.py",
+        "v2_job": "watch_closing_window.py",
         "v2_outputs": ["market_snapshots", CLOSING_LINES],
         "smoke_test": "process one synthetic kickoff window",
         "parity_proof": "compare capture counts and valid prematch-only rate",

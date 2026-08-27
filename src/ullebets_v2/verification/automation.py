@@ -52,18 +52,20 @@ HELPER_WORKFLOW_RULES = {
     "v2-odds-scheduler.yml": {
         "required_fragments": [
             'cron: "23 * * * *"',
-            "actions: write",
             "actions/checkout@v7",
             "actions/setup-python@v7",
-            "plan_closing_watch.py",
-            "gh workflow enable run-unibet-closing.yml",
-            "gh workflow disable run-unibet-closing.yml",
             "capture_odds_checkpoints.py",
             "--exclude-checkpoint T_MINUS_12H",
             "--exclude-checkpoint T_MINUS_30M",
             "--exclude-checkpoint T_MINUS_10M",
         ],
-        "forbidden_fragments": ["--exclude-checkpoint T_MINUS_2H"],
+        "forbidden_fragments": [
+            "--exclude-checkpoint T_MINUS_2H",
+            "actions: write",
+            "plan_closing_watch.py",
+            "gh workflow enable",
+            "gh workflow disable",
+        ],
     },
     "v2-healthcheck.yml": {
         "required_fragments": [
@@ -110,6 +112,23 @@ WORKFLOW_CONTENT_RULES = {
     "run-auto-analysis-checkpoints.yml": {
         "required_fragments": ["--snapshot-source db"],
         "forbidden_fragments": [],
+    },
+    "run-unibet-closing.yml": {
+        "required_fragments": [
+            'cron: "7,22,37,52 * * * *"',
+            "watch_closing_window.py",
+            "timeout_minutes: 330",
+            "dependency_profile: full",
+            "--max-session-minutes",
+            "--poll-seconds 60",
+            "--lease-seconds 180",
+            "group: ullebets-v2-closing",
+            "cancel-in-progress: false",
+        ],
+        "forbidden_fragments": [
+            "gh workflow enable",
+            "gh workflow disable",
+        ],
     },
     "update-teamstats-and-teamprofiles.yml": {
         "required_fragments": [

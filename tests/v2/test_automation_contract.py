@@ -27,7 +27,7 @@ def test_workflow_directory_covers_parity_matrix() -> None:
     assert all(row["status"] == "ok" for row in report["file_reports"])
 
 
-def test_closing_workflow_runs_frequently_enough_for_t_minus_10m() -> None:
+def test_closing_workflow_seeds_bounded_durable_sessions() -> None:
     workflow = (
         repo_root()
         / ".github"
@@ -35,9 +35,14 @@ def test_closing_workflow_runs_frequently_enough_for_t_minus_10m() -> None:
         / "run-unibet-closing.yml"
     ).read_text(encoding="utf-8")
 
-    assert 'cron: "2-57/5 * * * *"' in workflow
-    assert "dependency_profile: lean" in workflow
-    assert "--refresh-derived" in workflow
+    assert 'cron: "7,22,37,52 * * * *"' in workflow
+    assert "dependency_profile: full" in workflow
+    assert "timeout_minutes: 330" in workflow
+    assert "watch_closing_window.py" in workflow
+    assert "--max-session-minutes 320" in workflow
+    assert "--poll-seconds 60" in workflow
+    assert "group: ullebets-v2-closing" in workflow
+    assert "cancel-in-progress: false" in workflow
 
 
 def test_regular_checkpoint_workflow_leaves_t30_and_t10_to_closing_job() -> None:
@@ -54,7 +59,7 @@ def test_regular_checkpoint_workflow_leaves_t30_and_t10_to_closing_job() -> None
     assert "--exclude-checkpoint T_MINUS_10M" in workflow
 
 
-def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watch() -> None:
+def test_match_aware_odds_scheduler_owns_only_regular_production_checkpoints() -> None:
     workflow = (
         repo_root()
         / ".github"
@@ -63,15 +68,13 @@ def test_match_aware_odds_scheduler_owns_production_checkpoints_and_closing_watc
     ).read_text(encoding="utf-8")
 
     assert 'cron: "23 * * * *"' in workflow
-    assert "actions: write" in workflow
+    assert "actions: write" not in workflow
     assert "actions/checkout@v7" in workflow
     assert "actions/setup-python@v7" in workflow
-    assert "plan_closing_watch.py" in workflow
-    assert "CURRENT_STATE=$(gh api" in workflow
-    assert 'if [ "$CURRENT_STATE" = "active" ]' in workflow
-    assert "Closing watcher is already disabled" in workflow
-    assert "gh workflow enable run-unibet-closing.yml" in workflow
-    assert "gh workflow disable run-unibet-closing.yml" in workflow
+    assert "plan_closing_watch.py" not in workflow
+    assert "CURRENT_STATE=$(gh api" not in workflow
+    assert "gh workflow enable" not in workflow
+    assert "gh workflow disable" not in workflow
     assert "capture_odds_checkpoints.py" in workflow
     assert "--exclude-checkpoint T_MINUS_12H" in workflow
     assert "--exclude-checkpoint T_MINUS_2H" not in workflow
@@ -83,7 +86,6 @@ def test_checkpoint_capture_workflows_score_registry_and_materialize_after_new_s
     workflows = {
         "v2-odds-scheduler.yml": "capture_odds_checkpoints.py",
         "run-unibet-odds-checkpoints.yml": "capture_odds_checkpoints.py",
-        "run-unibet-closing.yml": "capture_closing_snapshots.py",
     }
 
     for workflow_name, capture_command in workflows.items():
@@ -105,6 +107,23 @@ def test_checkpoint_capture_workflows_score_registry_and_materialize_after_new_s
         assert "score_registered_shadow_models.py" in workflow
         assert "materialize_formula_journal.py" in workflow
         assert "shadow_formula_registry_v1.json" in workflow
+
+    closing_workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "run-unibet-closing.yml"
+    ).read_text(encoding="utf-8")
+    watcher = (
+        repo_root()
+        / "scripts"
+        / "forward_v2"
+        / "watch_closing_window.py"
+    ).read_text(encoding="utf-8")
+    assert "watch_closing_window.py" in closing_workflow
+    assert "run_closing_capture" in watcher
+    assert "score_registered_shadow_models.py" in watcher
+    assert "materialize_formula_journal.py" in watcher
 
 
 def test_manual_shadow_recovery_scores_registry_then_materializes_journal() -> None:

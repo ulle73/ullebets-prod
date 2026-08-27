@@ -1,17 +1,14 @@
-name: V2 Run Unibet Closing Odds
+name: V2 Durable Unibet Closing Watch
 
 on:
   schedule:
-    - cron: "2-57/5 * * * *"
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
-      date:
-        description: "Optional single match date (YYYY-MM-DD)."
+      lookahead_hours:
+        description: "Hours ahead covered by the runner-owned watch session."
         required: false
-        type: string
-      now:
-        description: "Optional ISO timestamp override for manual replay."
-        required: false
+        default: "4"
         type: string
       dry_run:
         description: "Run without writes (smoke test)."
@@ -27,70 +24,20 @@ permissions:
   contents: read
 
 jobs:
-  unibet-closing:
+  unibet-closing-watch:
     uses: ./.github/workflows/v2-python-job.yml
     secrets: inherit
     with:
-      timeout_minutes: 60
+      timeout_minutes: 330
       checkout_legacy_repo: false
-      dependency_profile: lean
+      dependency_profile: full
       dry_run: ${{ inputs.dry_run || false }}
       run_command: |
-        CAPTURE_SUMMARY="$(mktemp)"
-        ARGS=(--mode fixture-db --refresh-derived --dry-run)
-        if [ -n "${{ inputs.date }}" ]; then
-          ARGS+=(--date "${{ inputs.date }}")
-        fi
-        if [ -n "${{ inputs.now }}" ]; then
-          ARGS+=(--now "${{ inputs.now }}")
-        fi
-        python scripts/forward_v2/capture_closing_snapshots.py --source-workflow run-unibet-closing.yml "${ARGS[@]}" | tee "$CAPTURE_SUMMARY"
-        CAPTURED_SNAPSHOTS="$(python - "$CAPTURE_SUMMARY" <<'PY'
-        import json
-        import sys
-
-        with open(sys.argv[1], encoding="utf-8") as handle:
-            summary = json.load(handle)
-        print(int(summary.get("market_snapshot_upserts") or 0))
-        PY
-        )"
-        mapfile -t CAPTURED_MATCH_KEYS < <(python - "$CAPTURE_SUMMARY" <<'PY'
-        import json
-        import sys
-
-        with open(sys.argv[1], encoding="utf-8") as handle:
-            summary = json.load(handle)
-        seen = set()
-        for row in summary.get("due_targets") or []:
-            match_key = str(row.get("match_key") or "")
-            if match_key and match_key not in seen:
-                seen.add(match_key)
-                print(match_key)
-        PY
-        )
-        SCOPED_MATCH_ARGS=()
-        for MATCH_KEY in "${CAPTURED_MATCH_KEYS[@]}"; do
-          SCOPED_MATCH_ARGS+=(--match-key "$MATCH_KEY")
-        done
-
-        if [ "${ULLEBETS_V2_DRY_RUN:-false}" = "true" ]; then
-          echo "Skipping all-model scoring after dry-run capture."
-        elif [ "$CAPTURED_SNAPSHOTS" -gt 0 ]; then
-          if [ "${#SCOPED_MATCH_ARGS[@]}" -eq 0 ]; then
-            echo "Capture wrote snapshots but exposed no match keys; refusing unscoped scoring." >&2
-            exit 1
-          fi
-          python -m pip install -e .
-          python scripts/forward_v2/score_registered_shadow_models.py \
-            --repo-root . \
-            --registry models/ev/shadow_formula_registry_v1.json \
-            "${SCOPED_MATCH_ARGS[@]}" \
-            --dry-run
-          python scripts/forward_v2/materialize_formula_journal.py \
-            --repo-root . \
-            --registry models/ev/shadow_formula_registry_v1.json \
-            "${SCOPED_MATCH_ARGS[@]}" \
-            --dry-run
-        else
-          echo "Skipping all-model scoring: closing capture wrote no new snapshots."
-        fi
+        python scripts/forward_v2/watch_closing_window.py \
+          --source-workflow run-unibet-closing.yml \
+          --lookahead-hours "${{ inputs.lookahead_hours || '4' }}" \
+          --max-session-minutes 320 \
+          --poll-seconds 60 \
+          --lease-seconds 180 \
+          --owner-id "github:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}" \
+          --dry-run
