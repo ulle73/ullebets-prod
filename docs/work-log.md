@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-25
+Last updated: 2026-08-27
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -48,11 +48,13 @@ Valid empty source responses are not failures when no matches or markets exist.
   audit but excluded from outcomes, PnL, ROI, and CLV.
 - `VERIFIED`: simulated write-time snapshots were invalidated without changing
   raw Kambi payloads or immutable predictions.
-- `FAILED`: all six Brazil T-10 windows passed with zero valid T-10 snapshots
-  and zero closing lines. The local workflow was not running remotely, and
-  heartbeat delivery occurred after the windows.
-- `UNPROVEN`: valid live closing-line materialization and subsequent CLV still
-  require a new future prematch window.
+- `VERIFIED`: production now contains valid T-30 fallback and official T-10
+  closing materialization. The current read-only audit found `5,203`
+  `closing_lines`, including `976` official T-10 rows over `13` matches.
+- `FAILED`: official CLV coverage still does not intersect the current forward
+  sample. Across `230` canonical tracked bets, CLV status is `69`
+  `tracked_fallback_t30`, `161` `missing_closing_line`, and `0` official T-10;
+  the official T-10 matches currently have no forward bets.
 - `VERIFIED`: the final Brazil match was enriched with statistics, incidents,
   shotmap, result, canonical result, and 27 canonical primary-stat rows.
 - `VERIFIED`: post-match settlement now contains 64 valid settled operational
@@ -79,8 +81,10 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: a current read-only Kambi dry-run linked 10/10 upcoming
   fixtures, returned 11 raw payload documents and 607 normalized offers, with
   zero source or mapping errors.
-- `UNPROVEN`: T-30, T-10, closing-line materialization, and valid
-  closing-based CLV still have no persisted live evidence.
+- `PARTIAL`: T-30, T-10, and closing-line persistence now have live evidence,
+  but the five-minute GitHub scheduled watcher has not reliably entered the
+  narrow T-10 window for matches with tracked bets. Official selection CLV is
+  therefore still absent.
 - `VERIFIED`: the 5-8 August production window persisted valid T-3D `678`,
   T-2D `799`, T-1D `817`, and T-2H `242` odds rows. All rows are before
   kickoff, and the current-cycle duplicate-snapshot-key audit found `0` groups.
@@ -206,17 +210,149 @@ Detailed model history:
    the repaired teamprofile persistence on `main`.
 2. Verify the next hosted V6 checkpoint/scorer rerun records no immutable
    conflict on `main`.
-3. Verify the next current T-3D capture.
-4. Verify the subsequent T-2H, T-30, and T-10 captures without manual time
-   simulation.
-5. Materialize a valid prematch closing line and refresh CLV from it.
-6. Score future matches from one of V6's six supported leagues before kickoff.
-7. Settle those in-domain selections without changing artifact, features,
-   thresholds, scopes, periods, or registry.
-8. Evaluate forward ROI and CLV only after sufficient untouched observations
+3. Replace the narrow-window GitHub scheduled-event dependency with a durable
+   near-close watcher, then prove T-10 coverage for a match that also has
+   immutable forward bets.
+4. Repair checkpoint provenance from the V2 adapter through score and forward
+   persistence, and regression-test the real adapter path.
+5. Expose official T-10, preliminary T-30, missed-closing, and waiting states
+   separately in one forward-bet read surface, including exact-market odds
+   history.
+6. Refresh official CLV for the next overlapping forward-bet/T-10 lifecycle.
+7. Evaluate forward ROI and CLV only after sufficient untouched observations
    exist.
 
 ## Chronological entries
+
+### 2026-08-27 - Durable free closing watcher and unified results design
+
+Status: `VERIFIED` for user-approved design; implementation and live lifecycle
+remain `NOT STARTED` in this entry.
+
+Objective:
+
+Lock a zero-cost, no-trial production design that removes exact T-10 timing
+from GitHub scheduled events, accepts T-30 as product closing, preserves T-10
+quality, and consolidates Auto/Resultatloop into one truthful product surface.
+
+Files changed:
+
+- `docs/plans/2026-08-27-durable-closing-and-unified-results-design.md`;
+- `docs/work-log.md`.
+
+Commands or scenarios verified:
+
+- `gh repo view ulle73/ullebets-prod --json nameWithOwner,visibility,isPrivate,defaultBranchRef,url` proved the repository is public;
+- current `run-unibet-closing.yml`, `v2-odds-scheduler.yml`, closing watch
+  planner, CLV/closing persistence, read contracts, routes, and frontend CLV
+  rendering were inspected against the approved design;
+- GitHub's current public documentation was checked for public-runner cost,
+  scheduled-event delay/drop behavior, and the six-hour hosted-job limit.
+
+Exact result and new insight:
+
+- Standard hosted runners are available without Actions-minute charges for
+  this public repository, but GitHub scheduled events are explicitly not a
+  reliable precision clock. The approved design starts a bounded watcher
+  several hours early and makes MongoDB lease/heartbeat state recoverable.
+- T-30 becomes accepted product CLV under a versioned policy while T-10 remains
+  preferred and the existing T-10-only model-promotion evidence is not changed
+  retroactively.
+- The design also covers the adapter provenance defect, a single server read
+  contract, one `Spel & resultat` route, signed beat/miss distance, and an
+  accessible exact-market odds timeline.
+
+Unproven and next justified test:
+
+- No implementation or live runtime state is claimed by this design entry.
+- Next create the test-driven implementation plan, then prove the watcher and
+  contracts locally before any hosted write-mode acceptance window.
+
+### 2026-08-27 - CLV presentation and closing-coverage root-cause audit
+
+Status: `VERIFIED` for persisted T-30/T-10 closing capability and the current
+read-only counts; `FAILED` for official CLV coverage on tracked bets and honest
+fallback presentation; `PARTIAL` for the scheduled near-close lifecycle.
+
+Objective:
+
+Explain why Auto and Resultatloop report missing CLV despite multiple captured
+odds checkpoints, and define the smallest maintainable product/backend scope
+before implementation is locked.
+
+Files or subsystems inspected:
+
+- `frontend/src/pages/AutoPage.tsx`, `ResultsLoopPage.tsx`,
+  `components/ForwardResultTable.tsx`, `components/TopNav.tsx`, and the forward
+  read types;
+- `src/ullebets_v2/read_api/service.py`, closing/CLV services, checkpoint
+  policy, V2 forward adapter, score persistence, and forward prediction path;
+- production read-only collections `market_snapshots`, `closing_lines`,
+  `forward_bets`, `forward_results`, `clv_tracking`, and `ev_model_scores`;
+- current `run-unibet-closing.yml` workflow configuration and hosted run
+  timing.
+
+Commands or scenarios tested:
+
+- `git status --short --branch`;
+- `python scripts/forward_v2/refresh_clv_tracking.py --mode paths-or-db --dry-run`;
+- read-only joins from each canonical forward bet to its source score,
+  `market_snapshots`, same-market closing rows, CLV row, and settlement state;
+- read-only closing-quality aggregation by match and forward-bet overlap;
+- `gh run list --repo ulle73/ullebets-prod --workflow run-unibet-closing.yml`
+  plus individual `gh run view` timing/log inspection for the T-30/T-10
+  production windows.
+
+Exact results:
+
+- The canonical audit reduced `293` raw tracked rows to `230` bets after `46`
+  combo exclusions, `8` shadow exclusions, and `9` duplicate collapses.
+- CLV status is `69` `tracked_fallback_t30`, `161`
+  `missing_closing_line`, and `0` official; the health, audit, and parity gates
+  remained `ok` in dry-run.
+- Of the `100` settled rows currently shown by the product, `69` have a valid
+  T-30 fallback comparison and `31` lack a matching close; none has an
+  official T-10 close.
+- Production contains `5,203` closing rows. `976` are official T-10 rows over
+  `13` matches, but those matches have `0` forward bets and therefore cannot
+  create official selection CLV.
+- A hosted window proved the code path: run `32783401333` persisted `73` T-30
+  rows and run `32786170511` later persisted `73` official T-10 rows. Other
+  tracked-match windows jumped from T-30 to after kickoff or outside the
+  5-14-minute T-10 acceptance window.
+- Resultatloop converts every non-official CLV row to `CLV saknas`, so all `69`
+  valid fallback comparisons are hidden even though their signed CLV values
+  exist.
+- The V2 forward adapter omits `snapshot_label` and `snapshot_type`. Current
+  forward rows therefore show `bäst saknas` even when their source
+  `market_snapshots` row is labelled, for example, `T_MINUS_3D`.
+- Closing and CLV documents retain exact-market `price_history`, but neither
+  the Auto nor results read contract exposes that timeline to the frontend.
+
+New technical/data insight:
+
+Multiple T-3D/T-2D/T-1D/T-2H observations prove price history, not closing.
+Official CLV intentionally requires a T-10 closing row; T-30 remains useful
+preliminary evidence and must neither be hidden as missing nor promoted to
+official CLV. The dominant operational defect is relying on delayed GitHub
+scheduled events for a ten-minute acceptance window. Separately, the frontend
+has two overlapping result surfaces and drops already persisted fallback and
+movement detail at the read/presentation boundary.
+
+Unproven or blocked:
+
+- No immutable forward bet currently overlaps an official T-10 closing row,
+  so official mean CLV and beat-close rate remain `UNPROVEN`.
+- No product change was made in this audit; unified navigation, truthful CLV
+  states, odds-history interaction, provenance repair, and a durable watcher
+  remain proposed work.
+
+Next justified test:
+
+After approval, first regression-test and repair snapshot provenance and the
+unified read contract. Then replace the narrow-window scheduler dependency and
+prove one untouched forward bet through T-30, T-10, settlement, official CLV,
+and the final product row without relabelling fallback evidence.
 
 ### 2026-08-25 - Immutable all-formula EV journal and comparison UI
 

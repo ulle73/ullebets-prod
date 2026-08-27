@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-25
+Last updated: 2026-08-27
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -16,17 +16,21 @@ Status details and evidence:
 
 ## Critical blockers
 
-- [ ] `UNPROVEN` Capture a real T-10 odds window before kickoff. The lean
-  runner import defect is repaired and hosted smoke-tested, but no post-fix
-  production capture has yet persisted.
-- [ ] `UNPROVEN` Capture the new real T-30 fallback and prove that a later T-10
-  upgrades it without mixing fallback CLV into official model evidence.
-- [ ] `UNPROVEN` Materialize a valid closing line from that live capture.
-- [ ] `UNPROVEN` Calculate CLV from a valid live closing line.
-- [ ] `BLOCKED` Accumulate in-domain V6 forward predictions and settlements.
-- [ ] `UNPROVEN` Persist and settle the first hosted
-  `v6_full_domain_checkpoint_journal_v2` observation; local real-data dry-run
-  produced 44 selections but intentionally wrote none.
+- [x] `VERIFIED` Capture a real T-10 odds window before kickoff. Production
+  contains `976` official T-10 closing rows over `13` matches.
+- [x] `VERIFIED` Capture real T-30 fallback rows and prove that a later T-10
+  can upgrade the same near-close path without counting fallback as official
+  CLV; hosted runs `32783401333` and `32786170511` proved `73` rows at each
+  stage.
+- [x] `VERIFIED` Materialize valid T-30 and official T-10 closing lines from
+  live capture; production currently contains `5,203` closing rows.
+- [ ] `FAILED` Produce official CLV for the current forward sample. The
+  read-only audit found `230` canonical tracked bets, `69` T-30 fallback CLV,
+  `161` missing closing lines, and `0` official T-10 CLV because none of the
+  official-close matches overlaps a forward bet.
+- [x] `VERIFIED` In-domain V6 forward predictions and settlements now exist;
+  the current product sample contains `100` settled canonical rows, including
+  `96` V6 rows and `4` legacy rows.
 - [ ] `PARTIAL` Prove output parity for every original backend workflow.
 - [ ] `PARTIAL` Remove the runtime dependency on the old repository's JS
   oracle so V2 can run independently.
@@ -126,25 +130,25 @@ Status details and evidence:
 - [x] Real T-1D capture has 817 valid prematch rows across 10 matches.
 - [x] Real production T-2H capture has 242 valid prematch rows across three
   matches.
-- [ ] `UNPROVEN` Prove a real T-30M fallback capture after the lean-runner
-  import repair.
-- [ ] `UNPROVEN` Prove a real T-10M capture after the lean-runner import
-  repair.
-- [ ] `UNPROVEN` Build closing lines from the final valid prematch snapshot.
-- [ ] `UNPROVEN` Refresh CLV from valid live closing lines.
+- [x] `VERIFIED` Real T-30M fallback capture exists in production.
+- [x] `VERIFIED` Real T-10M capture exists in production.
+- [x] `VERIFIED` Live closing lines are built from accepted final prematch
+  snapshots, with T-30 fallback kept distinct from official T-10.
+- [ ] `PARTIAL` CLV refresh produces `69` T-30 fallback comparisons for the
+  current forward sample, but `0` official comparisons because no tracked bet
+  overlaps the `976` official T-10 closing rows.
 
-Current acceptance window:
+Current acceptance evidence:
 
-- The 5-8 August Brazil window has persisted valid T-3D/T-2D/T-1D/T-2H data.
-- At `2026-08-08T18:51Z`, Grêmio - São Paulo was eight minutes from kickoff,
-  but `closing_lines` remained empty.
-- Hosted closing run `31271905639` failed at startup with
-  `ModuleNotFoundError: ullebets_v2`; it made no odds capture or derived write.
-- Commit `030a401` repaired the reusable lean runner. Hosted dry-run
-  `31273361050` completed the closing command with zero errors and zero due
-  targets; it made no writes.
-- No T-30/T-10, closing, or CLV checkbox may be checked until a valid
-  persisted production capture exists.
+- At `2026-08-27`, production has `5,203` closing rows, including `976`
+  official T-10 rows over `13` matches.
+- Hosted runs `32783401333` and `32786170511` prove one real T-30 -> T-10
+  upgrade path with `73` rows at each stage.
+- The current forward sample has `69` fallback comparisons and `0` official
+  comparisons. Multiple other hosted runs entered T-30 but next ran after
+  kickoff or outside the 5-14-minute T-10 window.
+- Official selection CLV remains unchecked until the same immutable forward
+  bet has a valid T-10 close; T-30 must remain preliminary evidence.
 
 ## 6. Model snapshots, analysis, and predictions
 
@@ -246,9 +250,10 @@ Current acceptance window:
   to the closing watcher, with T-30 excluded from official model CLV. Hosted
   write-mode scheduler run `30674861895` passed this deployed contract with a
   valid empty source horizon.
-- [ ] `PARTIAL` Closing watcher import repair is deployed and hosted dry-run
-  `31273361050` passed, but a scheduled write-mode T-30/T-10 lifecycle remains
-  unproven.
+- [ ] `PARTIAL` The closing watcher can persist T-30 and T-10 in write mode,
+  but GitHub scheduled-event timing is too irregular for reliable coverage of
+  the 5-14-minute T-10 window. It has produced `0` official CLV rows for the
+  current `230` canonical tracked bets.
 - [x] EV shadow runtime versions are pinned to the frozen manifests; hosted
   production write-mode run `30672830616` passed all four scorers. It produced
   zero rows because no upcoming canonical model markets existed.
@@ -299,6 +304,13 @@ Current acceptance window:
   confidence segments, explicit thin-data state, and accessible Swedish text.
 - [x] `VERIFIED` Registered forward selections expose offered odds, model probability, expected ROI field, model/policy identities, and persisted runtime status without presenting observation counts as proof.
 - [x] `VERIFIED` Settled forward-result rows can show persisted ROI/PnL, closing odds, official CLV status/value, settlement state, exclusions, and linked match/team/league entities. This verifies the product surface, not positive forward efficacy.
+- [ ] `FAILED` The current Resultatloop presentation labels all non-official
+  rows `CLV saknas`, hiding `69` persisted T-30 fallback comparisons; Auto
+  separately omits CLV and odds history entirely.
+- [ ] `PARTIAL` Auto and Resultatloop remain duplicate forward-bet surfaces.
+  A single route/navigation item with open, settled, and excluded states plus
+  distinct official/preliminary/missed/waiting closing states is not yet
+  implemented.
 - [x] `VERIFIED` The V2 checkpoint-journal contract keeps each snapshot
   as a separate 1u evaluation, groups only presentation rows, exposes
   stat/scope/period/direction/checkpoint filters, and labels unsupported match
