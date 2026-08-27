@@ -10,6 +10,7 @@ from ullebets_v2.storage.collections import (
     ANALYSIS_SNAPSHOTS,
     AUDIT_REPORTS,
     CLOSING_LINES,
+    CLOSING_WATCH_SESSIONS,
     CLV_TRACKING,
     EV_MODEL_SCORES,
     FORMULA_OBSERVATIONS,
@@ -425,6 +426,20 @@ def build_core_index_plan() -> list[dict[str, Any]]:
                 },
                 {"keys": [("match_key", 1), ("closing_snapshot_time", -1)], "name": "match_key_closing_time"},
                 {"keys": [("offer_key", 1)], "name": "offer_key"},
+            ],
+        },
+        {
+            "collection": CLOSING_WATCH_SESSIONS,
+            "indexes": [
+                {
+                    "keys": [("session_key", 1)],
+                    "name": "session_key_unique",
+                    "unique": True,
+                },
+                {
+                    "keys": [("status", 1), ("lease_expires_at", 1)],
+                    "name": "status_lease_expiry",
+                },
             ],
         },
         {

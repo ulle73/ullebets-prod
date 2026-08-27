@@ -40,6 +40,7 @@ FORMULA_RESULTS = "formula_results"
 
 SETTLED_BETS = "settled_bets"
 CLOSING_LINES = "closing_lines"
+CLOSING_WATCH_SESSIONS = "closing_watch_sessions"
 CLV_TRACKING = "clv_tracking"
 FORWARD_BETS = "forward_bets"
 FORWARD_RESULTS = "forward_results"
@@ -83,6 +84,7 @@ CANONICAL_COLLECTION_NAMES = (
     FORMULA_RESULTS,
     SETTLED_BETS,
     CLOSING_LINES,
+    CLOSING_WATCH_SESSIONS,
     CLV_TRACKING,
     FORWARD_BETS,
     FORWARD_RESULTS,
