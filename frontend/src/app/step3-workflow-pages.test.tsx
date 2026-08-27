@@ -16,7 +16,7 @@ describe('step 3 workflow pages',()=>{
    '/api/v1/dashboard':dashboard,
    '/api/v1/auto':{summary:{total:80,valid:70,excluded:10},page:{limit:25,offset:50,hasMore:true},selections:[selection]},
   });
-  expect(await main().findByRole('heading',{name:'Auto'})).toBeInTheDocument();
+  expect(await main().findByRole('heading',{name:'Spel & resultat'})).toBeInTheDocument();
   await waitFor(()=>{const call=urls(fetchMock,'/api/v1/auto').at(-1);expect(call).toBeDefined();expect(params(call!).get('stat')).toBe('fouls');expect(params(call!).get('direction')).toBe('over');expect(params(call!).get('scope')).toBe('away');expect(params(call!).get('period')).toBe('ALL');expect(params(call!).get('checkpoint')).toBe('T_MINUS_2H');expect(params(call!).get('limit')).toBe('25');expect(params(call!).get('offset')).toBe('50');});
   expect(main().getByText('2 obs · bäst T-2H')).toBeInTheDocument();
   fireEvent.click(main().getByRole('button',{name:'Nästa sida'}));
@@ -24,16 +24,16 @@ describe('step 3 workflow pages',()=>{
   expect(main().getByRole('button',{name:'Föregående sida'})).toBeEnabled();
  },15_000);
 
- it('Resultatloop sends status filters to the read API and paginates',async()=>{
+ it('legacy Resultatloop redirects status filters to the unified Auto API and paginates',async()=>{
   const{fetchMock}=renderApp('/resultatloop?status=settled&stat=fouls&direction=over&checkpoint=T_MINUS_2H&limit=20&offset=20',{
    '/api/v1/dashboard':dashboard,
-   '/api/v1/results':{summary:{rows:45,settled:40,wins:24,losses:16,pushes:0,excluded:5},page:{limit:20,offset:20,hasMore:true},rows:[result]},
+   '/api/v1/auto':{count:45,rawCount:45,excludedComboLegCount:0,excludedShadowPredictionCount:0,collapsedDuplicateCount:0,summary:{total:45,valid:40,excluded:5},page:{limit:20,offset:20,hasMore:true},selections:[{...selection,settlementStatus:'settled',settlementResult:'win',validForPerformance:true}]},
   });
-  expect(await main().findByRole('heading',{name:'Resultatloop'})).toBeInTheDocument();
-  await waitFor(()=>{const query=params(urls(fetchMock,'/api/v1/results').at(-1)!);expect(query.get('status')).toBe('settled');expect(query.get('stat')).toBe('fouls');expect(query.get('direction')).toBe('over');expect(query.get('checkpoint')).toBe('T_MINUS_2H');expect(query.get('offset')).toBe('20');});
+  expect(await main().findByRole('heading',{name:'Spel & resultat'})).toBeInTheDocument();
+  await waitFor(()=>{const query=params(urls(fetchMock,'/api/v1/auto').at(-1)!);expect(query.get('status')).toBe('settled');expect(query.get('stat')).toBe('fouls');expect(query.get('direction')).toBe('over');expect(query.get('checkpoint')).toBe('T_MINUS_2H');expect(query.get('offset')).toBe('20');});
   expect(main().getByText('2 obs · bäst T-2H')).toBeInTheDocument();
   fireEvent.click(main().getByRole('button',{name:'Nästa sida'}));
-  await waitFor(()=>expect(params(urls(fetchMock,'/api/v1/results').at(-1)!).get('offset')).toBe('40'));
+  await waitFor(()=>expect(params(urls(fetchMock,'/api/v1/auto').at(-1)!).get('offset')).toBe('40'));
  });
 
  it('Historik renders persisted result rows instead of only aggregate counters',async()=>{

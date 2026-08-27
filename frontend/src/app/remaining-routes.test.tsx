@@ -27,19 +27,18 @@ describe('complete Style-1 route surface', () => {
     expect(screen.getByText('1,91')).toBeInTheDocument();
   });
 
-  it('renders Resultatloop from typed forward result data', async () => {
+  it('redirects Resultatloop to the unified settled Auto surface', async () => {
     renderApp('/resultatloop', {
       '/api/v1/dashboard': dashboard,
-      '/api/v1/results': {
-        summary: { rows: 9, groups: 6, settled: 7, wins: 4, losses: 3, pushes: 0, excluded: 2, stakeUnits: 7, pnlUnits: 0.875, roiPct: 12.5, officialClvObservations: 6, beatClosingLine: 4, clvBeatRatePct: 66.7 },
+      '/api/v1/auto': {
+        count: 0, rawCount: 0, excludedComboLegCount: 0, excludedShadowPredictionCount: 0, collapsedDuplicateCount: 0,
+        summary: { total: 0, valid: 0, excluded: 0 },
         page: { limit: 50, offset: 0, hasMore: false },
-        rows: [],
+        selections: [],
       },
     });
-    expect(await screen.findByRole('heading', { name: 'Resultatloop' })).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
-    expect(screen.getByText('+12,5 %')).toBeInTheDocument();
-    expect(screen.getByText('4/6 officiella observationer')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Rättade' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Inga registrerade forward-val')).toBeInTheDocument();
   });
 
   it('renders a typed team profile returned by the read API', async () => {

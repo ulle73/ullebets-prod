@@ -21,6 +21,7 @@ export function autoQueryFromSearch(params: URLSearchParams): AutoQuery {
     limit: pageNumber(params.get('limit'), DEFAULT_PAGE_LIMIT, 1, MAX_PAGE_LIMIT),
     offset: pageNumber(params.get('offset'), 0, 0),
   };
+  const status = optional(params, 'status');
   const league = optional(params, 'league');
   const stat = optional(params, 'stat');
   const period = optional(params, 'period');
@@ -29,6 +30,7 @@ export function autoQueryFromSearch(params: URLSearchParams): AutoQuery {
   const model = optional(params, 'model');
   const policy = optional(params, 'policy');
   const checkpoint = optional(params, 'checkpoint');
+  if (status) query.status = status;
   if (league) query.league = league;
   if (stat) query.stat = stat;
   if (period) query.period = period;

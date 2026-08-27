@@ -17,11 +17,11 @@ describe('step 5 shell hardening',()=>{
 
   it('preserves only the shared date when moving between primary sections',()=>{
     renderApp('/resultatloop?date=2026-08-13&status=settled&stat=fouls&direction=over', shellFixtures({
-      '/api/v1/results':{summary:{rows:0,settled:0,wins:0,losses:0,pushes:0,excluded:0},page:{limit:50,offset:0,hasMore:false},rows:[]},
+      '/api/v1/auto':{count:0,rawCount:0,excludedComboLegCount:0,excludedShadowPredictionCount:0,collapsedDuplicateCount:0,summary:{total:0,valid:0,excluded:0},page:{limit:50,offset:0,hasMore:false},selections:[]},
     }));
     const nav=screen.getByRole('navigation',{name:'Huvudnavigation'});
-    expect(within(nav).getByRole('link',{name:'Auto'})).toHaveAttribute('href','/auto?date=2026-08-13');
-    expect(within(nav).getByRole('link',{name:'Resultatloop'})).toHaveAttribute('aria-current','page');
+    expect(within(nav).getByRole('link',{name:'Spel & resultat'})).toHaveAttribute('href','/auto?date=2026-08-13');
+    expect(within(nav).queryByRole('link',{name:'Resultatloop'})).not.toBeInTheDocument();
   });
 
   it('keeps contextual model and system tools reachable inside the mobile drawer',()=>{
@@ -37,7 +37,6 @@ describe('step 5 shell hardening',()=>{
     '/oversikt',
     '/auto',
     '/watchlist',
-    '/resultatloop',
     '/historik',
     '/matcher/m1',
     '/lag/team',

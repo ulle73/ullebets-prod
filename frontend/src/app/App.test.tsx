@@ -20,10 +20,10 @@ const dashboard = {
 };
 
 describe('Ullebets application shell', () => {
-  it('shows exactly the five primary destinations', () => {
+  it('shows exactly the four primary destinations', () => {
     renderApp('/oversikt', { '/api/v1/dashboard': dashboard });
     const nav = screen.getByRole('navigation', { name: 'Huvudnavigation' });
-    expect(Array.from(nav.querySelectorAll('a')).map((link) => link.textContent)).toEqual(['Översikt', 'Auto', 'Watchlist', 'Resultatloop', 'Historik']);
+    expect(Array.from(nav.querySelectorAll('a')).map((link) => link.textContent)).toEqual(['Översikt', 'Spel & resultat', 'Watchlist', 'Historik']);
   });
 
   it('renders matches and matchup score returned by the read API', async () => {

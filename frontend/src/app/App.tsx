@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { matchDetailPath, publicMatchId } from '../domain/match-route';
 import { OverviewPage } from '../pages/OverviewPage';
@@ -10,7 +10,6 @@ const LeaguePage = lazy(() => import('../pages/LeaguePage').then((module) => ({ 
 const MatchDetailPage = lazy(() => import('../pages/MatchDetailPage').then((module) => ({ default: module.MatchDetailPage })));
 const ModelPage = lazy(() => import('../pages/ModelPage').then((module) => ({ default: module.ModelPage })));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage })));
-const ResultsLoopPage = lazy(() => import('../pages/ResultsLoopPage').then((module) => ({ default: module.ResultsLoopPage })));
 const SystemStatusPage = lazy(() => import('../pages/SystemStatusPage').then((module) => ({ default: module.SystemStatusPage })));
 const TeamPage = lazy(() => import('../pages/TeamPage').then((module) => ({ default: module.TeamPage })));
 const WatchlistPage = lazy(() => import('../pages/WatchlistPage').then((module) => ({ default: module.WatchlistPage })));
@@ -23,6 +22,13 @@ function MatchRoute() {
   return <MatchDetailPage />;
 }
 
+function LegacyResultsRedirect() {
+  const location = useLocation();
+  const search = new URLSearchParams(location.search);
+  search.set('status', 'settled');
+  return <Navigate to={`/auto?${search.toString()}`} replace />;
+}
+
 export function App() {
   return (
     <AppShell>
@@ -32,7 +38,7 @@ export function App() {
           <Route path="/oversikt" element={<OverviewPage />} />
           <Route path="/auto" element={<AutoPage />} />
           <Route path="/watchlist" element={<WatchlistPage />} />
-          <Route path="/resultatloop" element={<ResultsLoopPage />} />
+          <Route path="/resultatloop" element={<LegacyResultsRedirect />} />
           <Route path="/historik" element={<HistoryPage />} />
           <Route path="/matcher/:matchId" element={<MatchRoute />} />
           <Route path="/lag/:teamId" element={<TeamPage />} />

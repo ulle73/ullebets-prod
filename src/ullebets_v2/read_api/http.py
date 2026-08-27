@@ -162,6 +162,7 @@ def dispatch_get(database: Any, path: str, query: dict[str, list[str]]) -> tuple
             database,
             limit=_positive_int(query, "limit", DEFAULT_PAGE_LIMIT, minimum=1),
             offset=_positive_int(query, "offset", 0),
+            status=_first(query, "status"),
             stat_key=_first(query, "stat"),
             period=_first(query, "period"),
             scope=_first(query, "scope"),

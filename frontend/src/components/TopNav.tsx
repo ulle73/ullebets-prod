@@ -3,9 +3,8 @@ import { sharedDateSearch } from '../domain/navigation';
 
 const primaryRoutes = [
   { to: '/oversikt', label: 'Översikt' },
-  { to: '/auto', label: 'Auto' },
+  { to: '/auto', label: 'Spel & resultat' },
   { to: '/watchlist', label: 'Watchlist' },
-  { to: '/resultatloop', label: 'Resultatloop' },
   { to: '/historik', label: 'Historik' },
 ] as const;
 

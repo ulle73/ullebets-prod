@@ -964,6 +964,29 @@ def _closing_status(row: dict[str, Any]) -> str:
     return "missing"
 
 
+def _auto_result_status(row: dict[str, Any]) -> str:
+    if (
+        row.get("invalid_for_model") is True
+        or row.get("valid_for_forward_evaluation") is False
+        or row.get("valid_for_performance") is False
+        or row.get("result_loop_status") == "excluded"
+    ):
+        return "excluded"
+    settlement_result = str(row.get("settlement_result") or "")
+    if settlement_result in {"win", "loss", "push"}:
+        return settlement_result
+    return "open"
+
+
+def _matches_auto_status(row: dict[str, Any], status: str | None) -> bool:
+    if not status or status == "all":
+        return True
+    result_status = _auto_result_status(row)
+    if status == "settled":
+        return result_status in {"win", "loss", "push"}
+    return result_status == status
+
+
 def _forward_selection_read_model(
     row: dict[str, Any],
     fixture: dict[str, Any],
@@ -1062,6 +1085,7 @@ def read_auto(
     *,
     limit: int = DEFAULT_PAGE_LIMIT,
     offset: int = 0,
+    status: str | None = None,
     stat_key: str | None = None,
     period: str | None = None,
     scope: str | None = None,
@@ -1088,7 +1112,12 @@ def read_auto(
     raw_rows = _find_rows(database, FORWARD_BETS, query)
     canonical_rows, exposure_audit = canonicalize_forward_bet_docs(raw_rows)
     result_lookup = _forward_result_lookup(database, canonical_rows)
-    enriched_rows = _with_forward_results(canonical_rows, result_lookup)
+    enriched_rows = [
+        row
+        for row in _with_forward_results(canonical_rows, result_lookup)
+        if _matches_auto_status(row, status)
+    ]
+    canonical_rows = enriched_rows
     grouped_rows = group_forward_observation_docs(enriched_rows)
     grouped_rows.sort(
         key=lambda row: (
@@ -1139,7 +1168,7 @@ def read_auto(
         selections.append(_forward_selection_read_model(row, fixture, row))
     return {
         "count": len(grouped_rows),
-        "observationCount": exposure_audit["canonical_count"],
+        "observationCount": len(canonical_rows),
         "rawCount": exposure_audit["raw_count"],
         "excludedComboLegCount": exposure_audit["excluded_combo_leg_count"],
         "excludedShadowPredictionCount": exposure_audit["excluded_shadow_prediction_count"],

@@ -1,5 +1,5 @@
 .skip-link{position:fixed;top:8px;left:8px;z-index:100;transform:translateY(-160%);padding:9px 12px;border:1px solid var(--color-border-strong);border-radius:8px;background:var(--color-elevated);color:var(--color-text);font-size:11px;font-weight:850;transition:transform .14s ease}.skip-link:focus{transform:translateY(0)}
 .mobile-utility-nav{display:grid;gap:6px;padding:12px 14px 16px;border-top:1px solid var(--color-border)}.mobile-utility-nav a{display:flex;align-items:center;gap:8px;min-height:38px;padding:0 9px;border-radius:8px;color:var(--color-text-secondary);font-size:11px;font-weight:750}.mobile-utility-nav a:hover{background:rgba(255,255,255,.04);color:var(--color-text)}
-.stats-table,.result-table{max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}.workspace{min-width:0}.top-nav{scrollbar-width:thin}
+.stats-table,.result-table{max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}.workspace{min-width:0}.top-nav{scrollbar-width:none}.top-nav::-webkit-scrollbar{display:none}
 @media(max-width:600px){.stats-table .stats-row{min-width:520px}.workflow-toolbar{max-width:100%}}
 @media(prefers-reduced-motion:reduce){.skip-link{transition:none}}

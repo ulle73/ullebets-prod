@@ -745,6 +745,71 @@ def test_auto_exposes_accepted_t30_clv_and_exact_market_odds_history() -> None:
     ]
 
 
+def test_auto_status_filter_is_applied_before_grouping_and_pagination() -> None:
+    base = {
+        'match_key': 'm1',
+        'stat_key': 'cornerKicks',
+        'period': 'ALL',
+        'scope': 'total',
+        'direction': 'over',
+        'line_value': 10.5,
+        'valid_for_forward_evaluation': True,
+        'invalid_for_model': False,
+    }
+    database = MemoryDatabase(
+        forward_bets=MemoryCollection(
+            [
+                base | {'selection_key': 'open'},
+                base | {'selection_key': 'won', 'line_value': 11.5},
+                base | {'selection_key': 'lost', 'line_value': 12.5},
+                base | {'selection_key': 'excluded', 'line_value': 13.5},
+            ]
+        ),
+        forward_results=MemoryCollection(
+            [
+                base | {
+                    'result_loop_key': 'won',
+                    'selection_key': 'won',
+                    'line_value': 11.5,
+                    'settlement_status': 'settled',
+                    'settlement_result': 'win',
+                    'valid_for_performance': True,
+                },
+                base | {
+                    'result_loop_key': 'lost',
+                    'selection_key': 'lost',
+                    'line_value': 12.5,
+                    'settlement_status': 'settled',
+                    'settlement_result': 'loss',
+                    'valid_for_performance': True,
+                },
+                base | {
+                    'result_loop_key': 'excluded',
+                    'selection_key': 'excluded',
+                    'line_value': 13.5,
+                    'result_loop_status': 'excluded',
+                    'valid_for_performance': False,
+                },
+            ]
+        ),
+    )
+
+    settled = read_service.read_auto(database, status='settled', limit=1)
+    won = read_service.read_auto(database, status='win')
+    opened = read_service.read_auto(database, status='open')
+    excluded = read_service.read_auto(database, status='excluded')
+
+    assert settled['summary']['total'] == 2
+    assert settled['count'] == 2
+    assert settled['page']['hasMore'] is True
+    assert won['summary']['total'] == 1
+    assert won['selections'][0]['selectionKey'] == 'won'
+    assert opened['summary']['total'] == 1
+    assert opened['selections'][0]['selectionKey'] == 'open'
+    assert excluded['summary']['total'] == 1
+    assert excluded['selections'][0]['selectionKey'] == 'excluded'
+
+
 def test_results_contract_is_typed_filtered_paginated_and_entity_joined() -> None:
     database = MemoryDatabase(
         forward_results=MemoryCollection(
@@ -924,7 +989,7 @@ def test_http_auto_and_results_routes_forward_checkpoint_filter() -> None:
     auto_status, auto_payload = read_http.dispatch_get(
         database,
         '/api/v1/auto',
-        {'checkpoint': ['T_MINUS_2H']},
+        {'checkpoint': ['T_MINUS_2H'], 'status': ['open']},
     )
     result_status, result_payload = read_http.dispatch_get(
         database,

@@ -3,7 +3,7 @@ import type { AutoResponse, DashboardResponse, FormulaPerformanceResponse, Match
 
 type QueryValue = string | number | boolean | null | undefined;
 export type ApiQuery = Record<string, QueryValue>;
-export interface AutoQuery extends ApiQuery { limit?:number;offset?:number;league?:string;stat?:string;period?:string;scope?:string;direction?:string;model?:string;policy?:string;checkpoint?:string; }
+export interface AutoQuery extends ApiQuery { limit?:number;offset?:number;status?:string;league?:string;stat?:string;period?:string;scope?:string;direction?:string;model?:string;policy?:string;checkpoint?:string; }
 export interface ResultsQuery extends ApiQuery { limit?:number;offset?:number;status?:string;league?:string;stat?:string;period?:string;scope?:string;direction?:string;model?:string;policy?:string;checkpoint?:string; }
 export interface FormulaPerformanceQuery extends ApiQuery { limit?:number;offset?:number;formula?:string;family?:string;league?:string;stat?:string;period?:string;scope?:string;direction?:string;checkpoint?:string;status?:string;mode?:'positive_ev'|'all_scores'; }
 

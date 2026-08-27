@@ -1,18 +1,19 @@
-import { CalendarDays, CheckCircle2, ChevronRight, CircleDot, TrendingUp } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ChevronRight, CircleDot, Target, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { matchDetailPath } from '../domain/match-route';
+import { OddsMovement } from '../components/OddsMovement';
 import { PageHeader } from '../components/PageHeader';
 import { StateNotice } from '../components/StateNotice';
 import { WorkflowFilters, type WorkflowFilter } from '../components/WorkflowFilters';
 import { useAuto } from '../data/queries';
 import { autoQueryFromSearch, patchSearchParams } from '../data/workflow-query';
-import { formatExpectedRoi, formatOdds, formatProbability } from '../domain/formatters';
+import { formatExpectedRoi, formatProbability } from '../domain/formatters';
 import type { AutoSelection } from '../domain/types';
 import { CHECKPOINT_OPTIONS, DIRECTION_OPTIONS, PERIOD_OPTIONS, SCOPE_OPTIONS, STAT_OPTIONS } from '../domain/workflow-filter-options';
 
 type FamilyFilter = 'v6' | 'legacy' | 'all';
-type ResultFilter = 'all' | 'open' | 'win' | 'loss' | 'push' | 'excluded';
+type ResultFilter = 'all' | 'open' | 'settled' | 'win' | 'loss' | 'push' | 'excluded';
 
 const STAT_LABELS: Record<string, string> = {
   cornerKicks: 'Hörnor',
@@ -85,19 +86,19 @@ function formatShortDate(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-function formatNumber(value: number | null, digits = 1): string {
-  if (value === null) return '—';
+function formatNumber(value: number | null | undefined, digits = 1): string {
+  if (value === null || value === undefined) return '—';
   return value.toLocaleString('sv-SE', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-function formatPnl(value: number | null): string {
-  if (value === null) return '—';
+function formatPnl(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
   const formatted = Math.abs(value).toLocaleString('sv-SE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatted} u`;
 }
 
 function checkpointLabel(value: string | null | undefined): string {
-  return value?.replace('T_MINUS_', 'T-').replace(/M$/, 'm').replace(/H$/, 'H').replace(/D$/, 'D') ?? 'saknas';
+  return value?.replace('T_MINUS_', 'T-').replace(/M$/, '').replace(/H$/, 'H').replace(/D$/, 'D') ?? 'saknas';
 }
 
 function observationCount(row: AutoSelection): number {
@@ -112,6 +113,35 @@ function resultLabel(bucket: Exclude<ResultFilter, 'all'>): string {
   return 'ÖPPEN';
 }
 
+function statusFilterFromQuery(value: string | undefined): ResultFilter {
+  return ['open', 'settled', 'win', 'loss', 'push', 'excluded'].includes(value ?? '') ? value as ResultFilter : 'all';
+}
+
+function matchesResultFilter(row: AutoSelection, filter: ResultFilter): boolean {
+  if (filter === 'all') return true;
+  const bucket = resultBucket(row);
+  if (filter === 'settled') return ['win', 'loss', 'push'].includes(bucket);
+  return bucket === filter;
+}
+
+function formatClv(value: number | null | undefined, signed = true): string {
+  if (value === null || value === undefined) return '—';
+  const formatted = Math.abs(value).toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  if (!signed) return `${formatted} %`;
+  return `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatted} %`;
+}
+
+function acceptedClv(row: AutoSelection): boolean {
+  return row.acceptedClv ?? row.officialClv ?? (row.acceptedClvCount ?? 0) > 0;
+}
+
+function clvDetail(row: AutoSelection): string {
+  if (!acceptedClv(row) || row.clvPct === null || row.clvPct === undefined) return 'Closing saknas';
+  const distance = row.clvDistancePct ?? Math.abs(row.clvPct);
+  const result = row.clvPct > 0 ? 'Slog close' : row.clvPct < 0 ? 'Missade close' : 'Matchade close';
+  return `${result} med ${formatClv(distance, false)} · ${checkpointLabel(row.closingCheckpoint)}`;
+}
+
 function resultDetail(row: AutoSelection): string | null {
   const bucket = resultBucket(row);
   if (!['win', 'loss', 'push'].includes(bucket)) return null;
@@ -122,21 +152,21 @@ function resultDetail(row: AutoSelection): string | null {
 export function AutoPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [familyFilter, setFamilyFilter] = useState<FamilyFilter>('v6');
-  const [statusFilter, setStatusFilter] = useState<ResultFilter>('all');
   const [leagueFilter, setLeagueFilter] = useState('all');
   const serverQuery = autoQueryFromSearch(searchParams);
+  const statusFilter = statusFilterFromQuery(serverQuery.status);
   const pageLimit = serverQuery.limit ?? 50;
   const pageOffset = serverQuery.offset ?? 0;
   const query = useAuto(serverQuery);
-  if (query.isLoading) return <StateNotice state="loading" title="Läser Auto" detail="Hämtar registrerade forward_bets från V2." />;
-  if (query.isError || !query.data) return <StateNotice state="failed" title="Auto kunde inte läsas" detail="Ingen fallbacklista visas." />;
+  if (query.isLoading) return <StateNotice state="loading" title="Läser spel & resultat" detail="Hämtar registrerade spel, rättning och CLV från V2." />;
+  if (query.isError || !query.data) return <StateNotice state="failed" title="Spel & resultat kunde inte läsas" detail="Ingen fallbacklista visas." />;
 
   const v6Count = query.data.selections.filter((row) => selectionFamily(row) === 'v6').length;
   const legacyCount = query.data.selections.length - v6Count;
   const familyRows = query.data.selections.filter((row) => familyFilter === 'all' || selectionFamily(row) === familyFilter);
   const leagues = [...new Set(familyRows.map((row) => row.leagueName).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'sv-SE'));
   const visibleRows = familyRows.filter((row) => {
-    if (statusFilter !== 'all' && resultBucket(row) !== statusFilter) return false;
+    if (!matchesResultFilter(row, statusFilter)) return false;
     return leagueFilter === 'all' || row.leagueName === leagueFilter;
   });
   const settledRows = familyRows.filter((row) => ['win', 'loss', 'push'].includes(resultBucket(row)));
@@ -149,6 +179,19 @@ export function AutoPage() {
   const wonObservationCount = settledRows.filter((row) => resultBucket(row) === 'win').reduce((sum, row) => sum + observationCount(row), 0);
   const lostObservationCount = settledRows.filter((row) => resultBucket(row) === 'loss').reduce((sum, row) => sum + observationCount(row), 0);
   const separatedRows = (query.data.excludedComboLegCount ?? 0) + (query.data.excludedShadowPredictionCount ?? 0);
+  const acceptedRows = familyRows.filter(acceptedClv);
+  const acceptedClvCount = query.data.summary.acceptedClvCount
+    ?? acceptedRows.reduce((sum, row) => sum + (row.acceptedClvCount ?? 1), 0);
+  const beatClosingLineCount = query.data.summary.beatClosingLineCount
+    ?? acceptedRows.reduce((sum, row) => sum + (row.beatClosingLineCount ?? (row.beatClosingLine ? 1 : 0)), 0);
+  const t30ClvCount = query.data.summary.t30ClvCount
+    ?? acceptedRows.reduce((sum, row) => sum + (row.t30ClvCount ?? (row.closingQuality === 't30_fallback' ? 1 : 0)), 0);
+  const t10ClvCount = query.data.summary.t10ClvCount
+    ?? acceptedRows.reduce((sum, row) => sum + (row.t10ClvCount ?? (row.closingQuality === 't10' ? 1 : 0)), 0);
+  const averageAcceptedClvPct = query.data.summary.averageAcceptedClvPct
+    ?? (acceptedRows.length > 0
+      ? acceptedRows.reduce((sum, row) => sum + (row.averageClvPct ?? row.clvPct ?? 0), 0) / acceptedRows.length
+      : null);
   const groupedRows = visibleRows.reduce<Map<string, AutoSelection[]>>((groups, row) => {
     const key = dateKey(row.matchStartTime);
     const group = groups.get(key) ?? [];
@@ -164,14 +207,15 @@ export function AutoPage() {
     { key: 'checkpoint', label: 'Checkpoint', value: serverQuery.checkpoint ?? '', options: CHECKPOINT_OPTIONS },
   ];
   const changeWorkflowFilter = (key: string, value: string) => setSearchParams(patchSearchParams(searchParams, { [key]: value }, { resetOffset: true }));
+  const changeStatusFilter = (value: ResultFilter) => setSearchParams(patchSearchParams(searchParams, { status: value === 'all' ? undefined : value }, { resetOffset: true }));
   const changePageLimit = (value: number) => setSearchParams(patchSearchParams(searchParams, { limit: value }, { resetOffset: true }));
 
   return (
     <div className="page-stack auto-page">
-      <PageHeader eyebrow="V6 Forward · modelljournal" title="Auto" subtitle="Frysta val före avspark. V6 och legacy hålls åtskilda i både urval och resultat." />
+      <PageHeader eyebrow="V6 Forward · speljournal" title="Spel & resultat" subtitle="Frysta spel, rättning, ROI och CLV mot accepterad T-30/T-10-closing på samma yta." />
       <h2 className="auto-page__model-title">V6 Forward</h2>
 
-      <section className="auto-summary" aria-label="Forward-sammanfattning">
+      <section className="auto-summary" aria-label="Spel- och resultatsammanfattning">
         <article className="auto-summary__card">
           <span className="auto-summary__icon"><CircleDot size={19} aria-hidden="true" /></span>
           <div><small>ÖPPNA SPEL</small><strong>{openObservationCount}</strong><p>{openRows.length} grupper väntar på rättning</p></div>
@@ -183,6 +227,10 @@ export function AutoPage() {
         <article className="auto-summary__card auto-summary__card--roi">
           <span className="auto-summary__icon"><TrendingUp size={19} aria-hidden="true" /></span>
           <div><small>URVALS-ROI</small><strong>{roi === null ? '—' : formatExpectedRoi(roi)}</strong><p>{roi === null ? 'inga rättade val' : `${formatPnl(totalPnl)} · deskriptivt`}</p></div>
+        </article>
+        <article className="auto-summary__card auto-summary__card--clv">
+          <span className="auto-summary__icon"><Target size={19} aria-hidden="true" /></span>
+          <div><small>CLV MOT CLOSE</small><strong>{formatClv(averageAcceptedClvPct)}</strong><p>{acceptedClvCount === 0 ? 'väntar på T-30/T-10-closing' : `${beatClosingLineCount}/${acceptedClvCount} slog close · ${t30ClvCount} T-30 · ${t10ClvCount} T-10`}</p></div>
         </article>
       </section>
 
@@ -203,11 +251,12 @@ export function AutoPage() {
             {([
               ['all', 'Alla'],
               ['open', 'Öppna'],
+              ['settled', 'Rättade'],
               ['win', 'Vunna'],
               ['loss', 'Förlorade'],
               ['push', 'Push'],
               ['excluded', 'Exkluderade'],
-            ] as const).map(([value, label]) => <button type="button" key={value} className={statusFilter === value ? 'is-active' : ''} aria-pressed={statusFilter === value} onClick={() => setStatusFilter(value)}>{label}</button>)}
+            ] as const).map(([value, label]) => <button type="button" key={value} className={statusFilter === value ? 'is-active' : ''} aria-pressed={statusFilter === value} onClick={() => changeStatusFilter(value)}>{label}</button>)}
           </div>
         </div>
         <label className="auto-league-filter">
@@ -230,13 +279,13 @@ export function AutoPage() {
       {query.data.selections.length === 0 ? <StateNotice state="empty" title="Inga registrerade forward-val" detail="V2 returnerade inga forward_bets. Frontend skapar inga egna kandidater." /> : visibleRows.length === 0 ? (
         <StateNotice state="empty" title={familyFilter === 'v6' ? 'Inga frysta V6-val ännu' : 'Inga val matchar filtret'} detail={familyFilter === 'v6' ? 'V6 väntar på ett kvalificerat val från en liga inom modellens träningsdomän. Legacy-data finns kvar under Legacy.' : 'Ändra version, status eller liga för att se andra rader.'} />
       ) : (
-        <section className="auto-ledger" aria-label="Forward-val">
+        <section className="auto-ledger" aria-label="Spel & resultat">
           {[...groupedRows.entries()].map(([key, rows]) => (
             <section className="auto-date-group" key={key}>
               <header className="auto-date-group__header"><CalendarDays size={14} aria-hidden="true" /><h2>{dateHeading(rows[0]?.matchStartTime ?? null)}</h2><span>{rows.reduce((sum, row) => sum + observationCount(row), 0)} spel · {rows.length} grupper</span></header>
               <div className="auto-table" role="table" aria-label={`Forward-val ${dateHeading(rows[0]?.matchStartTime ?? null)}`}>
                 <div className="auto-table__head" role="row">
-                  {['TID', 'MATCH', 'STAT', 'SCOPE', 'PERIOD', 'RIKTNING', 'LINA', 'ODDS', 'MODELL P', 'EV', 'UTFALL'].map((label) => <span role="columnheader" key={label}>{label}</span>)}
+                  {['TID', 'MATCH', 'STAT', 'SCOPE', 'PERIOD', 'RIKTNING', 'LINA', 'ODDS', 'MODELL P', 'EV', 'CLV', 'UTFALL'].map((label) => <span role="columnheader" key={label}>{label}</span>)}
                   <span aria-hidden="true" />
                 </div>
                 {rows.map((row, index) => {
@@ -260,9 +309,10 @@ export function AutoPage() {
                       <div className="auto-cell" role="cell"><span className="auto-dimension auto-dimension--period">{PERIOD_LABELS[row.period ?? ''] ?? row.period ?? '—'}</span></div>
                       <div className="auto-cell" role="cell"><strong className={`auto-direction auto-direction--${(row.direction ?? '').toLowerCase()}`}>{row.direction?.toLocaleUpperCase('sv-SE') ?? '—'}</strong></div>
                       <div className="auto-cell auto-cell--numeric" role="cell"><strong>{formatNumber(row.lineValue)}</strong></div>
-                      <div className="auto-cell auto-cell--numeric" role="cell"><strong>{row.selectedOdds === null ? '—' : formatOdds(row.selectedOdds)}</strong></div>
+                      <div className="auto-cell auto-cell--numeric auto-cell--odds" role="cell"><OddsMovement row={row} /></div>
                       <div className="auto-cell auto-cell--numeric auto-cell--model" role="cell"><strong>{row.predictedWinProbability === null ? '—' : formatProbability(row.predictedWinProbability)}</strong><small>{selectionFamily(row) === 'v6' ? 'V6 · PRIMÄR' : 'LEGACY'}</small></div>
                       <div className="auto-cell auto-cell--numeric auto-cell--ev" role="cell"><strong>{row.expectedRoiUnits === null ? '—' : formatExpectedRoi(row.expectedRoiUnits)}</strong><small>{observationCount(row)} obs · bäst {checkpointLabel(row.bestSnapshotLabel ?? row.snapshotLabel)}</small></div>
+                      <div className={`auto-cell auto-cell--numeric auto-cell--clv${acceptedClv(row) ? row.clvPct !== null && row.clvPct !== undefined && row.clvPct >= 0 ? ' is-positive' : ' is-negative' : ''}`} role="cell"><strong>{acceptedClv(row) ? formatClv(row.clvPct) : '—'}</strong><small>{clvDetail(row)}</small></div>
                       <div className="auto-cell auto-cell--result" role="cell"><span className={`auto-result auto-result--${bucket}`}>{resultLabel(bucket)}</span>{detail ? <small>{detail}</small> : null}</div>
                       {row.matchKey ? <Link className="auto-row-link" to={matchDetailPath(row.matchKey)} aria-label={`Öppna ${row.homeTeamName ?? ''} mot ${row.awayTeamName ?? ''}`}><ChevronRight size={17} /></Link> : <span />}
                     </article>
@@ -273,7 +323,7 @@ export function AutoPage() {
           ))}
         </section>
       )}
-      <nav className="workflow-pagination" aria-label="Sidindelning Auto">
+      <nav className="workflow-pagination" aria-label="Sidindelning Spel & resultat">
         <button
           type="button"
           onClick={() => setSearchParams(patchSearchParams(searchParams, { offset: Math.max(0, pageOffset - pageLimit) }))}
