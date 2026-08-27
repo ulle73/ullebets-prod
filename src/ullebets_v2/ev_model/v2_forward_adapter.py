@@ -360,6 +360,8 @@ def build_v2_forward_model_frame(
             "odds_snapshot_time": market.snapshot_time,
             "match_start_time": start_time,
             "snapshot_key": market.snapshot_key,
+            "snapshot_label": getattr(market, "snapshot_label", None),
+            "snapshot_type": getattr(market, "snapshot_type", None),
             "offer_key": market.offer_key,
         }
         for team_role in ("home", "away"):
@@ -440,6 +442,8 @@ def build_v2_forward_model_frame(
     passthrough_columns = [
         "match_key",
         "snapshot_key",
+        "snapshot_label",
+        "snapshot_type",
         "offer_key",
         "home_team_key",
         "away_team_key",

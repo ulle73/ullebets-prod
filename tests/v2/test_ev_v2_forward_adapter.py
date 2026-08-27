@@ -176,6 +176,8 @@ def test_forward_features_use_only_prior_canonical_match_stats() -> None:
         [
             {
                 "snapshot_key": "current-line",
+                "snapshot_label": "T_MINUS_2H",
+                "snapshot_type": "research",
                 "offer_key": "current-line",
                 "match_key": "current",
                 "stat_key": "cornerKicks",
@@ -204,6 +206,8 @@ def test_forward_features_use_only_prior_canonical_match_stats() -> None:
     assert frame.iloc[0]["baseline_lambda"] == pytest.approx(5.5)
     assert frame.iloc[0]["match_key"] == "current"
     assert frame.iloc[0]["snapshot_key"] == "current-line"
+    assert frame.iloc[0]["snapshot_label"] == "T_MINUS_2H"
+    assert frame.iloc[0]["snapshot_type"] == "research"
     assert frame.iloc[0]["offer_key"] == "current-line"
     assert audit["history_observations_at_or_after_snapshot_used"] == 0
     assert audit["history_observations_excluded_by_snapshot"] == 2
