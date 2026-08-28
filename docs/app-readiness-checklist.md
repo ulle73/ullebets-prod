@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -28,6 +28,10 @@ Status details and evidence:
   read-only audit found `230` canonical tracked bets, `69` T-30 fallback CLV,
   `161` missing closing lines, and `0` official T-10 CLV because none of the
   official-close matches overlaps a forward bet.
+- [x] `VERIFIED` The product-facing CLV contract now accepts and labels those
+  `69` T-30 comparisons without promoting them to official/model evidence.
+  Current read-only output reports `18/69` beating close and mean accepted CLV
+  `-0.2072%`; promotion-eligible T-10 remains `0` as stated above.
 - [x] `VERIFIED` In-domain V6 forward predictions and settlements now exist;
   the current product sample contains `100` settled canonical rows, including
   `96` V6 rows and `4` legacy rows.
@@ -239,21 +243,22 @@ Current acceptance evidence:
 - [x] Original workflow names have V2 job mappings.
 - [x] Shared GitHub Actions runner enforces `ullebets_v2`.
 - [x] Emergency dry-run mode exists.
-- [x] A match-aware hourly Actions scheduler owns production checkpoints and
-  enables the five-minute closing watcher only around uncaptured upcoming
-  fixtures. Hosted write-mode run `30673575119` proved that an already-disabled
-  watcher is handled idempotently and checkpoint capture still executes.
+- [x] The hourly Actions scheduler owns only regular production checkpoints.
+  Closing no longer depends on workflow enable/disable calls or `actions:write`;
+  a separate 15-minute seed schedule starts bounded runner-owned sessions.
 - [x] Hosted scheduler run `30949327663` on 4 August saw all 10 current future
   fixtures, correctly selected zero due checkpoints, and completed with zero
   errors plus persisted audit/health status `ok`.
 - [x] T-2H is assigned to the hourly job; T-30/T-10 are exclusively assigned
-  to the closing watcher, with T-30 excluded from official model CLV. Hosted
-  write-mode scheduler run `30674861895` passed this deployed contract with a
-  valid empty source horizon.
-- [ ] `PARTIAL` The closing watcher can persist T-30 and T-10 in write mode,
-  but GitHub scheduled-event timing is too irregular for reliable coverage of
-  the 5-14-minute T-10 window. It has produced `0` official CLV rows for the
-  current `230` canonical tracked bets.
+  to the closing watcher. T-30 is accepted for product CLV but remains
+  ineligible for official model-promotion CLV; T-10 is preferred and eligible.
+- [ ] `PARTIAL` The new watcher removes minute-precision dependence after a
+  runner starts: it watches up to four hours, polls every minute, owns a
+  three-minute renewable Mongo lease, persists heartbeat/session state,
+  retries transient failures, and allows expired-lease takeover. Local
+  closing/read/automation tests pass `77/77`, but the branch has not yet run
+  from hosted `main` and the current `230` tracked bets still have `0`
+  promotion-eligible T-10 CLV rows.
 - [x] EV shadow runtime versions are pinned to the frozen manifests; hosted
   production write-mode run `30672830616` passed all four scorers. It produced
   zero rows because no upcoming canonical model markets existed.
@@ -296,7 +301,7 @@ Current acceptance evidence:
 ## 11. Frontend and product surface
 
 - [x] `VERIFIED` A stable read-only API now exposes the fixture/dashboard, match, league, team, Auto, results, model, and system contracts required by the frontend without adding write behavior.
-- [x] `VERIFIED` The complete `style-1` frontend is implemented across the five primary destinations plus match, team, league, model, system-status, and real not-found routes.
+- [x] `VERIFIED` The complete `style-1` frontend is implemented across four primary destinations plus match, team, league, model, system-status, and real not-found routes.
 - [x] `VERIFIED` Today's/upcoming matches and match detail are rendered from read contracts, including available scores, market offers, actuals, checkpoints, team comparison, and forward evidence. The selected dashboard date filters on the derived Stockholm-local kickoff date rather than fixture `source_date`; the protected Vercel production API verified the `2026-08-22` contract at 19 matches, including Hull City and excluding Arsenal, and the repaired `2026-08-23` source/import/read path at the supplied 19 matches (6 Brasileirão Série A, 4 Serie A, and 3 each in Premier League, La Liga, and Ligue 1). Production deployment `dpl_DcbJPcrn5eHBH642oPpmekLStz6J` additionally proves real league, team, and match drilldowns through Vercel's one- and two-segment function routes and a browser click-through.
 - [x] `VERIFIED` Team statistics are explorable by home/away context, FOR/AGAINST orientation, period, rank, and league-relative deviation; league stat rankings are also available.
 - [x] `VERIFIED` Matchup cards expose available market-bias profiles as a
@@ -304,13 +309,13 @@ Current acceptance evidence:
   confidence segments, explicit thin-data state, and accessible Swedish text.
 - [x] `VERIFIED` Registered forward selections expose offered odds, model probability, expected ROI field, model/policy identities, and persisted runtime status without presenting observation counts as proof.
 - [x] `VERIFIED` Settled forward-result rows can show persisted ROI/PnL, closing odds, official CLV status/value, settlement state, exclusions, and linked match/team/league entities. This verifies the product surface, not positive forward efficacy.
-- [ ] `FAILED` The current Resultatloop presentation labels all non-official
-  rows `CLV saknas`, hiding `69` persisted T-30 fallback comparisons; Auto
-  separately omits CLV and odds history entirely.
-- [ ] `PARTIAL` Auto and Resultatloop remain duplicate forward-bet surfaces.
-  A single route/navigation item with open, settled, and excluded states plus
-  distinct official/preliminary/missed/waiting closing states is not yet
-  implemented.
+- [x] `VERIFIED` The unified Auto read contract exposes all `69` accepted T-30
+  comparisons, exact CLV distance, beat/miss/match-close state, closing quality,
+  checkpoint, and exact-market odds history; missing closing remains explicit.
+- [x] `VERIFIED` Auto and Resultatloop are consolidated into one primary
+  `Spel & resultat` route with open, corrected, won, lost, push, and excluded
+  filters. Legacy `/resultatloop` links redirect to the settled filter without
+  issuing the old results request.
 - [x] `VERIFIED` The V2 checkpoint-journal contract keeps each snapshot
   as a separate 1u evaluation, groups only presentation rows, exposes
   stat/scope/period/direction/checkpoint filters, and labels unsupported match
@@ -327,7 +332,7 @@ Current acceptance evidence:
   four-filter slice of 109 +EV
   observations over 3 matches and 480 total scores.
 - [ ] `PARTIAL` Data freshness, missing-data, exclusion, health, and audit states are shown on the relevant surfaces, but uniform freshness metadata across every product section still depends on the source/read contract carrying it.
-- [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, and production build all pass on `style-1` run `31648971262`; the current all-formula checkout additionally passes 59 frontend tests, lint, production build, and live desktop/390px browser checks.
+- [x] `VERIFIED` Responsive and accessibility contracts are covered by the hosted frontend gate: primary/mobile navigation, keyboard skip-link, visible focus behavior, reduced-motion handling, narrow-layout containment, route-shell smoke tests, strict TypeScript, lint, and production build all pass on `style-1` run `31648971262`; the current unified-results checkout additionally passes 61 frontend tests, lint, production build, and live desktop/390px browser checks including hover, focus, Escape, and touch/click odds movement.
 
 ## 12. Release readiness
 

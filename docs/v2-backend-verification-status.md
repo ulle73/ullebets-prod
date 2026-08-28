@@ -1,11 +1,66 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-25
-Branch: `main`
+Last updated: 2026-08-28
+Branch: `codex/durable-closing-results` for this implementation; hosted and
+deployed evidence below remains tied to its stated `main` SHA/deployment.
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Durable Closing Watch And Accepted Product CLV On 2026-08-28
+
+The former five-minute GitHub schedule was an unsuitable precision clock for
+the 5-14-minute T-10 window. The closing workflow is now only a seed: it starts
+every 15 minutes, and a GitHub-hosted runner owns a bounded 320-minute session
+using its own UTC clock and one-minute polling. The hourly scheduler no longer
+enables/disables workflows and no longer needs `actions:write`.
+
+`closing_watch_sessions` provides an atomic global lease, three-minute expiry,
+heartbeats, generation tracking, terminal summaries, and expired-owner
+takeover. The planner attempts T-30 around 35 minutes before kickoff, retains
+it as accepted closing when T-10 is missed, and attempts the preferred T-10 at
+ten minutes. Transient source and downstream scoring failures remain inside
+the session for retry; captures remain immutable and database writes retain
+the `MONGODB_DB=ullebets_v2` guard.
+
+Closing policy `accepted_t30_t10_v2` separates two contracts:
+
+- `accepted_for_product_clv`: valid T-30 fallback or T-10;
+- `eligible_for_promotion_clv`: valid T-10 only.
+
+That separation propagates through closing lines, CLV rows, forward results,
+exposure grouping, evaluation, and read models. Existing historical T-30 rows
+are inferred as accepted for display without rewriting frozen documents or
+weakening the T-10 promotion gate.
+
+The Auto read contract now filters result state before grouping/pagination,
+returns accepted CLV/T-30/T-10/beat-close totals, exact market price history,
+and global family-aware settlement/ROI metrics. This matters because the
+previous UI computed corrected count and ROI from only the current page.
+
+Current evidence:
+
+- closing/read/automation subset: 77 passed;
+- frontend suite: 61 passed through the VM-isolated single-thread pool;
+- production TypeScript build and ESLint: passed;
+- real read-only settled query: 100 observations, 61 groups, 40 wins, 60
+  losses, -21.48% descriptive ROI, 69 accepted T-30 comparisons, 18 beating
+  close, mean accepted CLV -0.207246%, and 0 T-10 comparisons;
+- V6-only summary from the same contract: 96 observations, 57 groups, 39 wins,
+  57 losses, and -20.46875% descriptive ROI;
+- live local browser verification showed the unified CLV card and row-level
+  positive/negative/matched close labels, plus exact T-2H to T-30 movement on
+  desktop and 390px layouts;
+- current real-database watcher dry-run was read-only, found no fixture within
+  the four-hour horizon, performed zero capture attempts, and returned zero
+  errors.
+
+Status: `VERIFIED` for local implementation, policy separation, migration-free
+legacy inference, regression coverage, current read-only V2 output, and local
+browser behavior. It remains `PARTIAL` overall because the commits are not yet
+on hosted `main`, no real bounded watch session has exercised lease recovery,
+and the current forward sample still has zero promotion-eligible T-10 CLV.
 
 ## All-Formula Immutable Shadow Journal On 2026-08-25
 

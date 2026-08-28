@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -81,10 +81,11 @@ Valid empty source responses are not failures when no matches or markets exist.
 - `VERIFIED`: a current read-only Kambi dry-run linked 10/10 upcoming
   fixtures, returned 11 raw payload documents and 607 normalized offers, with
   zero source or mapping errors.
-- `PARTIAL`: T-30, T-10, and closing-line persistence now have live evidence,
-  but the five-minute GitHub scheduled watcher has not reliably entered the
-  narrow T-10 window for matches with tracked bets. Official selection CLV is
-  therefore still absent.
+- `PARTIAL`: a bounded runner-owned closing watcher now polls from its own
+  clock, persists lease/heartbeat state, retries transient failures, accepts
+  T-30 for product CLV, and upgrades to T-10 when available. The code and
+  current read-only database path are verified, but this branch has not yet
+  produced a hosted watch session or a new overlapping T-10 selection close.
 - `VERIFIED`: the 5-8 August production window persisted valid T-3D `678`,
   T-2D `799`, T-1D `817`, and T-2H `242` odds rows. All rows are before
   kickoff, and the current-cycle duplicate-snapshot-key audit found `0` groups.
@@ -210,19 +211,115 @@ Detailed model history:
    the repaired teamprofile persistence on `main`.
 2. Verify the next hosted V6 checkpoint/scorer rerun records no immutable
    conflict on `main`.
-3. Replace the narrow-window GitHub scheduled-event dependency with a durable
-   near-close watcher, then prove T-10 coverage for a match that also has
-   immutable forward bets.
-4. Repair checkpoint provenance from the V2 adapter through score and forward
-   persistence, and regression-test the real adapter path.
-5. Expose official T-10, preliminary T-30, missed-closing, and waiting states
-   separately in one forward-bet read surface, including exact-market odds
-   history.
-6. Refresh official CLV for the next overlapping forward-bet/T-10 lifecycle.
+3. Merge and push the durable watcher branch, then verify the first hosted
+   lease/heartbeat session from the merged `main` SHA.
+4. Prove a new T-30 capture and preferred T-10 upgrade for the same immutable
+   forward selection in a real hosted lifecycle.
+5. Deploy the unified `Spel & resultat` read/UI contract and repeat the
+   protected production browser/API checks separately from Git delivery.
+6. Refresh promotion-eligible T-10 CLV for the next overlapping forward-bet
+   lifecycle.
 7. Evaluate forward ROI and CLV only after sufficient untouched observations
    exist.
 
 ## Chronological entries
+
+### 2026-08-28 - Durable closing watcher and unified CLV results implementation
+
+Status: `PARTIAL` - implementation, regression coverage, current read-only V2
+data, and local browser behavior are verified; GitHub-hosted execution, Git
+delivery, and production deployment remain unproven.
+
+Objective:
+
+Remove the narrow T-10 schedule dependency without paid or trial services,
+accept T-30 as truthful product closing while retaining T-10 as the stronger
+promotion checkpoint, and replace duplicate Auto/Resultatloop surfaces with
+one `Spel & resultat` view.
+
+Changes:
+
+- preserved exact checkpoint provenance through the forward adapter;
+- versioned closing policy `accepted_t30_t10_v2` now records separate
+  `accepted_for_product_clv` and `eligible_for_promotion_clv` decisions;
+- added atomic `closing_watch_sessions` lease, heartbeat, expiry takeover,
+  terminal/missed states, runner-clock planning, and downstream retries;
+- replaced five-minute precision scheduling and dynamic workflow enablement
+  with a 15-minute seed schedule that starts a bounded 320-minute watcher,
+  polling once per minute inside the runner;
+- exposed accepted CLV totals, T-30/T-10 counts, beat-close distance, global
+  family-aware result/ROI summaries, and exact-market odds history from the
+  Auto read contract;
+- reduced primary navigation to four destinations, renamed Auto to
+  `Spel & resultat`, redirected legacy `/resultatloop` links to the settled
+  filter, and added an accessible hover/focus/click/touch odds-movement panel.
+
+Commands and scenarios verified:
+
+```text
+python -m pytest tests/v2/test_closing_watch_session.py tests/v2/test_closing_watch.py tests/v2/test_closing_downstream.py tests/v2/test_closing_capture.py tests/v2/test_forward_exposures.py tests/v2/test_workflow_runner.py tests/v2/test_automation_contract.py tests/v2/test_read_api_contracts.py -q
+npm test -- --run
+npm run lint
+npm run build
+python scripts/forward_v2/watch_closing_window.py --repo-root C:\dev\ullebets-prod --lookahead-hours 4 --dry-run
+codegraph sync
+```
+
+The database scenario called `read_auto(database, status='settled', limit=1)`
+directly against the guarded `ullebets_v2` connection and printed only its
+count and summary fields.
+
+Browser scenarios used the current V2 database through the local read API at
+desktop and 390px widths. The settled filter, accepted CLV card, positive,
+negative, and matched-close rows, desktop hover, mobile click/touch layout,
+focus behavior, outside close, and Escape close were exercised. The supplied
+screenshots were used as the visual reference.
+
+Exact results:
+
+- closing/read/automation subset: `77/77` passed;
+- complete frontend suite through the VM-isolated single-thread pool: `61/61`
+  passed;
+- strict TypeScript production build and ESLint: passed;
+- the configured Vitest fork pool was stopped after repeatedly replacing a
+  Windows worker without producing a result. The project test command now uses
+  one VM-isolated thread with a five-second async UI bound; all 19 files retain
+  isolation and pass;
+- current settled read contract: `100` observations in `61` groups, `40`
+  wins, `60` losses, `-21.48%` descriptive ROI, `69` accepted T-30 CLV
+  comparisons, `18/69` beating close, mean accepted CLV `-0.2072%`, and `0`
+  T-10 comparisons;
+- current primary V6 family: `96` observations in `57` groups, `39` wins,
+  `57` losses, `-20.46875%` descriptive ROI, and the same `69` accepted T-30
+  comparisons;
+- the current watcher dry-run was read-only, found no fixture in the next
+  four hours, attempted no capture, and returned `status=dry_run` with zero
+  errors;
+- local browser console noise was limited to the separately hosted SiteChat
+  widget/CORS and favicon path; the unified read/UI requests returned data.
+
+Insight:
+
+The missing-CLV complaint was a read-contract defect, not absence of odds.
+T-30 comparisons already existed, but the old UI counted only official T-10.
+The new product contract reports accepted T-30 honestly while model promotion
+continues to require the stricter T-10 evidence. A second defect found during
+browser verification was page-scoped result/ROI cards; summaries are now
+computed before pagination and split by V6 versus legacy family.
+
+Remaining:
+
+- commits `bce4888` through `1716d53` are local to
+  `codex/durable-closing-results`; they are not yet merged, pushed, or deployed;
+- no hosted watcher has yet demonstrated lease recovery or a real T-30/T-10
+  capture from the merged workflow;
+- the current forward sample still has `0` promotion-eligible T-10 CLV rows,
+  so model-quality CLV remains failed/unproven despite accepted product T-30.
+
+Next:
+
+Merge and push the verified branch, observe the first hosted bounded session,
+then verify deployment and the next real overlapping close as separate gates.
 
 ### 2026-08-27 - Durable free closing watcher and unified results design
 
