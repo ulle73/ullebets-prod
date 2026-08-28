@@ -19,6 +19,77 @@ still worth testing. Detailed evidence remains in the linked reports.
 
 Valid empty source responses are not failures when no matches or markets exist.
 
+### 2026-08-28 - Matchup settlement and market-coverage design audit
+
+Status: `PARTIAL`
+
+Objective:
+Determine how matchup rankings can be evaluated honestly as predictors, and
+whether every matchup has an exact odds market suitable for win/loss, ROI, and
+CLV reporting. This was a read-only design audit; no product contract or code
+was changed.
+
+Changes:
+
+- Documented current read-only evidence in this work log only.
+- No database, runtime, workflow, model, API, or frontend state was mutated.
+
+Tests:
+
+```text
+Read src/ullebets_v2/matchups/service.py,
+src/ullebets_v2/matchups_settlement/service.py,
+src/ullebets_v2/read_api/service.py, and the current frontend matchup types/card.
+Queried ullebets_v2.matchups_score and ullebets_v2.market_snapshots with
+read-only projections; joined exact match/stat/period/scope identities and
+excluded invalid or post-kickoff snapshots.
+```
+
+Results:
+
+- `matchups_score` contains 15,876 rows: 5,544 `resolved`, 8,640
+  `pending_result`, 72 `missing_actual`, and 1,620 without outcome status.
+- Current settlement persists canonical actual values but does not define a
+  matchup win/loss against a frozen baseline or market line. The read API does
+  not expose those stored actual fields on matchup cards.
+- Only 805/5,544 resolved rows (14.5%) have an exact prematch market context
+  with odds for the ranked direction; 623/5,544 (11.2%) have any such odds in
+  the 1.80-2.20 interval. Only 641/5,544 (11.6%) have T-30/T-10 closing-price
+  coverage, all currently T-30 in the resolved sample.
+- Resolved exact-price coverage is concentrated in corner kicks (450 rows),
+  followed by yellow cards (148), shots on goal (75), total shots (75), and
+  offsides (57). Fouls, free kicks, throw-ins, and tackles have zero exact odds
+  coverage in current snapshots.
+- The 2026-08-22 visible top-20 sets contain 40 rows; only 4 have exact
+  direction odds and only 1 has odds inside 1.80-2.20.
+- A matchup score is a normalized relative rank, not a calibrated probability.
+  Existing rows also lack a row-level immutable creation timestamp; 9,270 of
+  15,876 lack the current `rolling_12_weighted_45d` method identity.
+
+Insight:
+A single odds-based win/loss denominator would discard roughly 85% of resolved
+matchup evidence and overrepresent the few offered stat markets. Predictor
+quality and market/betting quality must therefore be separate contracts. The
+1.80-2.20 interval is suitable for deterministic comparable-market selection,
+not as the definition of whether a predictor was correct.
+
+Remaining:
+
+- The hybrid product definition and immutable T-1D capture contract were
+  approved in chat and written to
+  `docs/superpowers/specs/2026-08-28-matchup-predictor-evaluation-design.md`.
+  The written specification still requires the user-review gate before an
+  implementation plan is created.
+- Existing historical rows can be shown as descriptive legacy evidence but do
+  not prove leakage-safe forward predictor quality without a frozen timestamp.
+- Old pending/missing matchup outcomes and exact fixture lifecycle state still
+  require a dedicated settlement audit before history can be called complete.
+
+Next:
+
+- Review the written specification, then create the test-driven implementation
+  plan if no changes are requested.
+
 ## Current project state
 
 ### Repository and data boundaries
