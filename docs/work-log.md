@@ -226,10 +226,9 @@ Detailed model history:
 
 ### 2026-08-28 - Calendar date propagation and scheduled-job failure repair
 
-Status: `PARTIAL` - both production defects are reproduced, repaired, and
-verified against the current read-only V2 database; Git delivery, Vercel
-deployment, and hosted dry-run workflow verification remain to be completed in
-this session.
+Status: `VERIFIED` - both production defects are reproduced and repaired; the
+current main SHA, Vercel deployment, live date endpoints, and hosted dry-run
+workflow paths are verified.
 
 Objective:
 
@@ -274,13 +273,25 @@ Evidence:
   duplicate observation keys;
 - `evaluate_ev_score_archive.py --dry-run` against current production data ->
   exit 0 after the formerly timing-out score load.
+- commit `6f74034` is pushed to `origin/main`; Vercel status for that SHA is
+  `success`, deployment `3xVR6Utzr9VYRxLVgZH9b2mojF3J`;
+- the formerly failing live 30 August dashboard now returns `200`, 22 matches,
+  40 matchup rows, and `computed_read_only` (cold request `23.22s`; warm
+  production-data read `2.09s`);
+- live `/auto` date filtering returned 61 groups for 29 August and correctly
+  zero for 30/31 August, proving that the selected calendar date now reaches
+  both read contracts;
+- hosted teamstats dry-run `33206458108` on `6f74034` completed `success` in
+  1m13s through the formerly failing market-bias step;
+- hosted settlement dry-run `33206458437` on `6f74034` completed `success` in
+  10m39s through the formerly timing-out score-archive evaluation.
 
 What remains unproven:
 
-- the new main SHA is not yet deployed and the repaired workflows have not yet
-  completed on a hosted runner. The next justified checks are the exact live
-  29/30 August dashboard and Auto endpoints plus manual hosted dry-runs of the
-  two failed schedules.
+- the next natural schedule occurrence in write mode has not happened yet.
+  Hosted dry-runs prove the repaired failure paths without adding duplicate
+  production writes; the next justified operational check is that natural
+  scheduled occurrence, not another manual rerun.
 
 ### 2026-08-28 - Open-selection exact-market odds history repair
 
