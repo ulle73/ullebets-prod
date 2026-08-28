@@ -311,7 +311,9 @@ Current acceptance evidence:
 - [x] `VERIFIED` Settled forward-result rows can show persisted ROI/PnL, closing odds, official CLV status/value, settlement state, exclusions, and linked match/team/league entities. This verifies the product surface, not positive forward efficacy.
 - [x] `VERIFIED` The unified Auto read contract exposes all `69` accepted T-30
   comparisons, exact CLV distance, beat/miss/match-close state, closing quality,
-  checkpoint, and exact-market odds history; missing closing remains explicit.
+  checkpoint, and exact-market odds history for both open and settled selections;
+  open rows read immutable market snapshots before a result exists, while
+  missing closing remains explicit.
 - [x] `VERIFIED` Auto and Resultatloop are consolidated into one primary
   `Spel & resultat` route with open, corrected, won, lost, push, and excluded
   filters. Legacy `/resultatloop` links redirect to the settled filter without

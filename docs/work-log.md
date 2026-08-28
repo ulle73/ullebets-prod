@@ -226,9 +226,8 @@ Detailed model history:
 
 ### 2026-08-28 - Open-selection exact-market odds history repair
 
-Status: `PARTIAL` - root cause, regression coverage, and the current read-only
-V2 data path are verified; Git delivery and production runtime remain to be
-verified separately.
+Status: `VERIFIED` - root cause, regression coverage, current read-only V2
+data, Git delivery, and the exact production API row are verified.
 
 Objective:
 
@@ -257,6 +256,9 @@ Evidence:
 - the focused open and settled history contracts pass `2/2`;
 - the repaired read contract against the current V2 database returns the three
   prices in time order and marks T-3D `1.74` as the selected point.
+- commit `1b375e4` was pushed to `origin/main`; production deployment
+  `dpl_ACL3W5WhHy5z9TpqQc22eygCeMtg` reached `READY` and the permanent live API
+  returned the same three points with T-3D `1.74` selected.
 
 Files changed:
 
@@ -265,8 +267,8 @@ Files changed:
 
 Remaining:
 
-Push the fix to `main`, wait for the production deployment, and verify the same
-live API row before marking runtime delivery verified.
+No repair remains for this defect. Later T-2H/T-30/T-10 points will appear only
+after their immutable snapshots have actually been captured.
 
 ### 2026-08-28 - Durable closing watcher and unified CLV results implementation
 
