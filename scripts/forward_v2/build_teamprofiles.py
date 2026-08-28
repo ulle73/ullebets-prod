@@ -18,6 +18,10 @@ from ullebets_v2.support.loaders import load_support_documents
 from ullebets_v2.teamprofiles.service import run_teamprofile_build
 
 
+def _log_summary(summary: dict) -> dict:
+    return {key: value for key, value in summary.items() if key != "profile_docs"}
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build V2 teamprofiles from canonical enrichment rows.")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
@@ -64,7 +68,7 @@ def main() -> int:
         database=database,
         dry_run=args.dry_run,
     )
-    print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
+    print(json.dumps(_log_summary(summary), indent=2, ensure_ascii=False, default=str))
     return 0
 
 

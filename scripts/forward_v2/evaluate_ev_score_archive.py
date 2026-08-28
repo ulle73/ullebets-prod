@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import json
 from pathlib import Path
 import sys
+from typing import Any
 
 import joblib
 
@@ -47,6 +48,18 @@ DEFAULT_MODEL_IDS = (
     "ev_ensemble_v3_75_v4_25_shadow",
     "ev_scope_interaction_recency45_asof_capped_v6_shadow",
 )
+
+
+def _load_scores_for_models(collection: Any, model_ids: list[str]) -> list[dict[str, Any]]:
+    scores: list[dict[str, Any]] = []
+    for model_id in model_ids:
+        scores.extend(
+            collection.find(
+                {"model_id": model_id},
+                projection={"_id": 0},
+            )
+        )
+    return scores
 
 
 def _load_training_domains(
@@ -107,12 +120,7 @@ def main() -> int:
         args.repo_root,
         model_ids,
     )
-    scores = list(
-        database[EV_MODEL_SCORES].find(
-            {"model_id": {"$in": model_ids}},
-            projection={"_id": 0},
-        )
-    )
+    scores = _load_scores_for_models(database[EV_MODEL_SCORES], model_ids)
     match_keys = sorted(
         {
             str(row["match_key"])

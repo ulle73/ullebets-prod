@@ -30,6 +30,7 @@ export function autoQueryFromSearch(params: URLSearchParams): AutoQuery {
   const model = optional(params, 'model');
   const policy = optional(params, 'policy');
   const checkpoint = optional(params, 'checkpoint');
+  const date = optional(params, 'date');
   if (status) query.status = status;
   if (league) query.league = league;
   if (stat) query.stat = stat;
@@ -39,6 +40,7 @@ export function autoQueryFromSearch(params: URLSearchParams): AutoQuery {
   if (model) query.model = model;
   if (policy) query.policy = policy;
   if (checkpoint) query.checkpoint = checkpoint;
+  if (date) query.date = date;
   return query;
 }
 

@@ -263,12 +263,22 @@ def _current_profile_for_team(
     match_type: str,
     now: datetime,
 ) -> dict[str, Any] | None:
+    current_rows = _find_rows(
+        database,
+        TEAMPROFILES,
+        {
+            "team_key": team_key,
+            "profile_date": "current",
+            "match_type": match_type,
+        },
+        sort=[("generated_at", -1)],
+        limit=1,
+    )
+    if current_rows:
+        return current_rows[0]
     rows = _find_rows(database, TEAMPROFILES, {"team_key": team_key, "match_type": match_type})
     if not rows:
         return None
-    current_rows = [row for row in rows if str(row.get("profile_date") or "") == "current"]
-    if current_rows:
-        return max(current_rows, key=_profile_order_key)
     today = now.astimezone(UTC).date().isoformat() if now.tzinfo else now.date().isoformat()
     dated_rows = [
         row
@@ -293,9 +303,39 @@ def _profiles_for_upcoming_matchups(
             requested.add((home_key, "home"))
         if away_key:
             requested.add((away_key, "away"))
+    requested_rows = sorted(requested)
+    if not requested_rows:
+        return []
+    current_rows = _find_rows(
+        database,
+        TEAMPROFILES,
+        {
+            "$or": [
+                {
+                    "team_key": team_key,
+                    "profile_date": "current",
+                    "match_type": match_type,
+                }
+                for team_key, match_type in requested_rows
+            ]
+        },
+    )
+    current_by_context: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in current_rows:
+        context = (str(row.get("team_key") or ""), str(row.get("match_type") or ""))
+        previous = current_by_context.get(context)
+        if previous is None or _profile_order_key(row) > _profile_order_key(previous):
+            current_by_context[context] = row
     profiles: list[dict[str, Any]] = []
-    for team_key, match_type in sorted(requested):
-        profile = _current_profile_for_team(database, team_key=team_key, match_type=match_type, now=now)
+    for team_key, match_type in requested_rows:
+        profile = current_by_context.get((team_key, match_type))
+        if profile is None:
+            profile = _current_profile_for_team(
+                database,
+                team_key=team_key,
+                match_type=match_type,
+                now=now,
+            )
         if profile is not None:
             profiles.append(profile)
     return profiles
@@ -838,16 +878,40 @@ def _filter_query(
     return query
 
 
-def _league_match_keys(database: Any, league_key: str) -> list[str]:
-    rows = _find_rows(database, FIXTURES_CANONICAL, {"league_key": league_key})
+def _fixture_match_keys(
+    database: Any,
+    *,
+    league_key: str | None = None,
+    source_date: str | None = None,
+) -> list[str]:
+    fixture_query: dict[str, Any] = {}
+    if league_key:
+        fixture_query["league_key"] = league_key
+    if source_date:
+        fixture_query["fixture_date_stockholm"] = source_date
+    rows = _find_rows(database, FIXTURES_CANONICAL, fixture_query)
     return [str(row.get("match_key")) for row in rows if row.get("match_key")]
 
 
-def _with_league_filter(database: Any, query: dict[str, Any], league_key: str | None) -> dict[str, Any]:
-    if not league_key:
+def _with_fixture_filters(
+    database: Any,
+    query: dict[str, Any],
+    *,
+    league_key: str | None = None,
+    source_date: str | None = None,
+) -> dict[str, Any]:
+    if not league_key and not source_date:
         return query
-    keys = _league_match_keys(database, league_key)
+    keys = _fixture_match_keys(
+        database,
+        league_key=league_key,
+        source_date=source_date,
+    )
     return {**query, "match_key": {"$in": keys}}
+
+
+def _with_league_filter(database: Any, query: dict[str, Any], league_key: str | None) -> dict[str, Any]:
+    return _with_fixture_filters(database, query, league_key=league_key)
 
 
 def _forward_selection_key(row: dict[str, Any]) -> str | None:
@@ -1212,9 +1276,10 @@ def read_auto(
     policy_id: str | None = None,
     league_key: str | None = None,
     checkpoint: str | None = None,
+    source_date: str | None = None,
 ) -> dict[str, Any]:
     page_limit, page_offset = _page_values(limit, offset)
-    query = _with_league_filter(
+    query = _with_fixture_filters(
         database,
         _filter_query(
             stat_key=stat_key,
@@ -1225,7 +1290,8 @@ def read_auto(
             policy_id=policy_id,
             checkpoint=checkpoint,
         ),
-        league_key,
+        league_key=league_key,
+        source_date=source_date,
     )
     raw_rows = _find_rows(database, FORWARD_BETS, query)
     canonical_rows, exposure_audit = canonicalize_forward_bet_docs(raw_rows)

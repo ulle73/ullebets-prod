@@ -28,6 +28,10 @@ class FakeCollection:
     @staticmethod
     def _matches(row, query):
         for key, expected in query.items():
+            if key == "$or":
+                if not any(FakeCollection._matches(row, clause) for clause in expected):
+                    return False
+                continue
             actual = row.get(key)
             if isinstance(expected, dict):
                 if "$in" in expected and actual not in expected["$in"]:
@@ -70,9 +74,11 @@ class QueryCapturingCollection(FakeCollection):
     def __init__(self, rows):
         super().__init__(rows)
         self.last_query = None
+        self.queries = []
 
     def find(self, query=None, projection=None):
         self.last_query = query or {}
+        self.queries.append(self.last_query)
         return super().find(query, projection)
 
 
@@ -297,6 +303,35 @@ def test_dashboard_can_compute_upcoming_matchups_read_only_from_current_profiles
     assert captured["snapshot_date"] == future_date
     assert [row["profile_date"] for row in captured["teamprofile_docs"]] == ["current", "current"]
     assert captured["target_matches"][0]["match_key"] == "sofascore:123"
+
+
+def test_dashboard_current_profile_lookup_is_index_bounded(monkeypatch) -> None:
+    future_date = "2099-01-01"
+    profiles = QueryCapturingCollection(
+        [
+            profile("home", "home", "current", 10.0),
+            profile("away", "away", "current", 12.0),
+        ]
+    )
+    database = FakeDatabase(
+        fixtures_canonical=FakeCollection(
+            [fixture_row(source_date=future_date, start_time=datetime(2099, 1, 1, 18, 0, tzinfo=UTC))]
+        ),
+        matchups_score=FakeCollection([]),
+        teamprofiles=profiles,
+    )
+    monkeypatch.setattr(
+        read_service,
+        "build_matchups_score_docs",
+        lambda **_kwargs: ([matchup_row(snapshot_date=future_date)], []),
+        raising=False,
+    )
+
+    read_dashboard(database, source_date=future_date)
+
+    assert len(profiles.queries) == 1
+    assert "$or" in profiles.last_query
+    assert all(clause["profile_date"] == "current" for clause in profiles.last_query["$or"])
 
 
 def test_dashboard_never_recomputes_started_or_historical_matchups(monkeypatch) -> None:
@@ -538,6 +573,28 @@ def test_auto_count_covers_full_collection_even_when_rows_are_limited() -> None:
     assert payload["summary"]["total"] == 2
     assert payload["page"] == {"limit": 1, "offset": 0, "hasMore": True}
     assert len(payload["selections"]) == 1
+
+
+def test_auto_filters_selections_by_stockholm_fixture_date() -> None:
+    database = FakeDatabase(
+        forward_bets=FakeCollection(
+            [
+                {"selection_key": "s1", "match_key": "m1", "match_start_time": datetime(2026, 8, 30, 12, tzinfo=UTC)},
+                {"selection_key": "s2", "match_key": "m2", "match_start_time": datetime(2026, 8, 29, 12, tzinfo=UTC)},
+            ]
+        ),
+        forward_results=FakeCollection([]),
+        fixtures_canonical=FakeCollection(
+            [
+                {**fixture_row(), "match_key": "m1", "fixture_date_stockholm": "2026-08-30"},
+                {**fixture_row(), "match_key": "m2", "fixture_date_stockholm": "2026-08-29"},
+            ]
+        ),
+    )
+
+    payload = read_auto(database, source_date="2026-08-30")
+
+    assert [row["selectionKey"] for row in payload["selections"]] == ["s1"]
 
 
 def test_auto_joins_settlement_and_classifies_v6_from_frozen_provenance() -> None:

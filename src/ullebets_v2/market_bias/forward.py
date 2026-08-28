@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Any
 
-from ullebets_v2.market_bias.domain import build_observation_docs, select_main_line
+from ullebets_v2.market_bias.domain import PRIMARY_BIAS_STATS, build_observation_docs, select_main_line
 from ullebets_v2.market_bias.service import MarketBiasCandidate
 
 
@@ -37,6 +37,7 @@ def _audit() -> dict[str, Any]:
         "timing_rejection_count": 0,
         "missing_result_availability_count": 0,
         "qualifying_line_failure_count": 0,
+        "unsupported_stat_count": 0,
     }
 
 
@@ -82,6 +83,9 @@ def load_forward_candidates(
 
         match_start_time = _time(fixture.get("start_time") or fixture.get("match_start_time"))
         for stat in stats_by_match.get(match_key, []):
+            if stat.get("stat_key") not in PRIMARY_BIAS_STATS:
+                audit["unsupported_stat_count"] += 1
+                continue
             actual_value = stat.get("actual_value")
             if actual_value is None:
                 audit["missing_actual_count"] += 1

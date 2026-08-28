@@ -224,6 +224,64 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-28 - Calendar date propagation and scheduled-job failure repair
+
+Status: `PARTIAL` - both production defects are reproduced, repaired, and
+verified against the current read-only V2 database; Git delivery, Vercel
+deployment, and hosted dry-run workflow verification remain to be completed in
+this session.
+
+Objective:
+
+Make the shared date picker control both the match rail and `Spel & resultat`,
+remove the datatunga dashboard timeout, and repair the two currently failed
+scheduled workflows.
+
+Root causes and changes:
+
+- production `/api/v1/dashboard?date=2026-08-29` and `2026-08-30` both returned
+  `504` after roughly 30 seconds, while 31 August returned `200`; dashboard
+  fallback performed one full teamprofile read per home/away context;
+- current profiles are now loaded in one indexable `$or` batch on exact
+  `team_key`/`profile_date=current`/`match_type` identities. The real 30 August
+  read fell from more than 30 seconds to `2.09s`, returning 22 matches and 40
+  computed matchup rows;
+- the shared `date` query is now forwarded to `/auto`, whose backend resolves
+  match identities by indexed `fixtures_canonical.fixture_date_stockholm` and
+  returns only selections from that Stockholm fixture day;
+- scheduled teamstats run `33193180143` failed because market-bias ingestion
+  passed unsupported `shotsPerTenMinutes` rows into a three-stat domain that
+  intentionally accepts only corners, shots on goal, and total shots. The
+  loader now excludes and audits unsupported rows instead of aborting the job;
+- scheduled settlement run `33200657415` failed when Cosmos timed out the
+  combined `$in` read over `ev_model_scores` after 121 seconds. The archive
+  evaluator now issues one indexable equality read per model;
+- teamprofile CLI logging no longer prints `profile_docs`; the failed hosted
+  run emitted about 181 MB of logs although those documents are already
+  represented by compact counts.
+
+Evidence:
+
+- `python -m pytest -q tests/v2/test_read_api.py tests/v2/test_market_bias_forward.py tests/v2/test_ev_score_archive_cli.py tests/v2/test_teamprofile_cli.py`
+  -> `23 passed`;
+- `npm test -- --run src/app/step1-navigation.test.tsx` -> `8 passed`;
+- `npm run typecheck` -> passed;
+- direct read-only production-database `read_dashboard(...,
+  source_date='2026-08-30')` -> `2.09s`, 22 matches, 40 matchups,
+  `computed_read_only`;
+- `refresh_market_bias.py` production-data dry-run for 27 August -> exit 0,
+  9 accepted observations, 239 explicitly audited unsupported rows, zero
+  duplicate observation keys;
+- `evaluate_ev_score_archive.py --dry-run` against current production data ->
+  exit 0 after the formerly timing-out score load.
+
+What remains unproven:
+
+- the new main SHA is not yet deployed and the repaired workflows have not yet
+  completed on a hosted runner. The next justified checks are the exact live
+  29/30 August dashboard and Auto endpoints plus manual hosted dry-runs of the
+  two failed schedules.
+
 ### 2026-08-28 - Open-selection exact-market odds history repair
 
 Status: `VERIFIED` - root cause, regression coverage, current read-only V2

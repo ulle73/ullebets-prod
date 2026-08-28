@@ -171,6 +171,7 @@ def dispatch_get(database: Any, path: str, query: dict[str, list[str]]) -> tuple
             policy_id=_first(query, "policy"),
             league_key=_first(query, "league"),
             checkpoint=_first(query, "checkpoint"),
+            source_date=_first(query, "date"),
         )
     if normalized_path == "/api/v1/results":
         return HTTPStatus.OK, read_results(

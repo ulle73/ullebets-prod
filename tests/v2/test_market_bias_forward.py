@@ -133,3 +133,36 @@ def test_forward_loader_is_idempotent_and_hash_ignores_mongo_id() -> None:
 
     assert first[0].observation_docs[0]["observation_key"] == second[0].observation_docs[0]["observation_key"]
     assert first[0].observation_docs[0]["source_payload_hash"] == second[0].observation_docs[0]["source_payload_hash"]
+
+
+def test_forward_loader_skips_stats_outside_market_bias_domain() -> None:
+    database = _database()
+    database["match_stats_canonical"].rows.append(
+        {
+            "match_key": "m1",
+            "stat_key": "shotsPerTenMinutes",
+            "scope": "home",
+            "period": "ALL",
+            "actual_value": 1.2,
+        }
+    )
+    database["market_snapshots"].rows.append(
+        {
+            **database["market_snapshots"].rows[0],
+            "snapshot_key": "unsupported",
+            "offer_key": "unsupported",
+            "stat_key": "shotsPerTenMinutes",
+        }
+    )
+
+    candidates, audit = load_forward_candidates(
+        database,
+        from_date="2026-08-20",
+        to_date="2026-08-20",
+        as_of=datetime(2026, 8, 21, tzinfo=UTC),
+        run_id="r",
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].observation_docs[0]["stat_key"] == "cornerKicks"
+    assert audit["unsupported_stat_count"] == 1
