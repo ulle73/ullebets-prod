@@ -987,6 +987,64 @@ def _matches_auto_status(row: dict[str, Any], status: str | None) -> bool:
     return result_status == status
 
 
+def _auto_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    result_statuses = [_auto_result_status(row) for row in rows]
+    settled_rows = [
+        row
+        for row, result_status in zip(rows, result_statuses, strict=True)
+        if result_status in {"win", "loss", "push"}
+    ]
+    open_rows = [
+        row
+        for row, result_status in zip(rows, result_statuses, strict=True)
+        if result_status == "open"
+    ]
+    accepted_rows = [row for row in rows if is_accepted_clv(row)]
+    accepted_clv_values = [
+        float(row["clv_pct"])
+        for row in accepted_rows
+        if row.get("clv_pct") is not None
+    ]
+    total_stake = sum(float(row.get("stake_units") or 0) for row in settled_rows)
+    total_pnl = sum(float(row.get("pnl_units") or 0) for row in settled_rows)
+    return {
+        "total": len(rows),
+        "groups": len(group_forward_observation_docs(rows)),
+        "valid": sum(
+            row.get("valid_for_forward_evaluation") is True
+            and not row.get("invalid_for_model")
+            for row in rows
+        ),
+        "excluded": sum(status == "excluded" for status in result_statuses),
+        "open": len(open_rows),
+        "openGroups": len(group_forward_observation_docs(open_rows)),
+        "settled": len(settled_rows),
+        "wins": sum(status == "win" for status in result_statuses),
+        "losses": sum(status == "loss" for status in result_statuses),
+        "pushes": sum(status == "push" for status in result_statuses),
+        "stakeUnits": total_stake,
+        "pnlUnits": total_pnl,
+        "roiPct": total_pnl / total_stake * 100.0 if total_stake else None,
+        "acceptedClvCount": len(accepted_rows),
+        "t30ClvCount": sum(
+            accepted_clv_checkpoint(row) == "T_MINUS_30M"
+            for row in accepted_rows
+        ),
+        "t10ClvCount": sum(
+            accepted_clv_checkpoint(row) == "T_MINUS_10M"
+            for row in accepted_rows
+        ),
+        "beatClosingLineCount": sum(
+            row.get("beat_closing_line") is True for row in accepted_rows
+        ),
+        "averageAcceptedClvPct": (
+            sum(accepted_clv_values) / len(accepted_clv_values)
+            if accepted_clv_values
+            else None
+        ),
+    }
+
+
 def _forward_selection_read_model(
     row: dict[str, Any],
     fixture: dict[str, Any],
@@ -1127,39 +1185,17 @@ def read_auto(
         ),
         reverse=True,
     )
-    summary = {
-        "total": len(canonical_rows),
-        "groups": len(grouped_rows),
-        "valid": sum(
-            row.get("valid_for_forward_evaluation") is True and not row.get("invalid_for_model")
-            for row in canonical_rows
-        ),
-        "excluded": 0,
-        "acceptedClvCount": sum(is_accepted_clv(row) for row in enriched_rows),
-        "t30ClvCount": sum(
-            accepted_clv_checkpoint(row) == "T_MINUS_30M"
-            for row in enriched_rows
-        ),
-        "t10ClvCount": sum(
-            accepted_clv_checkpoint(row) == "T_MINUS_10M"
-            for row in enriched_rows
-        ),
-        "beatClosingLineCount": sum(
-            is_accepted_clv(row) and row.get("beat_closing_line") is True
-            for row in enriched_rows
-        ),
+    summary = _auto_summary(enriched_rows)
+    summary["byFamily"] = {
+        family: _auto_summary(
+            [
+                row
+                for row in enriched_rows
+                if forward_selection_family(row) == family
+            ]
+        )
+        for family in ("v6", "legacy")
     }
-    accepted_clv_values = [
-        float(row["clv_pct"])
-        for row in enriched_rows
-        if is_accepted_clv(row) and row.get("clv_pct") is not None
-    ]
-    summary["averageAcceptedClvPct"] = (
-        sum(accepted_clv_values) / len(accepted_clv_values)
-        if accepted_clv_values
-        else None
-    )
-    summary["excluded"] = summary["total"] - summary["valid"]
     rows = grouped_rows[page_offset:page_offset + page_limit]
     fixtures = _fixture_lookup(database, [str(row.get("match_key")) for row in rows if row.get("match_key")])
     selections = []

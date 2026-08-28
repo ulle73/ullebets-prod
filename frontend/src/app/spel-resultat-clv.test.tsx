@@ -44,6 +44,22 @@ const autoResponse = {
   summary: {
     total: 1, groups: 1, valid: 1, excluded: 0, acceptedClvCount: 1,
     t30ClvCount: 1, t10ClvCount: 0, beatClosingLineCount: 1, averageAcceptedClvPct: 8.3,
+    open: 0, settled: 12, wins: 7, losses: 5, pushes: 0,
+    stakeUnits: 12, pnlUnits: 2.4, roiPct: 20,
+    byFamily: {
+      v6: {
+        total: 12, groups: 1, valid: 12, excluded: 0, acceptedClvCount: 1,
+        t30ClvCount: 1, t10ClvCount: 0, beatClosingLineCount: 1, averageAcceptedClvPct: 8.3,
+        open: 0, settled: 12, wins: 7, losses: 5, pushes: 0,
+        stakeUnits: 12, pnlUnits: 2.4, roiPct: 20,
+      },
+      legacy: {
+        total: 0, groups: 0, valid: 0, excluded: 0, acceptedClvCount: 0,
+        t30ClvCount: 0, t10ClvCount: 0, beatClosingLineCount: 0, averageAcceptedClvPct: null,
+        open: 0, settled: 0, wins: 0, losses: 0, pushes: 0,
+        stakeUnits: 0, pnlUnits: 0, roiPct: null,
+      },
+    },
   },
   page: { limit: 50, offset: 0, hasMore: false },
   selections: [selection],
@@ -70,6 +86,10 @@ describe('Spel & resultat med accepterad CLV', () => {
     expect(main.getAllByText('+8,3 %').length).toBeGreaterThanOrEqual(2);
     expect(main.getByText('Slog close med 8,3 % · T-30')).toBeInTheDocument();
     expect(main.getByText('1/1 slog close · 1 T-30 · 0 T-10')).toBeInTheDocument();
+    expect(main.getByText('12')).toBeInTheDocument();
+    expect(main.getByText('7 vunna · 5 förlorade')).toBeInTheDocument();
+    expect(main.getByText('+20,0 %')).toBeInTheDocument();
+    expect(main.getByText('+2,40 u · deskriptivt')).toBeInTheDocument();
   });
 
   it('öppnar oddsrörelsen med hover-, fokus- och touch-kompatibel kontroll', async () => {

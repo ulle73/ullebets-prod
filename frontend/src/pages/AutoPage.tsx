@@ -161,9 +161,15 @@ export function AutoPage() {
   if (query.isLoading) return <StateNotice state="loading" title="Läser spel & resultat" detail="Hämtar registrerade spel, rättning och CLV från V2." />;
   if (query.isError || !query.data) return <StateNotice state="failed" title="Spel & resultat kunde inte läsas" detail="Ingen fallbacklista visas." />;
 
-  const v6Count = query.data.selections.filter((row) => selectionFamily(row) === 'v6').length;
-  const legacyCount = query.data.selections.length - v6Count;
+  const pageV6Count = query.data.selections.filter((row) => selectionFamily(row) === 'v6').length;
+  const pageLegacyCount = query.data.selections.length - pageV6Count;
+  const v6Count = query.data.summary.byFamily?.v6?.groups ?? pageV6Count;
+  const legacyCount = query.data.summary.byFamily?.legacy?.groups ?? pageLegacyCount;
+  const allCount = query.data.summary.groups ?? query.data.selections.length;
   const familyRows = query.data.selections.filter((row) => familyFilter === 'all' || selectionFamily(row) === familyFilter);
+  const familySummary = familyFilter === 'all'
+    ? query.data.summary
+    : query.data.summary.byFamily?.[familyFilter];
   const leagues = [...new Set(familyRows.map((row) => row.leagueName).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'sv-SE'));
   const visibleRows = familyRows.filter((row) => {
     if (!matchesResultFilter(row, statusFilter)) return false;
@@ -171,24 +177,28 @@ export function AutoPage() {
   });
   const settledRows = familyRows.filter((row) => ['win', 'loss', 'push'].includes(resultBucket(row)));
   const openRows = familyRows.filter((row) => resultBucket(row) === 'open');
-  const totalPnl = settledRows.reduce((sum, row) => sum + (row.pnlUnits ?? 0), 0);
-  const totalStake = settledRows.reduce((sum, row) => sum + (row.stakeUnits ?? 1), 0);
-  const roi = totalStake > 0 ? totalPnl / totalStake : null;
-  const openObservationCount = openRows.reduce((sum, row) => sum + observationCount(row), 0);
-  const settledObservationCount = settledRows.reduce((sum, row) => sum + observationCount(row), 0);
-  const wonObservationCount = settledRows.filter((row) => resultBucket(row) === 'win').reduce((sum, row) => sum + observationCount(row), 0);
-  const lostObservationCount = settledRows.filter((row) => resultBucket(row) === 'loss').reduce((sum, row) => sum + observationCount(row), 0);
+  const localTotalPnl = settledRows.reduce((sum, row) => sum + (row.pnlUnits ?? 0), 0);
+  const localTotalStake = settledRows.reduce((sum, row) => sum + (row.stakeUnits ?? 1), 0);
+  const totalPnl = familySummary?.pnlUnits ?? localTotalPnl;
+  const roi = familySummary?.roiPct !== null && familySummary?.roiPct !== undefined
+    ? familySummary.roiPct / 100
+    : localTotalStake > 0 ? localTotalPnl / localTotalStake : null;
+  const openObservationCount = familySummary?.open ?? openRows.reduce((sum, row) => sum + observationCount(row), 0);
+  const openGroupCount = familySummary?.openGroups ?? openRows.length;
+  const settledObservationCount = familySummary?.settled ?? settledRows.reduce((sum, row) => sum + observationCount(row), 0);
+  const wonObservationCount = familySummary?.wins ?? settledRows.filter((row) => resultBucket(row) === 'win').reduce((sum, row) => sum + observationCount(row), 0);
+  const lostObservationCount = familySummary?.losses ?? settledRows.filter((row) => resultBucket(row) === 'loss').reduce((sum, row) => sum + observationCount(row), 0);
   const separatedRows = (query.data.excludedComboLegCount ?? 0) + (query.data.excludedShadowPredictionCount ?? 0);
   const acceptedRows = familyRows.filter(acceptedClv);
-  const acceptedClvCount = query.data.summary.acceptedClvCount
+  const acceptedClvCount = familySummary?.acceptedClvCount
     ?? acceptedRows.reduce((sum, row) => sum + (row.acceptedClvCount ?? 1), 0);
-  const beatClosingLineCount = query.data.summary.beatClosingLineCount
+  const beatClosingLineCount = familySummary?.beatClosingLineCount
     ?? acceptedRows.reduce((sum, row) => sum + (row.beatClosingLineCount ?? (row.beatClosingLine ? 1 : 0)), 0);
-  const t30ClvCount = query.data.summary.t30ClvCount
+  const t30ClvCount = familySummary?.t30ClvCount
     ?? acceptedRows.reduce((sum, row) => sum + (row.t30ClvCount ?? (row.closingQuality === 't30_fallback' ? 1 : 0)), 0);
-  const t10ClvCount = query.data.summary.t10ClvCount
+  const t10ClvCount = familySummary?.t10ClvCount
     ?? acceptedRows.reduce((sum, row) => sum + (row.t10ClvCount ?? (row.closingQuality === 't10' ? 1 : 0)), 0);
-  const averageAcceptedClvPct = query.data.summary.averageAcceptedClvPct
+  const averageAcceptedClvPct = familySummary?.averageAcceptedClvPct
     ?? (acceptedRows.length > 0
       ? acceptedRows.reduce((sum, row) => sum + (row.averageClvPct ?? row.clvPct ?? 0), 0) / acceptedRows.length
       : null);
@@ -218,7 +228,7 @@ export function AutoPage() {
       <section className="auto-summary" aria-label="Spel- och resultatsammanfattning">
         <article className="auto-summary__card">
           <span className="auto-summary__icon"><CircleDot size={19} aria-hidden="true" /></span>
-          <div><small>ÖPPNA SPEL</small><strong>{openObservationCount}</strong><p>{openRows.length} grupper väntar på rättning</p></div>
+          <div><small>ÖPPNA SPEL</small><strong>{openObservationCount}</strong><p>{openGroupCount} grupper väntar på rättning</p></div>
         </article>
         <article className="auto-summary__card">
           <span className="auto-summary__icon"><CheckCircle2 size={19} aria-hidden="true" /></span>
@@ -242,7 +252,7 @@ export function AutoPage() {
           <div role="group" aria-label="Modellversion">
             <button type="button" className={familyFilter === 'v6' ? 'is-active' : ''} aria-pressed={familyFilter === 'v6'} onClick={() => { setFamilyFilter('v6'); setLeagueFilter('all'); }}>V6 <small>{v6Count}</small></button>
             <button type="button" className={familyFilter === 'legacy' ? 'is-active' : ''} aria-pressed={familyFilter === 'legacy'} onClick={() => { setFamilyFilter('legacy'); setLeagueFilter('all'); }}>Legacy <small>{legacyCount}</small></button>
-            <button type="button" className={familyFilter === 'all' ? 'is-active' : ''} aria-pressed={familyFilter === 'all'} onClick={() => { setFamilyFilter('all'); setLeagueFilter('all'); }}>Alla <small>{query.data.selections.length}</small></button>
+            <button type="button" className={familyFilter === 'all' ? 'is-active' : ''} aria-pressed={familyFilter === 'all'} onClick={() => { setFamilyFilter('all'); setLeagueFilter('all'); }}>Alla <small>{allCount}</small></button>
           </div>
         </div>
         <div className="auto-filter-group auto-filter-group--status">

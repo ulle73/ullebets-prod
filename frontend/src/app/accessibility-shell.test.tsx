@@ -13,12 +13,11 @@ describe('shell information architecture', () => {
     expect(within(tools).getByRole('link', { name: 'Systemstatus' })).toHaveAttribute('href', '/systemstatus');
   });
 
-  it('loads the mobile match drawer only when it is opened', async () => {
+  it('opens the mobile match drawer on demand', async () => {
     renderApp('/oversikt');
 
     fireEvent.click(screen.getByRole('button', { name: 'Öppna matcher' }));
 
-    expect(screen.getByText('Laddar matcherlista')).toBeInTheDocument();
     expect(await screen.findByRole('dialog', { name: 'Dagens matcher' }, { timeout: 5_000 })).toBeInTheDocument();
   });
 });

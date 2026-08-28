@@ -503,7 +503,14 @@ def test_auto_contract_filters_counts_and_paginates_before_frontend_rendering() 
 
     payload = read_service.read_auto(database, stat_key='fouls', limit=1, offset=1)
 
-    assert payload['summary'] == {
+    assert {
+        key: payload['summary'][key]
+        for key in (
+            'total', 'groups', 'valid', 'excluded', 'acceptedClvCount',
+            't30ClvCount', 't10ClvCount', 'beatClosingLineCount',
+            'averageAcceptedClvPct',
+        )
+    } == {
         'total': 2,
         'groups': 2,
         'valid': 1,
@@ -514,6 +521,11 @@ def test_auto_contract_filters_counts_and_paginates_before_frontend_rendering() 
         'beatClosingLineCount': 0,
         'averageAcceptedClvPct': None,
     }
+    assert payload['summary']['open'] == 1
+    assert payload['summary']['openGroups'] == 1
+    assert payload['summary']['settled'] == 0
+    assert payload['summary']['byFamily']['legacy']['total'] == 2
+    assert payload['summary']['byFamily']['v6']['total'] == 0
     assert payload['page'] == {'limit': 1, 'offset': 1, 'hasMore': False}
     assert [row['selectionKey'] for row in payload['selections']] == ['s2']
     assert payload['selections'][0]['homeTeamKey'] == 'h2'
@@ -760,7 +772,13 @@ def test_auto_status_filter_is_applied_before_grouping_and_pagination() -> None:
         forward_bets=MemoryCollection(
             [
                 base | {'selection_key': 'open'},
-                base | {'selection_key': 'won', 'line_value': 11.5},
+                base | {
+                    'selection_key': 'won',
+                    'line_value': 11.5,
+                    'prediction_type': 'ev_registered_score_policy',
+                    'selection_policy_id': 'v6_full_domain_checkpoint_journal_v2',
+                    'model_id': 'ev_scope_interaction_recency45_asof_capped_v6_shadow',
+                },
                 base | {'selection_key': 'lost', 'line_value': 12.5},
                 base | {'selection_key': 'excluded', 'line_value': 13.5},
             ]
@@ -774,6 +792,8 @@ def test_auto_status_filter_is_applied_before_grouping_and_pagination() -> None:
                     'settlement_status': 'settled',
                     'settlement_result': 'win',
                     'valid_for_performance': True,
+                    'stake_units': 1.0,
+                    'pnl_units': 1.0,
                 },
                 base | {
                     'result_loop_key': 'lost',
@@ -782,6 +802,8 @@ def test_auto_status_filter_is_applied_before_grouping_and_pagination() -> None:
                     'settlement_status': 'settled',
                     'settlement_result': 'loss',
                     'valid_for_performance': True,
+                    'stake_units': 1.0,
+                    'pnl_units': -1.0,
                 },
                 base | {
                     'result_loop_key': 'excluded',
@@ -802,6 +824,15 @@ def test_auto_status_filter_is_applied_before_grouping_and_pagination() -> None:
     assert settled['summary']['total'] == 2
     assert settled['count'] == 2
     assert settled['page']['hasMore'] is True
+    assert settled['summary']['settled'] == 2
+    assert settled['summary']['wins'] == 1
+    assert settled['summary']['losses'] == 1
+    assert settled['summary']['pushes'] == 0
+    assert settled['summary']['stakeUnits'] == 2.0
+    assert settled['summary']['pnlUnits'] == 0.0
+    assert settled['summary']['roiPct'] == 0.0
+    assert settled['summary']['byFamily']['v6']['settled'] == 1
+    assert settled['summary']['byFamily']['legacy']['settled'] == 1
     assert won['summary']['total'] == 1
     assert won['selections'][0]['selectionKey'] == 'won'
     assert opened['summary']['total'] == 1

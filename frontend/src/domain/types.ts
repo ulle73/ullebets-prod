@@ -367,6 +367,27 @@ export interface AutoSelection {
   validForPerformance: boolean | null;
 }
 
+export interface AutoSummaryMetrics {
+  total: number;
+  groups?: number;
+  valid: number;
+  excluded: number;
+  open?: number;
+  openGroups?: number;
+  settled?: number;
+  wins?: number;
+  losses?: number;
+  pushes?: number;
+  stakeUnits?: number;
+  pnlUnits?: number;
+  roiPct?: number | null;
+  acceptedClvCount?: number;
+  t30ClvCount?: number;
+  t10ClvCount?: number;
+  beatClosingLineCount?: number;
+  averageAcceptedClvPct?: number | null;
+}
+
 export interface AutoResponse {
   count: number;
   observationCount?: number;
@@ -374,16 +395,8 @@ export interface AutoResponse {
   excludedComboLegCount: number;
   excludedShadowPredictionCount: number;
   collapsedDuplicateCount: number;
-  summary: {
-    total: number;
-    groups?: number;
-    valid: number;
-    excluded: number;
-    acceptedClvCount?: number;
-    t30ClvCount?: number;
-    t10ClvCount?: number;
-    beatClosingLineCount?: number;
-    averageAcceptedClvPct?: number | null;
+  summary: AutoSummaryMetrics & {
+    byFamily?: Partial<Record<'v6' | 'legacy', AutoSummaryMetrics>>;
   };
   page: PageInfo;
   selections: AutoSelection[];
