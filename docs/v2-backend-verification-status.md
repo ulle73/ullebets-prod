@@ -1,8 +1,8 @@
 # Ullebets V2 Backend Verification Status
 
 Last updated: 2026-08-28
-Branch: `codex/durable-closing-results` for this implementation; hosted and
-deployed evidence below remains tied to its stated `main` SHA/deployment.
+Branch: `main`; durable-closing implementation first shipped at `eb69ac8` and
+production deployment evidence is tied to the explicit deployment below.
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
@@ -58,9 +58,12 @@ Current evidence:
 
 Status: `VERIFIED` for local implementation, policy separation, migration-free
 legacy inference, regression coverage, current read-only V2 output, and local
-browser behavior. It remains `PARTIAL` overall because the commits are not yet
-on hosted `main`, no real bounded watch session has exercised lease recovery,
-and the current forward sample still has zero promotion-eligible T-10 CLV.
+browser behavior. Git delivery to `origin/main` at `eb69ac8`, production
+deployment `dpl_BLiTd5NDqyxhXEEXiCm5c2VdebMh` in `READY` state, HTTP 200 for the
+production Auto route, and the new live family-aware API contract are also
+verified. It remains `PARTIAL` overall because no real bounded watch session
+has exercised lease recovery and the current forward sample still has zero
+promotion-eligible T-10 CLV.
 
 ## All-Formula Immutable Shadow Journal On 2026-08-25
 

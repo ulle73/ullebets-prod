@@ -226,9 +226,10 @@ Detailed model history:
 
 ### 2026-08-28 - Durable closing watcher and unified CLV results implementation
 
-Status: `PARTIAL` - implementation, regression coverage, current read-only V2
-data, and local browser behavior are verified; GitHub-hosted execution, Git
-delivery, and production deployment remain unproven.
+Status: `PARTIAL` - implementation, regression coverage, current V2 data,
+local browser behavior, Git delivery, and production deployment are verified;
+the first hosted watcher session and next real closing lifecycle remain
+unproven.
 
 Objective:
 
@@ -263,6 +264,9 @@ npm run lint
 npm run build
 python scripts/forward_v2/watch_closing_window.py --repo-root C:\dev\ullebets-prod --lookahead-hours 4 --dry-run
 codegraph sync
+git push origin main
+git ls-remote origin refs/heads/main
+vercel inspect https://ullebets-prod-preview-2x7oqj366-ryds-projects-4371adb0.vercel.app --json
 ```
 
 The database scenario called `read_auto(database, status='settled', limit=1)`
@@ -297,6 +301,13 @@ Exact results:
   errors;
 - local browser console noise was limited to the separately hosted SiteChat
   widget/CORS and favicon path; the unified read/UI requests returned data.
+- `origin/main` resolved to implementation SHA `eb69ac8`, production deployment
+  `dpl_BLiTd5NDqyxhXEEXiCm5c2VdebMh` was `READY`, and its permanent production
+  alias returned HTTP 200 for `/auto?status=settled`;
+- the live settled Auto API returned `126` observations in `70` groups, `69`
+  accepted T-30 comparisons, `18` beating close, `0` T-10 comparisons, and the
+  new family-aware summary. These live counts are time-specific and supersede
+  the earlier local data snapshot above for current product display only.
 
 Insight:
 
@@ -309,8 +320,8 @@ computed before pagination and split by V6 versus legacy family.
 
 Remaining:
 
-- commits `bce4888` through `1716d53` are local to
-  `codex/durable-closing-results`; they are not yet merged, pushed, or deployed;
+- commits `bce4888` through `1716d53` are integrated on `main`; Git delivery
+  and the production page/API are verified separately as described above;
 - no hosted watcher has yet demonstrated lease recovery or a real T-30/T-10
   capture from the merged workflow;
 - the current forward sample still has `0` promotion-eligible T-10 CLV rows,
@@ -318,8 +329,8 @@ Remaining:
 
 Next:
 
-Merge and push the verified branch, observe the first hosted bounded session,
-then verify deployment and the next real overlapping close as separate gates.
+Observe the first hosted bounded session, then verify the next real overlapping
+T-30/T-10 close as a separate lifecycle gate.
 
 ### 2026-08-27 - Durable free closing watcher and unified results design
 
