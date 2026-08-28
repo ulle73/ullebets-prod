@@ -224,6 +224,50 @@ Detailed model history:
 
 ## Chronological entries
 
+### 2026-08-28 - Open-selection exact-market odds history repair
+
+Status: `PARTIAL` - root cause, regression coverage, and the current read-only
+V2 data path are verified; Git delivery and production runtime remain to be
+verified separately.
+
+Objective:
+
+Show the stored odds movement for open selections instead of claiming that no
+history exists before settlement.
+
+Root cause and change:
+
+- `read_auto` previously sourced `oddsHistory` only from
+  `forward_results.price_history`; open selections have no result document yet;
+- the read contract now loads immutable `market_snapshots` only for the exact
+  `match_key`/`offer_key` pairs on the requested page, retaining the existing
+  compound-index prefix and excluding invalid model snapshots;
+- result/closing history is merged and deduplicated by the existing read model;
+- the selected point is identified by exact `snapshot_key` when older forward
+  rows lack `snapshot_label`.
+
+Evidence:
+
+- the production API reproduced the defect for RC Strasbourg-RC Lens, away
+  corners, full match, under 5.5: selected odds `1.74`, `oddsHistory=[]`;
+- read-only V2 inspection found three valid rows for the exact offer key:
+  T-3D `1.74`, T-2D `1.77`, and T-1D `1.80`;
+- the new open-selection contract test first failed with an empty list and then
+  passed after the source fix;
+- the focused open and settled history contracts pass `2/2`;
+- the repaired read contract against the current V2 database returns the three
+  prices in time order and marks T-3D `1.74` as the selected point.
+
+Files changed:
+
+- `src/ullebets_v2/read_api/service.py`
+- `tests/v2/test_read_api_contracts.py`
+
+Remaining:
+
+Push the fix to `main`, wait for the production deployment, and verify the same
+live API row before marking runtime delivery verified.
+
 ### 2026-08-28 - Durable closing watcher and unified CLV results implementation
 
 Status: `PARTIAL` - implementation, regression coverage, current V2 data,

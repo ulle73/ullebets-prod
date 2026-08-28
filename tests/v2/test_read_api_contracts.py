@@ -757,6 +757,81 @@ def test_auto_exposes_accepted_t30_clv_and_exact_market_odds_history() -> None:
     ]
 
 
+def test_auto_exposes_market_snapshot_history_before_an_open_selection_is_settled() -> None:
+    selection = {
+        'prediction_type': 'ev_registered_score_policy',
+        'model_id': 'ev_scope_interaction_recency45_asof_capped_v6_shadow',
+        'selection_policy_id': 'v6_full_domain_checkpoint_journal_v2',
+        'selection_granularity': 'checkpoint_observation',
+        'prediction_key': 'p-open',
+        'selection_key': 'p-open',
+        'match_key': 'm1',
+        'offer_key': 'm1|cornerKicks|away|ALL|5.5',
+        'snapshot_key': 'snapshot-t3d',
+        'stat_key': 'cornerKicks',
+        'period': 'ALL',
+        'scope': 'away',
+        'direction': 'under',
+        'line_value': 5.5,
+        'selected_odds': 1.74,
+        'valid_for_forward_evaluation': True,
+        'invalid_for_model': False,
+        'match_start_time': datetime(2026, 8, 29, 15, 15, tzinfo=UTC),
+    }
+    database = MemoryDatabase(
+        forward_bets=MemoryCollection([selection]),
+        forward_results=MemoryCollection(),
+        fixtures_canonical=MemoryCollection([fixture('m1')]),
+        market_snapshots=MemoryCollection(
+            [
+                {
+                    'snapshot_key': 'snapshot-t3d',
+                    'match_key': 'm1',
+                    'offer_key': selection['offer_key'],
+                    'snapshot_label': 'T_MINUS_3D',
+                    'snapshot_time': datetime(2026, 8, 26, 3, 28, tzinfo=UTC),
+                    'line': 5.5,
+                    'over_odds': 1.95,
+                    'under_odds': 1.74,
+                    'invalid_for_model': False,
+                },
+                {
+                    'snapshot_key': 'snapshot-t2d',
+                    'match_key': 'm1',
+                    'offer_key': selection['offer_key'],
+                    'snapshot_label': 'T_MINUS_2D',
+                    'snapshot_time': datetime(2026, 8, 27, 9, 58, tzinfo=UTC),
+                    'line': 5.5,
+                    'over_odds': 1.92,
+                    'under_odds': 1.77,
+                    'invalid_for_model': False,
+                },
+            ]
+        ),
+    )
+
+    payload = read_service.read_auto(database, status='open')
+
+    assert payload['selections'][0]['oddsHistory'] == [
+        {
+            'snapshotLabel': 'T_MINUS_3D',
+            'observedAt': '2026-08-26T03:28:00Z',
+            'odds': 1.74,
+            'lineValue': 5.5,
+            'selected': True,
+            'closing': False,
+        },
+        {
+            'snapshotLabel': 'T_MINUS_2D',
+            'observedAt': '2026-08-27T09:58:00Z',
+            'odds': 1.77,
+            'lineValue': 5.5,
+            'selected': False,
+            'closing': False,
+        },
+    ]
+
+
 def test_auto_status_filter_is_applied_before_grouping_and_pagination() -> None:
     base = {
         'match_key': 'm1',

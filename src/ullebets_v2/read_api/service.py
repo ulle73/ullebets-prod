@@ -872,6 +872,54 @@ def _forward_result_lookup(database: Any, rows: list[dict[str, Any]]) -> dict[st
     return lookup
 
 
+def _market_snapshot_history_lookup(
+    database: Any,
+    rows: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    offer_keys = sorted(
+        {
+            str(row["offer_key"])
+            for row in rows
+            if row.get("offer_key")
+        }
+    )
+    if not offer_keys:
+        return {}
+    match_keys = sorted(
+        {
+            str(row["match_key"])
+            for row in rows
+            if row.get("match_key")
+        }
+    )
+    snapshot_rows = _find_rows(
+        database,
+        MARKET_SNAPSHOTS,
+        {
+            "match_key": {"$in": match_keys},
+            "offer_key": {"$in": offer_keys},
+            "invalid_for_model": {"$ne": True},
+        },
+        projection={
+            "_id": 0,
+            "snapshot_key": 1,
+            "offer_key": 1,
+            "snapshot_label": 1,
+            "snapshot_time": 1,
+            "line": 1,
+            "line_value": 1,
+            "over_odds": 1,
+            "under_odds": 1,
+        },
+    )
+    lookup: dict[str, list[dict[str, Any]]] = {}
+    for snapshot in snapshot_rows:
+        offer_key = str(snapshot.get("offer_key") or "")
+        if offer_key:
+            lookup.setdefault(offer_key, []).append(snapshot)
+    return lookup
+
+
 def _with_forward_results(
     rows: list[dict[str, Any]],
     result_lookup: dict[str, dict[str, Any]],
@@ -908,6 +956,14 @@ def _odds_history_read_model(row: dict[str, Any]) -> list[dict[str, Any]]:
         )
         if label
     }
+    selected_snapshot_keys = {
+        str(snapshot_key)
+        for snapshot_key in (
+            list(row.get("snapshot_keys") or [])
+            or [row.get("snapshot_key")]
+        )
+        if snapshot_key
+    }
     closing_checkpoint = str(
         row.get("closing_checkpoint")
         or row.get("closing_snapshot_label")
@@ -931,6 +987,7 @@ def _odds_history_read_model(row: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         observed_at = _iso(item.get("observed_at") or item.get("snapshot_time"))
         snapshot_label = str(item.get("snapshot_label") or "")
+        snapshot_key = str(item.get("snapshot_key") or "")
         dedupe_key = (snapshot_label, str(observed_at or ""), odds_value)
         if dedupe_key in seen:
             continue
@@ -941,7 +998,10 @@ def _odds_history_read_model(row: dict[str, Any]) -> list[dict[str, Any]]:
                 "observedAt": observed_at,
                 "odds": odds_value,
                 "lineValue": line_value,
-                "selected": snapshot_label in selected_labels,
+                "selected": bool(
+                    (snapshot_key and snapshot_key in selected_snapshot_keys)
+                    or (snapshot_label and snapshot_label in selected_labels)
+                ),
                 "closing": bool(
                     closing_checkpoint and snapshot_label == closing_checkpoint
                 ),
@@ -1197,11 +1257,25 @@ def read_auto(
         for family in ("v6", "legacy")
     }
     rows = grouped_rows[page_offset:page_offset + page_limit]
+    snapshot_history = _market_snapshot_history_lookup(database, rows)
     fixtures = _fixture_lookup(database, [str(row.get("match_key")) for row in rows if row.get("match_key")])
     selections = []
     for row in rows:
         fixture = fixtures.get(str(row.get("match_key") or ""), {})
-        selections.append(_forward_selection_read_model(row, fixture, row))
+        row_with_history = {
+            **row,
+            "price_history": [
+                *snapshot_history.get(str(row.get("offer_key") or ""), []),
+                *list(row.get("price_history") or []),
+            ],
+        }
+        selections.append(
+            _forward_selection_read_model(
+                row_with_history,
+                fixture,
+                row_with_history,
+            )
+        )
     return {
         "count": len(grouped_rows),
         "observationCount": len(canonical_rows),
