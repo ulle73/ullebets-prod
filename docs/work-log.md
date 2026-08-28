@@ -26,12 +26,15 @@ Status: `PARTIAL`
 Objective:
 Determine how matchup rankings can be evaluated honestly as predictors, and
 whether every matchup has an exact odds market suitable for win/loss, ROI, and
-CLV reporting. This was a read-only design audit; no product contract or code
-was changed.
+CLV reporting. Convert the approved product contract into a test-driven
+implementation plan without changing product code or runtime state.
 
 Changes:
 
-- Documented current read-only evidence in this work log only.
+- Added the approved design specification at
+  `docs/superpowers/specs/2026-08-28-matchup-predictor-evaluation-design.md`.
+- Added the implementation plan at
+  `docs/superpowers/plans/2026-08-28-matchup-predictor-evaluation.md`.
 - No database, runtime, workflow, model, API, or frontend state was mutated.
 
 Tests:
@@ -43,6 +46,10 @@ src/ullebets_v2/read_api/service.py, and the current frontend matchup types/card
 Queried ullebets_v2.matchups_score and ullebets_v2.market_snapshots with
 read-only projections; joined exact match/stat/period/scope identities and
 excluded invalid or post-kickoff snapshots.
+Ran CodeGraph status/current-index inspection and mapped the storage,
+checkpoint, settlement, read-API, workflow, and frontend call paths.
+Ran plan placeholder scans, Markdown fence-count validation, and
+git diff --check.
 ```
 
 Results:
@@ -65,6 +72,8 @@ Results:
 - A matchup score is a normalized relative rank, not a calibrated probability.
   Existing rows also lack a row-level immutable creation timestamp; 9,270 of
   15,876 lack the current `rolling_12_weighted_45d` method identity.
+- The approved plan has nine implementation tasks, balanced Markdown fences,
+  no unresolved placeholder markers, and no whitespace errors.
 
 Insight:
 A single odds-based win/loss denominator would discard roughly 85% of resolved
@@ -75,11 +84,8 @@ not as the definition of whether a predictor was correct.
 
 Remaining:
 
-- The hybrid product definition and immutable T-1D capture contract were
-  approved in chat and written to
-  `docs/superpowers/specs/2026-08-28-matchup-predictor-evaluation-design.md`.
-  The written specification still requires the user-review gate before an
-  implementation plan is created.
+- The hybrid product definition and immutable T-1D capture contract are
+  approved and planned, but implementation has not started.
 - Existing historical rows can be shown as descriptive legacy evidence but do
   not prove leakage-safe forward predictor quality without a frozen timestamp.
 - Old pending/missing matchup outcomes and exact fixture lifecycle state still
@@ -87,8 +93,10 @@ Remaining:
 
 Next:
 
-- Review the written specification, then create the test-driven implementation
-  plan if no changes are requested.
+- The written specification was approved. Execute the test-driven plan in
+  `docs/superpowers/plans/2026-08-28-matchup-predictor-evaluation.md` using the
+  selected execution workflow, then record local and hosted evidence
+  separately.
 
 ## Current project state
 
