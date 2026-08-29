@@ -27,6 +27,8 @@ from ullebets_v2.storage.collections import (
     MARKET_SNAPSHOTS,
     MATCHUPS_LEAGUE_AVG,
     MATCHUPS_SCORE,
+    MATCHUP_OBSERVATIONS,
+    MATCHUP_RESULTS,
     MATCH_RESULTS_CANONICAL,
     MATCH_STATS_CANONICAL,
     MODEL_SNAPSHOTS,
@@ -233,6 +235,23 @@ def build_core_index_plan() -> list[dict[str, Any]]:
                 {"keys": [("league_key", 1), ("snapshot_date", 1)], "name": "league_key_snapshot_date"},
                 {"keys": [("snapshot_date", 1), ("ranking_bucket", 1), ("score", -1)], "name": "snapshot_bucket_score"},
                 {"keys": [("snapshot_date", 1), ("outcome_status", 1)], "name": "snapshot_outcome_status"},
+            ],
+        },
+        {
+            "collection": MATCHUP_OBSERVATIONS,
+            "indexes": [
+                {"keys": [("observation_key", 1)], "name": "matchup_observation_key_unique", "unique": True},
+                {"keys": [("match_key", 1), ("checkpoint_label", 1)], "name": "matchup_observation_match_checkpoint"},
+                {"keys": [("fixture_date_stockholm", 1), ("selected_direction", 1), ("score", -1)], "name": "matchup_observation_date_direction_score"},
+            ],
+        },
+        {
+            "collection": MATCHUP_RESULTS,
+            "indexes": [
+                {"keys": [("observation_key", 1)], "name": "matchup_result_observation_unique", "unique": True},
+                {"keys": [("lifecycle_status", 1), ("match_start_time", 1)], "name": "matchup_result_lifecycle_start"},
+                {"keys": [("valid_for_predictor", 1), ("stat_key", 1), ("period", 1), ("scope", 1)], "name": "matchup_predictor_dimensions"},
+                {"keys": [("valid_for_market", 1), ("closing_quality", 1), ("stat_key", 1)], "name": "matchup_market_dimensions"},
             ],
         },
         {

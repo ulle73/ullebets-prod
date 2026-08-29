@@ -186,7 +186,7 @@ WORKFLOW_LEGACY_CONTRACTS = {
         "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "parity_or_replay": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},
         "expected_checkout_legacy_repo": False,
-        "notes": ["Settlement uses V2 canonical stats and derived matchup outputs."],
+        "notes": ["Live enrichment repairs canonical stats before missing historical rankings are built and settled from V2-owned data."],
     },
     "run-unibet-backtests.yml": {
         "default_runtime": {"old_repo": False, "legacy_app_db": False, "legacy_unibet_db": False},

@@ -5,6 +5,7 @@ import {
   fetchLeague,
   fetchFormulaPerformance,
   fetchMatchDetail,
+  fetchMatchupEvaluation,
   fetchMatches,
   fetchModel,
   fetchResults,
@@ -12,6 +13,7 @@ import {
   fetchTeam,
   type AutoQuery,
   type FormulaPerformanceQuery,
+  type MatchupEvaluationQuery,
   type ResultsQuery,
 } from './api';
 
@@ -28,6 +30,16 @@ export function useDashboard(date?: string, enabled = true) {
     queryFn: ({ signal }) => fetchDashboard(date, signal),
     enabled,
     staleTime: 15_000,
+  });
+}
+
+export function useMatchupEvaluation(query: MatchupEvaluationQuery = {}, enabled = true) {
+  return useQuery({
+    queryKey: ['matchup-evaluation', query],
+    queryFn: ({ signal }) => fetchMatchupEvaluation(query, signal),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 }
 

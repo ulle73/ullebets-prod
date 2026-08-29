@@ -18,6 +18,7 @@ from ullebets_v2.read_api.service import (
     read_dashboard,
     read_league,
     read_match_detail,
+    read_matchup_evaluation,
     read_matches,
     read_model,
     read_results,
@@ -141,7 +142,7 @@ def _cache_policy(path_with_query: str) -> _CachePolicy | None:
         return _CachePolicy(max_age=10, stale_while_revalidate=30)
     if path.startswith("/api/v1/teams/"):
         return _CachePolicy(max_age=300, stale_while_revalidate=900)
-    if path in {"/api/v1/auto", "/api/v1/results", "/api/v1/model", "/api/v1/formula-performance"}:
+    if path in {"/api/v1/auto", "/api/v1/results", "/api/v1/model", "/api/v1/formula-performance", "/api/v1/matchups/evaluation"}:
         return _CachePolicy(max_age=30, stale_while_revalidate=120)
     if path.startswith("/api/v1/matches/"):
         return _CachePolicy(max_age=30, stale_while_revalidate=120)
@@ -155,6 +156,22 @@ def dispatch_get(database: Any, path: str, query: dict[str, list[str]]) -> tuple
         return HTTPStatus.OK, {"status": "ok"}
     if normalized_path == "/api/v1/dashboard":
         return HTTPStatus.OK, read_dashboard(database, source_date=_first(query, "date"))
+    if normalized_path == "/api/v1/matchups/evaluation":
+        date_from = _first(query, "dateFrom")
+        date_to = _first(query, "dateTo")
+        if date_from and date_to and date_to < date_from:
+            return HTTPStatus.BAD_REQUEST, {"error": "invalid_date_range"}
+        return HTTPStatus.OK, read_matchup_evaluation(
+            database,
+            date_from=date_from,
+            date_to=date_to,
+            league_key=_first(query, "league"),
+            stat_key=_first(query, "stat"),
+            period=_first(query, "period"),
+            scope=_first(query, "scope"),
+            ranking_method=_first(query, "method"),
+            evidence_class=_first(query, "evidence"),
+        )
     if normalized_path == "/api/v1/matches":
         return HTTPStatus.OK, read_matches(database, match_keys=_match_keys(query))
     if normalized_path == "/api/v1/auto":

@@ -1,12 +1,31 @@
 # Ullebets V2 Backend Verification Status
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 Branch: `main`; durable-closing implementation first shipped at `eb69ac8` and
 production deployment evidence is tied to the explicit deployment below.
 Database: `ullebets_v2`
 
 This file is the frozen backend verification snapshot for the current V2 state.
 Use it to avoid rerunning full end-to-end checks unless one of the remaining unverified windows is actually due, or a relevant subsystem changes.
+
+## Matchup Evaluation And Historical Repair On 2026-08-29
+
+The implementation now separates replaceable dashboard rankings from immutable
+T-1D evaluation evidence. `matchup_observations` freezes one direction and an
+optional exact 1.80-2.20 offer; `matchup_results` derives predictor verdicts,
+exact-market PnL, accepted same-line T-10/T-30 CLV, and terminal conflict state.
+Legacy rows are separately classified as descriptive and cannot enter forward
+support gates.
+
+The bounded production repair for 2026-08-22 through 2026-08-28 rebuilt six
+missing ranking dates and settled `12,780` combined score/league rows. Missing
+profiles remain explicit for six fixtures across 23, 24, and 28 August. Local
+targeted backend tests passed `92/92`; the one cache regression found by the
+full run was fixed and its read/cache subset passed `39/39`. Frontend targeted
+tests passed `7/7`, with typecheck, lint, and production build also passing.
+
+Status is `PARTIAL` until the new commit is pushed, deployed, the bounded legacy
+backfill populates both evaluation collections, and the live API/UI are checked.
 
 ## Durable Closing Watch And Accepted Product CLV On 2026-08-28
 

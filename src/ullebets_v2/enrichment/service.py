@@ -24,6 +24,19 @@ from ullebets_v2.forward_timing import to_utc_datetime
 from ullebets_v2.jobs.job_runs import build_job_run_finished_update, build_job_run_started_doc
 from ullebets_v2.settlement.service import FORWARD_BET_SELECTION_SOURCE, build_settled_docs
 
+TERMINAL_MATCHUP_STATUSES = {"resolved_predictor_only", "resolved_market", "missing_actual", "excluded_timing", "excluded_mapping"}
+
+
+def select_unresolved_matchup_match_keys(*, observation_docs: list[dict[str, Any]], result_docs: list[dict[str, Any]], reference_time: datetime, minimum_match_age: timedelta) -> list[str]:
+    terminal = {str(row.get("observation_key")) for row in result_docs if row.get("lifecycle_status") in TERMINAL_MATCHUP_STATUSES}
+    cutoff = reference_time - minimum_match_age
+    return sorted({
+        str(row["match_key"]) for row in observation_docs
+        if row.get("match_key") and row.get("observation_key") not in terminal
+        and to_utc_datetime(row.get("match_start_time")) is not None
+        and to_utc_datetime(row.get("match_start_time")) <= cutoff
+    })
+
 
 def filter_source_rows_by_dates(source_rows: list[dict[str, Any]], dates: list[str] | None) -> list[dict[str, Any]]:
     if not dates:

@@ -79,7 +79,7 @@ WORKFLOW_PARITY_MATRIX = [
         "old_workflow": "enrich-matchups-results.yml",
         "old_inputs": ["matchup collections", "teamstats", "RapidAPI fallback"],
         "old_outputs": ["enriched matchup outcomes"],
-        "v2_job": "settle_matchups_outputs.py",
+        "v2_job": "ingest_match_enrichment.py + repair_matchup_history.py",
         "v2_outputs": [MATCHUPS_SCORE, MATCHUPS_LEAGUE_AVG, "audit_reports"],
         "smoke_test": "settle one past date range",
         "parity_proof": "compare resolved outcome counts and unresolved reasons vs old",

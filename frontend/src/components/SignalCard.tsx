@@ -4,6 +4,7 @@ import { signalCardHover } from '../domain/motion';
 import type { MatchupEntry } from '../domain/types';
 import { EntityLink } from './EntityLink';
 import { MarketBiasIndicator } from './MarketBiasIndicator';
+import { MatchupEvaluation } from './MatchupEvaluation';
 
 interface SignalCardProps {
   signal: MatchupEntry;
@@ -54,6 +55,8 @@ export function SignalCard({ signal }: SignalCardProps) {
       </div>
 
       <MarketBiasIndicator bias={signal.marketBias} leagueBaseline={signal.leagueBaseline} />
+
+      <MatchupEvaluation signal={signal} />
 
       <footer className="signal-card__footer">
         {signal.rankPosition !== null ? <span>Rank #{signal.rankPosition}</span> : null}

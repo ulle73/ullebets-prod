@@ -465,6 +465,22 @@ def test_postmatch_workflows_recover_missing_actuals_without_global_queue_starva
     assert "group: ullebets-v2-backend" not in daily_enrichment_workflow
 
 
+def test_matchup_history_workflow_builds_missing_rankings_before_settlement() -> None:
+    workflow = (
+        repo_root()
+        / ".github"
+        / "workflows"
+        / "enrich-matchups-results.yml"
+    ).read_text(encoding="utf-8")
+
+    enrichment = workflow.index("ingest_match_enrichment.py")
+    repair = workflow.index("repair_matchup_history.py")
+    assert enrichment < repair
+    assert "--start-date" in workflow
+    assert "--end-date" in workflow
+    assert "45 days ago" in workflow
+
+
 def test_workflow_directory_rejects_postmatch_recovery_without_catch_up() -> None:
     workflow_dir = repo_root() / ".github" / "workflows"
     workflow_path = workflow_dir / "ev-shadow-settlement.yml"

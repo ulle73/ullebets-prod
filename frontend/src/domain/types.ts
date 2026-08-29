@@ -78,6 +78,23 @@ export interface MatchupEntry {
   rankingRecencyHalfLifeDays: number | null;
   marketBias: MarketBiasSummary | null;
   leagueBaseline: number | null;
+  evaluation: MatchupEvaluation | null;
+}
+
+export interface MatchupEvaluation {
+  predictor: { status: string; actualValue: number | null; leagueBaseline: number | null; signedResidual: number | null; verdict: 'hit' | 'miss' | 'push' | null };
+  market: { eligibility: string; line: number | null; selectedOdds: number | null; verdict: 'win' | 'loss' | 'push' | null; stakeUnits: number | null; pnlUnits: number | null };
+  closing: { quality: string | null; checkpoint: string | null; closingOdds: number | null; clvPct: number | null; beatClosing: boolean | null; oddsHistory: OddsHistoryPoint[]; differentLineClose?: number | null };
+  provenance: { evidenceClass: 'legacy_descriptive' | 'forward'; validForPredictor: boolean; selectedDirection?: boolean; rankingMethod: string | null };
+}
+
+export interface MatchupEvaluationResponse {
+  filters: Record<string, string | null>;
+  predictor: { contexts: number; resolved: number; pending: number; missingActual: number; hits: number; misses: number; pushes: number; nonPushHitRatePct: number | null };
+  market: { eligible: number; resolved: number; stakeUnits: number; pnlUnits: number; roiPct: number | null; closingCovered: number; meanClvPct: number | null; beatClosing: number };
+  coverage: { marketEligiblePct: number | null };
+  legacyDescriptive: { resolved: number; nonPushHitRatePct: number | null };
+  evidence: { predictorState: 'thin' | 'descriptive' | 'supported'; marketState: 'thin' | 'descriptive'; criteria: Record<string, boolean> };
 }
 
 export interface DashboardResponse {

@@ -18,6 +18,7 @@ from ullebets_v2.enrichment.service import (
     run_live_match_enrichment_window,
     run_match_enrichment_window,
     select_unresolved_forward_match_keys,
+    select_unresolved_matchup_match_keys,
 )
 from ullebets_v2.fixtures.replay import iter_target_dates
 from ullebets_v2.odds.service import load_replay_fixture_targets
@@ -35,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=("replay", "live"), default="replay")
     parser.add_argument("--fixture-source", choices=("replay", "db"), default="db")
     parser.add_argument("--include-unresolved-forward-bets", action="store_true")
+    parser.add_argument("--include-unresolved-matchup-observations", action="store_true")
     parser.add_argument("--minimum-match-age-hours", type=float, default=3.0)
     parser.add_argument("--source-workflow", default="update-teamstats-and-teamprofiles.yml")
     parser.add_argument("--dry-run", action="store_true")
@@ -88,6 +90,16 @@ def load_unresolved_forward_fixture_targets(
     )
 
 
+def load_unresolved_matchup_fixture_targets(database, *, reference_time: datetime, minimum_match_age: timedelta) -> list[dict]:
+    observations = list(database["matchup_observations"].find({}, projection={"_id": 0}))
+    if not observations:
+        return []
+    keys = [str(row.get("observation_key")) for row in observations if row.get("observation_key")]
+    results = list(database["matchup_results"].find({"observation_key": {"$in": keys}}, projection={"_id": 0}))
+    unresolved = select_unresolved_matchup_match_keys(observation_docs=observations, result_docs=results, reference_time=reference_time, minimum_match_age=minimum_match_age)
+    return list(database["fixtures_canonical"].find({"match_key": {"$in": unresolved}}, projection={"_id": 0})) if unresolved else []
+
+
 def main() -> int:
     args = parse_args()
     if args.minimum_match_age_hours < 0:
@@ -123,7 +135,7 @@ def main() -> int:
             read_database = write_database if write_database is not None else get_database(config)
             targets = (
                 load_fixture_targets_from_database(read_database, dates)
-                if dates or not args.include_unresolved_forward_bets
+                if dates or not (args.include_unresolved_forward_bets or args.include_unresolved_matchup_observations)
                 else []
             )
             if args.include_unresolved_forward_bets:
@@ -139,6 +151,13 @@ def main() -> int:
                         if row.get("match_key")
                     }.values()
                 )
+            if args.include_unresolved_matchup_observations:
+                recovery_targets = load_unresolved_matchup_fixture_targets(
+                    read_database,
+                    reference_time=datetime.now(tz=UTC),
+                    minimum_match_age=timedelta(hours=args.minimum_match_age_hours),
+                )
+                targets = list({str(row["match_key"]): row for row in [*targets, *recovery_targets] if row.get("match_key")}.values())
         else:
             if not dates:
                 raise RuntimeError("--date or --start-date/--end-date is required when --fixture-source=replay.")

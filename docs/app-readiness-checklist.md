@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -118,8 +118,10 @@ Status details and evidence:
 - [ ] `PARTIAL` `matchups_league_avg` rebuilt successfully on 2026-08-14 with
   the same 1,278 deduplicated, 12-match recency-weighted rows. Old-output
   parity and the unresolved Real Racing Club home-profile mapping remain open.
-- [ ] `PARTIAL` Prove matchup outcome settlement against old output and
-  canonical actuals over a finished date range.
+- [ ] `PARTIAL` Matchup outcome settlement is production-proven over 22-28
+  August with `12,780` resolved score/league rows and automatic missing-date
+  repair. Hosted scheduling, legacy-evaluation publication, and remaining
+  missing-profile fixtures still require acceptance evidence.
 
 ## 5. Unibet/Kambi odds
 

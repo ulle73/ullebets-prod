@@ -216,6 +216,26 @@ def test_dashboard_reads_persisted_matchups_instead_of_recomputing(monkeypatch) 
     assert payload["matchupSource"] == "persisted"
 
 
+def test_dashboard_exposes_corrected_matchup_evaluation() -> None:
+    row = matchup_row()
+    observation = {"observation_key": "obs-1", "match_key": row["match_key"], "stat_key": row["stat_key"], "period": row["period"], "scope": row["scope"], "selected_direction": "over", "league_baseline": 12.6, "market_eligibility": "no_exact_market", "policy_version": "matchup-eval-v1", "evidence_class": "forward", "checkpoint_label": "T_MINUS_1D", "ranking_method": "rolling_12_weighted_45d", "valid_for_predictor": True}
+    result = {"observation_key": "obs-1", "lifecycle_status": "resolved_predictor_only", "actual_value": 14.0, "signed_residual": 1.4, "predictor_verdict": "hit", "stake_units": 0.0, "pnl_units": 0.0}
+    database = FakeDatabase(
+        fixtures_canonical=FakeCollection([fixture_row()]),
+        matchups_score=FakeCollection([row]),
+        matchup_observations=FakeCollection([observation]),
+        matchup_results=FakeCollection([result]),
+    )
+
+    evaluation = read_dashboard(database, source_date="2026-08-09")["matchups"][0]["evaluation"]
+
+    assert evaluation["predictor"]["verdict"] == "hit"
+    assert evaluation["predictor"]["actualValue"] == 14.0
+    assert evaluation["market"]["eligibility"] == "no_exact_market"
+    assert evaluation["market"]["verdict"] is None
+    assert evaluation["provenance"]["evidenceClass"] == "forward"
+
+
 def test_dashboard_filters_by_stockholm_fixture_date_not_source_provenance() -> None:
     fixtures = QueryCapturingCollection(
         [

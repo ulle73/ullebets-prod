@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -18,6 +18,69 @@ still worth testing. Detailed evidence remains in the linked reports.
 - `NOT STARTED`: a required product area has no completed implementation yet.
 
 Valid empty source responses are not failures when no matches or markets exist.
+
+### 2026-08-29 - Automatic historical matchup repair and immutable evaluation
+
+Status: `VERIFIED` locally and for the bounded ranking/settlement production
+backfill; `PARTIAL` for hosted automation and legacy-evaluation publication.
+
+Objective:
+Repair missing historical matchup dates, correct every resolvable matchup
+predictor independently of odds coverage, and automate immutable T-1D market,
+closing, and CLV evaluation without relying on mutable ranking rows.
+
+Changes:
+
+- Added independent `matchup_observations` and `matchup_results` collections,
+  immutable T-1D observation identity/fingerprints, exact 1.80-2.20 offer
+  selection, terminal result conflict checks, and separate predictor/market
+  metrics.
+- Added bounded legacy-descriptive backfill and historical ranking repair. The
+  daily workflow repairs 45 days from stored V2 data, limits normal live
+  enrichment to eight days, and selectively retries unresolved observations.
+- Wired T-1D materialization before model scoring, post-match result refresh,
+  exact-line T-10/T-30 CLV, API/card presentation, and accessible odds movement.
+- Replaced serial matchup-settlement writes with bounded 100-row bulk upserts.
+
+Verification:
+
+```text
+python -m pytest tests/v2/test_matchup_evaluation_observations.py tests/v2/test_matchup_evaluation_results.py tests/v2/test_matchup_evaluation_legacy.py tests/v2/test_matchup_evaluation_metrics.py tests/v2/test_matchup_settlement.py tests/v2/test_read_api.py tests/v2/test_read_api_contracts.py tests/v2/test_match_enrichment.py tests/v2/test_automation_contract.py tests/v2/test_parity_framework.py -q
+python -m pytest tests/v2 -q
+python -m pytest tests/v2/test_read_api_cache.py tests/v2/test_read_api.py tests/v2/test_read_api_contracts.py -q
+npm test -- --run src/app/matchup-evaluation.test.tsx src/app/App.test.tsx src/app/spel-resultat-clv.test.tsx
+npm run typecheck
+npm run lint
+npm run build
+python scripts/forward_v2/repair_matchup_history.py --start-date 2026-08-22 --end-date 2026-08-28 --source-workflow manual-matchup-history-bulk-repair-2026-08-29
+```
+
+Results:
+
+- Targeted backend coverage passed `92/92`; the full V2 run reached `567/568`
+  before exposing one missing-optional-collection cache regression, and the
+  corrected read/cache subset then passed `39/39`.
+- Frontend targeted tests passed `7/7`; TypeScript, ESLint, and production
+  build passed.
+- Production repaired six previously absent ranking dates over 22-28 August.
+  The terminal run settled `12,780` score/league rows. Dates 25-27 had complete
+  profile coverage; 23, 24, and 28 retained explicit missing-profile coverage
+  of 3, 1, and 2 fixtures instead of inventing rankings.
+- The interrupted serial write job was marked failed explicitly and superseded
+  by the successful bounded bulk run.
+
+Remaining:
+
+- Git delivery and hosted Vercel/workflow evidence are not yet recorded in this
+  entry. The bounded legacy evaluation backfill must populate the new
+  collections before historical aggregate cards are called published.
+- Historical rows remain `legacy_descriptive`; only new immutable T-1D rows can
+  contribute to forward predictor evidence.
+
+Next:
+
+- Push `main`, dispatch the bounded evaluation workflow, then verify the live
+  dashboard/API separately without rerunning unrelated model experiments.
 
 ### 2026-08-28 - Matchup settlement and market-coverage design audit
 

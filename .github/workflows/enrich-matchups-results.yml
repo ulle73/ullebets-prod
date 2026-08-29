@@ -32,8 +32,19 @@ jobs:
       run_command: |
         DATE="${{ inputs.target_date }}"
         if [ -z "$DATE" ]; then
-          START_DATE=$(date -u -d '7 days ago' +'%Y-%m-%d')
+          START_DATE=$(date -u -d '45 days ago' +'%Y-%m-%d')
           END_DATE=$(date -u -d 'yesterday' +'%Y-%m-%d')
-          DATE="${START_DATE}-${END_DATE}"
+          ENRICH_START_DATE=$(date -u -d '8 days ago' +'%Y-%m-%d')
+        elif [ "${#DATE}" -eq 10 ]; then
+          START_DATE="$DATE"
+          END_DATE="$DATE"
+          ENRICH_START_DATE="$DATE"
+        else
+          START_DATE="${DATE:0:10}"
+          END_DATE="${DATE:11:10}"
+          ENRICH_START_DATE="$START_DATE"
         fi
-        python scripts/forward_v2/settle_matchups_outputs.py --date "$DATE" --source-workflow enrich-matchups-results.yml --dry-run
+        python scripts/forward_v2/ingest_match_enrichment.py --mode live --fixture-source db --start-date "$ENRICH_START_DATE" --end-date "$END_DATE" --include-unresolved-matchup-observations --source-workflow enrich-matchups-results.yml --dry-run
+        python scripts/forward_v2/repair_matchup_history.py --start-date "$START_DATE" --end-date "$END_DATE" --source-workflow enrich-matchups-results.yml --dry-run
+        python scripts/forward_v2/backfill_legacy_matchup_evaluation.py --date-from "$START_DATE" --date-to "$END_DATE" --dry-run
+        python scripts/forward_v2/refresh_matchup_results.py --date-from "$START_DATE" --date-to "$END_DATE" --dry-run

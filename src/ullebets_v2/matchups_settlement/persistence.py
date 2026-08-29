@@ -2,7 +2,29 @@ from __future__ import annotations
 
 from typing import Any
 
+from pymongo import UpdateOne
+
 from ullebets_v2.storage.collections import MATCHUPS_LEAGUE_AVG, MATCHUPS_SCORE
+
+BULK_WRITE_BATCH_SIZE = 100
+
+
+def _upsert_rows(collection: Any, rows: list[dict[str, Any]], key_fields: tuple[str, ...]) -> int:
+    if not rows:
+        return 0
+    bulk_write = getattr(collection, "bulk_write", None)
+    if not callable(bulk_write):
+        upserts = 0
+        for row in rows:
+            result = collection.update_one({field: row[field] for field in key_fields}, {"$set": row}, upsert=True)
+            upserts += 1 if result.upserted_id is not None else 0
+        return upserts
+    upserts = 0
+    for start in range(0, len(rows), BULK_WRITE_BATCH_SIZE):
+        batch = rows[start : start + BULK_WRITE_BATCH_SIZE]
+        result = bulk_write([UpdateOne({field: row[field] for field in key_fields}, {"$set": row}, upsert=True) for row in batch], ordered=False)
+        upserts += int(result.upserted_count)
+    return upserts
 
 
 def persist_matchup_settlement_records(
@@ -14,23 +36,8 @@ def persist_matchup_settlement_records(
     audit_rows: list[dict[str, Any]],
     health_rows: list[dict[str, Any]],
 ) -> dict[str, int]:
-    score_updates = 0
-    for row in score_docs:
-        result = database[MATCHUPS_SCORE].update_one(
-            {"entry_key": row["entry_key"]},
-            {"$set": row},
-            upsert=True,
-        )
-        score_updates += 1 if result.upserted_id is not None else 0
-
-    league_avg_updates = 0
-    for row in league_avg_docs:
-        result = database[MATCHUPS_LEAGUE_AVG].update_one(
-            {"entry_key": row["entry_key"]},
-            {"$set": row},
-            upsert=True,
-        )
-        league_avg_updates += 1 if result.upserted_id is not None else 0
+    score_updates = _upsert_rows(database[MATCHUPS_SCORE], score_docs, ("entry_key",))
+    league_avg_updates = _upsert_rows(database[MATCHUPS_LEAGUE_AVG], league_avg_docs, ("entry_key",))
 
     parity_upserts = 0
     for row in parity_rows:

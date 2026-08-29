@@ -31,8 +31,11 @@ jobs:
           --mode live \
           --fixture-source db \
           --include-unresolved-forward-bets \
+          --include-unresolved-matchup-observations \
           --minimum-match-age-hours 3 \
           --source-workflow ev-shadow-settlement.yml \
+          --dry-run
+        python scripts/forward_v2/refresh_matchup_results.py \
           --dry-run
         python scripts/forward_v2/settle_forward_bets.py \
           --source-workflow ev-shadow-settlement.yml \

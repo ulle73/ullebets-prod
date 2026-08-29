@@ -1,11 +1,12 @@
 import type { RichLeagueResponse, RichMatchDetailResponse, RichTeamResponse } from '../domain/drilldown-types';
-import type { AutoResponse, DashboardResponse, FormulaPerformanceResponse, MatchesResponse, ModelResponse, ResultsResponse, SystemResponse } from '../domain/types';
+import type { AutoResponse, DashboardResponse, FormulaPerformanceResponse, MatchesResponse, MatchupEvaluationResponse, ModelResponse, ResultsResponse, SystemResponse } from '../domain/types';
 
 type QueryValue = string | number | boolean | null | undefined;
 export type ApiQuery = Record<string, QueryValue>;
 export interface AutoQuery extends ApiQuery { limit?:number;offset?:number;status?:string;league?:string;stat?:string;period?:string;scope?:string;direction?:string;model?:string;policy?:string;checkpoint?:string;date?:string; }
 export interface ResultsQuery extends ApiQuery { limit?:number;offset?:number;status?:string;league?:string;stat?:string;period?:string;scope?:string;direction?:string;model?:string;policy?:string;checkpoint?:string; }
 export interface FormulaPerformanceQuery extends ApiQuery { limit?:number;offset?:number;formula?:string;family?:string;league?:string;stat?:string;period?:string;scope?:string;direction?:string;checkpoint?:string;status?:string;mode?:'positive_ev'|'all_scores'; }
+export interface MatchupEvaluationQuery extends ApiQuery { dateFrom?:string;dateTo?:string;league?:string;stat?:string;period?:string;scope?:string; }
 
 export function buildApiUrl(path:string,query:ApiQuery={}):string{const params=new URLSearchParams();for(const[key,value]of Object.entries(query)){if(value===undefined||value===null||value==='')continue;params.set(key,String(value));}const suffix=params.toString();return `/api/v1${path}${suffix?`?${suffix}`:''}`;}
 async function getJson<T>(url:string,signal?:AbortSignal):Promise<T>{const init:RequestInit={method:'GET',headers:{Accept:'application/json'}};if(signal)init.signal=signal;const response=await fetch(url,init);if(!response.ok)throw new Error(`Read API returned ${response.status}`);return response.json() as Promise<T>;}
@@ -19,3 +20,4 @@ export function fetchTeam(teamKey:string,signal?:AbortSignal):Promise<RichTeamRe
 export function fetchModel(signal?:AbortSignal):Promise<ModelResponse>{return getJson(buildApiUrl('/model'),signal);}
 export function fetchFormulaPerformance(query:FormulaPerformanceQuery={},signal?:AbortSignal):Promise<FormulaPerformanceResponse>{return getJson(buildApiUrl('/formula-performance',query),signal);}
 export function fetchSystem(signal?:AbortSignal):Promise<SystemResponse>{return getJson(buildApiUrl('/system'),signal);}
+export function fetchMatchupEvaluation(query:MatchupEvaluationQuery={},signal?:AbortSignal):Promise<MatchupEvaluationResponse>{return getJson(buildApiUrl('/matchups/evaluation',query),signal);}

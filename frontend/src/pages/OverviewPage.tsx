@@ -3,12 +3,16 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SignalCard } from '../components/SignalCard';
 import { StateNotice } from '../components/StateNotice';
-import { useDashboard } from '../data/queries';
+import { useDashboard, useMatchupEvaluation } from '../data/queries';
 
 export function OverviewPage() {
   const [searchParams] = useSearchParams();
   const requestedDate = searchParams.get('date') || undefined;
   const dashboard = useDashboard(requestedDate);
+  const evaluation = useMatchupEvaluation(
+    requestedDate ? { dateFrom: requestedDate, dateTo: requestedDate } : {},
+    Boolean(requestedDate),
+  );
   const [league, setLeague] = useState('all');
   const [stat, setStat] = useState('all');
 
@@ -56,6 +60,15 @@ export function OverviewPage() {
       ) : null}
       {data.matches.length > 0 && matchups.length === 0 ? (
         <StateNotice state="empty" title="Matchup-ranking saknas" detail="Matcher finns för dagen, men det finns ännu inte tillräcklig data för en matchup-ranking." />
+      ) : null}
+
+      {evaluation.data ? (
+        <div className="metric-tile-grid metric-tile-grid--4 matchup-evaluation-summary" aria-label="Matchup-resultat">
+          <article className="metric-tile metric-tile--brand"><span className="metric-tile__label">Rättade prediktorer</span><strong className="metric-tile__value">{evaluation.data.predictor.resolved}</strong><p>{evaluation.data.predictor.contexts} valda kontexter</p></article>
+          <article className="metric-tile"><span className="metric-tile__label">Prediktorträff</span><strong className="metric-tile__value">{evaluation.data.predictor.nonPushHitRatePct === null ? '—' : `${evaluation.data.predictor.nonPushHitRatePct.toLocaleString('sv-SE', { maximumFractionDigits: 1 })} %`}</strong><p>{evaluation.data.predictor.hits} träff · {evaluation.data.predictor.misses} miss</p></article>
+          <article className="metric-tile"><span className="metric-tile__label">Jämförbara odds</span><strong className="metric-tile__value">{evaluation.data.market.eligible}</strong><p>{evaluation.data.market.resolved} rättade marknader</p></article>
+          <article className="metric-tile"><span className="metric-tile__label">Marknads-ROI / CLV</span><strong className="metric-tile__value">{evaluation.data.market.roiPct === null ? '—' : `${evaluation.data.market.roiPct.toLocaleString('sv-SE', { maximumFractionDigits: 1 })} %`}</strong><p>{evaluation.data.market.meanClvPct === null ? 'CLV saknas' : `CLV ${evaluation.data.market.meanClvPct.toLocaleString('sv-SE', { maximumFractionDigits: 1 })} %`} · deskriptivt</p></article>
+        </div>
       ) : null}
 
       <div className="filter-toolbar">

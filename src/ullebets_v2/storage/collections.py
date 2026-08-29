@@ -26,6 +26,8 @@ MATCH_STATS_CANONICAL = "match_stats_canonical"
 TEAMPROFILES = "teamprofiles"
 MATCHUPS_SCORE = "matchups_score"
 MATCHUPS_LEAGUE_AVG = "matchups_league_avg"
+MATCHUP_OBSERVATIONS = "matchup_observations"
+MATCHUP_RESULTS = "matchup_results"
 MARKET_BIAS_OBSERVATIONS = "market_bias_observations"
 MARKET_BIAS_PROFILES = "market_bias_profiles"
 
@@ -72,6 +74,8 @@ CANONICAL_COLLECTION_NAMES = (
     TEAMPROFILES,
     MATCHUPS_SCORE,
     MATCHUPS_LEAGUE_AVG,
+    MATCHUP_OBSERVATIONS,
+    MATCHUP_RESULTS,
     MARKET_BIAS_OBSERVATIONS,
     MARKET_BIAS_PROFILES,
     RAW_ODDS_KAMBI,

@@ -82,6 +82,25 @@ jobs:
         for MATCH_KEY in "${CAPTURED_MATCH_KEYS[@]}"; do
           SCOPED_MATCH_ARGS+=(--match-key "$MATCH_KEY")
         done
+        mapfile -t T1D_MATCH_KEYS < <(python - "$CAPTURE_SUMMARY" <<'PY'
+        import json
+        import sys
+        with open(sys.argv[1], encoding="utf-8") as handle:
+            summary = json.load(handle)
+        seen = set()
+        for row in summary.get("due_targets") or []:
+            match_key = str(row.get("match_key") or "")
+            if row.get("checkpoint_key") == "T_MINUS_1D" and match_key and match_key not in seen:
+                seen.add(match_key)
+                print(match_key)
+        PY
+        )
+        if [ "${#T1D_MATCH_KEYS[@]}" -gt 0 ]; then
+          MATCHUP_ARGS=()
+          for MATCH_KEY in "${T1D_MATCH_KEYS[@]}"; do MATCHUP_ARGS+=(--match-key "$MATCH_KEY"); done
+          if [ "${ULLEBETS_V2_DRY_RUN:-false}" = "true" ]; then MATCHUP_ARGS+=(--dry-run); fi
+          python scripts/forward_v2/materialize_matchup_observations.py --repo-root . "${MATCHUP_ARGS[@]}"
+        fi
 
         if [ "${ULLEBETS_V2_DRY_RUN:-false}" = "true" ]; then
           echo "Skipping all-model scoring after dry-run capture."

@@ -2,7 +2,7 @@
 
 Date: 2026-08-28
 
-Status: Approved in chat; written specification awaiting user review
+Status: Approved in chat; implementation in progress
 
 ## Decision
 

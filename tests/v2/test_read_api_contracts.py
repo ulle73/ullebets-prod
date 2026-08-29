@@ -1127,3 +1127,18 @@ def test_http_dispatch_exposes_resolver_and_league_routes_without_mutations() ->
     status, league_payload = read_http.dispatch_get(database, '/api/v1/leagues/league-a', {})
     assert status.value == 200
     assert league_payload['league']['leagueKey'] == 'league-a'
+def test_http_dispatch_exposes_matchup_evaluation_with_separate_denominators() -> None:
+    database = MemoryDatabase(
+        matchup_results=MemoryCollection([{"observation_key": "obs-1", "fixture_date_stockholm": "2026-08-22", "match_key": "m1", "stat_key": "cornerKicks", "period": "ALL", "scope": "total", "evidence_class": "forward", "valid_for_predictor": True, "lifecycle_status": "resolved_predictor_only", "predictor_verdict": "hit", "score": 80, "rank_position": 1, "signed_residual": 2.0, "valid_for_market": False}]),
+    )
+
+    status, payload = read_http.dispatch_get(
+        database,
+        "/api/v1/matchups/evaluation",
+        {"dateFrom": ["2026-08-22"], "dateTo": ["2026-08-22"]},
+    )
+
+    assert status.value == 200
+    assert payload["predictor"]["resolved"] == 1
+    assert payload["predictor"]["hits"] == 1
+    assert payload["market"]["resolved"] == 0

@@ -2,7 +2,19 @@ import { LineChart, X } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatOdds } from '../domain/formatters';
-import type { AutoSelection } from '../domain/types';
+import type { OddsHistoryPoint } from '../domain/types';
+
+export interface OddsMovementSource {
+  direction?: string | null;
+  lineValue: number | null;
+  selectedOdds: number | null;
+  closingOdds?: number | null;
+  clvPct?: number | null;
+  beatClosingLine?: boolean | null;
+  oddsHistory?: OddsHistoryPoint[];
+  homeTeamName?: string | null;
+  awayTeamName?: string | null;
+}
 
 function checkpointLabel(value: string | null | undefined): string {
   return value?.replace('T_MINUS_', 'T-').replace(/M$/, '').replace(/H$/, 'H').replace(/D$/, 'D') ?? 'Okänd';
@@ -19,13 +31,13 @@ function observedAtLabel(value: string | null): string {
   }).format(new Date(value));
 }
 
-function marketLabel(row: AutoSelection): string {
+function marketLabel(row: OddsMovementSource): string {
   const direction = row.direction?.toLocaleUpperCase('sv-SE') ?? 'RIKTNING SAKNAS';
   const line = row.lineValue?.toLocaleString('sv-SE', { maximumFractionDigits: 2 }) ?? 'lina saknas';
   return `${direction} ${line}`;
 }
 
-export function OddsMovement({ row }: { row: AutoSelection }) {
+export function OddsMovement({ row, ariaLabel }: { row: OddsMovementSource; ariaLabel?: string }) {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0, ready: false });
@@ -112,7 +124,7 @@ export function OddsMovement({ row }: { row: AutoSelection }) {
         ref={triggerRef}
         type="button"
         className="odds-movement__trigger"
-        aria-label={`Visa oddsrörelse för ${matchName}`}
+        aria-label={ariaLabel ?? `Visa oddsrörelse för ${matchName}`}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         aria-haspopup="dialog"
@@ -161,6 +173,9 @@ export function OddsMovement({ row }: { row: AutoSelection }) {
           <footer className="odds-movement__footer">
             <span>Spel {selectedOdds === null ? '—' : formatOdds(selectedOdds)}</span>
             <span>Closing {row.closingOdds === null || row.closingOdds === undefined ? '—' : formatOdds(row.closingOdds)}</span>
+            {row.clvPct !== null && row.clvPct !== undefined ? (
+              <span>CLV {row.clvPct >= 0 ? '+' : ''}{row.clvPct.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} % · {row.beatClosingLine ? 'slog close' : 'slog inte close'}</span>
+            ) : null}
           </footer>
         </div>,
         document.body,

@@ -13,6 +13,7 @@ from ullebets_v2.forward_exposures import (
 )
 from ullebets_v2.ev_model.support import classify_v6_market_support
 from ullebets_v2.matchups.service import build_matchups_score_docs
+from ullebets_v2.matchup_evaluation.metrics import build_matchup_evaluation_summary
 from ullebets_v2.storage.collections import (
     AUDIT_REPORTS,
     EV_MODEL_SCORES,
@@ -27,6 +28,8 @@ from ullebets_v2.storage.collections import (
     MATCH_STATS_CANONICAL,
     MATCHUPS_LEAGUE_AVG,
     MATCHUPS_SCORE,
+    MATCHUP_OBSERVATIONS,
+    MATCHUP_RESULTS,
     SUPPORT_LEAGUES,
     SUPPORT_RANKINGS,
     SUPPORT_TEAMS,
@@ -95,6 +98,13 @@ def _find_rows(
     if limit is not None:
         cursor = cursor.limit(limit)
     return list(cursor)
+
+
+def _find_optional_rows(database: Any, collection_name: str, query: dict[str, Any]) -> list[dict[str, Any]]:
+    try:
+        return _find_rows(database, collection_name, query)
+    except (KeyError, TypeError):
+        return []
 
 
 def _page_values(limit: int, offset: int) -> tuple[int, int]:
@@ -222,7 +232,47 @@ def _market_bias_summary(value: Any) -> dict[str, Any] | None:
     return {"scope": value.get("scope"), "profiles": [_market_bias_profile_summary(row) for row in profiles]}
 
 
-def _matchup_summary(row: dict[str, Any], fixture: dict[str, Any] | None = None) -> dict[str, Any]:
+def _legacy_matchup_evaluation(row: dict[str, Any]) -> dict[str, Any] | None:
+    status = str(row.get("outcome_status") or "")
+    if status not in {"resolved", "pending_result", "missing_actual"}:
+        return None
+    forecast = row.get("forecast") if isinstance(row.get("forecast"), dict) else {}
+    baseline = forecast.get("leagueBaseline")
+    actual = row.get("actual_value")
+    direction = str(row.get("condition") or "").lower()
+    residual = None
+    verdict = None
+    if status == "resolved" and isinstance(actual, (int, float)) and isinstance(baseline, (int, float)) and direction in {"over", "under"}:
+        residual = actual - baseline if direction == "over" else baseline - actual
+        verdict = "hit" if residual > 0 else "miss" if residual < 0 else "push"
+    return {
+        "predictor": {"status": status, "actualValue": actual, "leagueBaseline": baseline, "signedResidual": residual, "verdict": verdict},
+        "market": {"eligibility": "legacy_unknown", "line": None, "selectedOdds": None, "verdict": None, "stakeUnits": 0.0, "pnlUnits": 0.0},
+        "closing": {"quality": None, "checkpoint": None, "closingOdds": None, "clvPct": None, "beatClosing": None, "oddsHistory": [], "differentLineClose": None},
+        "provenance": {"policyVersion": None, "evidenceClass": "legacy_descriptive", "checkpoint": None, "rankingMethod": row.get("ranking_method"), "validForPredictor": False, "selectedDirection": True},
+    }
+
+
+def _matchup_evaluation_summary(observation: dict[str, Any] | None, result: dict[str, Any] | None, *, selected_direction: bool = True) -> dict[str, Any] | None:
+    if observation is None:
+        return None
+    row = result or {}
+    if not selected_direction:
+        return {
+            "predictor": {"status": "not_selected", "actualValue": None, "leagueBaseline": observation.get("league_baseline"), "signedResidual": None, "verdict": None},
+            "market": {"eligibility": "not_selected", "line": None, "selectedOdds": None, "verdict": None, "stakeUnits": 0.0, "pnlUnits": 0.0},
+            "closing": {"quality": None, "checkpoint": None, "closingOdds": None, "clvPct": None, "beatClosing": None, "oddsHistory": [], "differentLineClose": None},
+            "provenance": {"policyVersion": observation.get("policy_version"), "evidenceClass": observation.get("evidence_class") or "forward", "checkpoint": observation.get("checkpoint_label"), "rankingMethod": observation.get("ranking_method"), "validForPredictor": False, "selectedDirection": False},
+        }
+    return {
+        "predictor": {"status": row.get("lifecycle_status") or "open", "actualValue": row.get("actual_value"), "leagueBaseline": observation.get("league_baseline"), "signedResidual": row.get("signed_residual"), "verdict": row.get("predictor_verdict")},
+        "market": {"eligibility": observation.get("market_eligibility"), "line": observation.get("line_value"), "selectedOdds": observation.get("selected_odds"), "verdict": row.get("market_verdict"), "stakeUnits": row.get("stake_units"), "pnlUnits": row.get("pnl_units")},
+        "closing": {"quality": row.get("closing_quality"), "checkpoint": row.get("closing_snapshot_label"), "closingOdds": row.get("closing_odds"), "clvPct": row.get("clv_pct"), "beatClosing": row.get("beat_closing_line"), "oddsHistory": _iso(row.get("odds_history") or []), "differentLineClose": row.get("different_line_close")},
+        "provenance": {"policyVersion": observation.get("policy_version"), "evidenceClass": observation.get("evidence_class") or "forward", "checkpoint": observation.get("checkpoint_label"), "rankingMethod": observation.get("ranking_method"), "validForPredictor": bool(observation.get("valid_for_predictor")), "selectedDirection": True},
+    }
+
+
+def _matchup_summary(row: dict[str, Any], fixture: dict[str, Any] | None = None, evaluation: dict[str, Any] | None = None) -> dict[str, Any]:
     forecast = row.get("forecast") if isinstance(row.get("forecast"), dict) else {}
     return {
         "entryKey": str(row.get("entry_key") or ""),
@@ -248,7 +298,38 @@ def _matchup_summary(row: dict[str, Any], fixture: dict[str, Any] | None = None)
         "rankingRecencyHalfLifeDays": row.get("ranking_recency_half_life_days"),
         "marketBias": _market_bias_summary(row.get("market_bias")),
         "leagueBaseline": forecast.get("leagueBaseline"),
+        "evaluation": evaluation if evaluation is not None else _legacy_matchup_evaluation(row),
     }
+
+
+def read_matchup_evaluation(
+    database: Any,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    league_key: str | None = None,
+    stat_key: str | None = None,
+    period: str | None = None,
+    scope: str | None = None,
+    ranking_method: str | None = None,
+    evidence_class: str | None = None,
+) -> dict[str, Any]:
+    if date_from and date_to and date_to < date_from:
+        raise ValueError("dateTo must be on or after dateFrom")
+    query: dict[str, Any] = {}
+    if date_from or date_to:
+        date_query: dict[str, str] = {}
+        if date_from:
+            date_query["$gte"] = date_from
+        if date_to:
+            date_query["$lte"] = date_to
+        query["fixture_date_stockholm"] = date_query
+    for field, value in (("league_key", league_key), ("stat_key", stat_key), ("period", period), ("scope", scope), ("ranking_method", ranking_method), ("evidence_class", evidence_class)):
+        if value:
+            query[field] = value
+    rows = _find_rows(database, MATCHUP_RESULTS, query)
+    summary = build_matchup_evaluation_summary(rows)
+    return {"filters": {"dateFrom": date_from, "dateTo": date_to, "league": league_key, "stat": stat_key, "period": period, "scope": scope, "method": ranking_method, "evidence": evidence_class}, **summary}
 
 
 def _profile_order_key(row: dict[str, Any]) -> tuple[str, str]:
@@ -438,13 +519,31 @@ def read_dashboard(
     )
     selected_matchups = _ranked_matchups(matchup_rows, limit_per_condition=limit_per_condition)
     fixture_by_key = {str(row.get("match_key")): row for row in fixtures if row.get("match_key")}
+    observations = _find_optional_rows(database, MATCHUP_OBSERVATIONS, {"match_key": {"$in": match_keys}}) if match_keys else []
+    observation_by_context = {
+        tuple(str(row.get(field) or "") for field in ("match_key", "stat_key", "period", "scope")): row
+        for row in observations
+    }
+    observation_keys = [str(row.get("observation_key")) for row in observations if row.get("observation_key")]
+    result_by_key = {
+        str(row.get("observation_key")): row
+        for row in (_find_optional_rows(database, MATCHUP_RESULTS, {"observation_key": {"$in": observation_keys}}) if observation_keys else [])
+    }
+
+    def evaluation_for(row: dict[str, Any]) -> dict[str, Any] | None:
+        context = tuple(str(row.get(field) or "") for field in ("match_key", "stat_key", "period", "scope"))
+        observation = observation_by_context.get(context)
+        if observation is None:
+            return _legacy_matchup_evaluation(row)
+        selected = str(row.get("condition") or "").lower() == str(observation.get("selected_direction") or "").lower()
+        return _matchup_evaluation_summary(observation, result_by_key.get(str(observation.get("observation_key"))), selected_direction=selected)
     return {
         "selectedDate": selected_date,
         "timezone": PRODUCT_TIMEZONE,
         "generatedAt": _source_generated_at(fixtures),
         "matches": [_match_summary(row, results.get(str(row.get("match_key")))) for row in fixtures],
         "matchups": [
-            _matchup_summary(row, fixture_by_key.get(str(row.get("match_key"))))
+            _matchup_summary(row, fixture_by_key.get(str(row.get("match_key"))), evaluation_for(row))
             for row in selected_matchups
         ],
         "matchupSource": matchup_source,
