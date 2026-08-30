@@ -8,6 +8,7 @@ import { MatchupEvaluation } from './MatchupEvaluation';
 
 interface SignalCardProps {
   signal: MatchupEntry;
+  rankTotal?: number;
 }
 
 function scopeLabel(scope: MatchupEntry['scope']): string {
@@ -16,7 +17,7 @@ function scopeLabel(scope: MatchupEntry['scope']): string {
   return 'Totalt';
 }
 
-export function SignalCard({ signal }: SignalCardProps) {
+export function SignalCard({ signal, rankTotal }: SignalCardProps) {
   const isOver = signal.condition === 'OVER';
   const DirectionIcon = isOver ? ArrowUpRight : ArrowDownRight;
   const reducedMotion = useReducedMotion() ?? false;
@@ -38,8 +39,8 @@ export function SignalCard({ signal }: SignalCardProps) {
             <EntityLink kind="team" id={signal.awayTeamKey}>{signal.awayTeamName ?? 'Okänt lag'}</EntityLink>
           </strong>
         </div>
-        <div className="matchup-score" aria-label="Matchup-score">
-          <span>Score</span>
+        <div className="matchup-score" aria-label="Rankingpoäng, inte sannolikhet" title="Sorteringspoäng för dagens matchup-ranking, inte en sannolikhet">
+          <span>Rankingpoäng</span>
           <strong>{signal.score === null ? '—' : signal.score.toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong>
         </div>
       </header>
@@ -59,7 +60,7 @@ export function SignalCard({ signal }: SignalCardProps) {
       <MatchupEvaluation signal={signal} />
 
       <footer className="signal-card__footer">
-        {signal.rankPosition !== null ? <span>Rank #{signal.rankPosition}</span> : null}
+        {signal.rankPosition !== null ? <span>#{signal.rankPosition}{rankTotal ? ` av ${rankTotal}` : ''}</span> : null}
         <EntityLink kind="match" id={signal.matchKey} className="quiet-link" ariaLabel="Matchdetalj">Matchdetalj</EntityLink>
       </footer>
     </motion.article>

@@ -19,6 +19,75 @@ still worth testing. Detailed evidence remains in the linked reports.
 
 Valid empty source responses are not failures when no matches or markets exist.
 
+### 2026-08-30 - Pedagogisk matchupöversikt och rankingdiagnostik
+
+Status: `VERIFIED` lokalt för API-kontrakt, frontendbeteende och produktionsbygge;
+`PARTIAL` tills den pushade versionen är separat verifierad på hostingen.
+
+Objective:
+Göra matchupöversikten snabb att tolka utan att blanda ihop rankingpoäng,
+predictorträff och spelmarknadsresultat, samt ersätta synliga statusord med
+tillgängliga ikoner.
+
+Changes:
+
+- Bytte `Score` till `Rankingpoäng`, markerade att värdet inte är en
+  sannolikhet och visar placeringen som `#x av y` inom den filtrerade
+  riktningslistan.
+- Ersatte synliga träff/miss- och vinst/förlustord med gröna bockar, röda
+  kryss, push-/väntarikoner, svenska `aria-label`-värden och tooltips.
+- Delade kortet i en kompakt resultatnivå och en tangentbordsöppningsbar detalj
+  med predictortröskel, faktiskt utfall, signerat avstånd, exakt marknad,
+  oddsrörelse, closing och CLV.
+- Delade sammanfattningen i `Prediktor` och `Spelbara marknader` med separata
+  nämnare. Lade till medianavstånd, jämförelse mot bästa konstanta riktning på
+  samma observationer och fasta rankingintervall med egna stickprovsstorlekar.
+- Ersatte otydliga streck med precisa saknasorsaker och flyttade filter samt
+  rankingdiagnostik till expanderbara paneler.
+
+Tests:
+
+```text
+python -m pytest tests/v2/test_matchup_evaluation_metrics.py tests/v2/test_read_api_contracts.py -q
+npm test --prefix frontend -- --run src/app/matchup-evaluation.test.tsx
+npm run typecheck --prefix frontend
+npm run lint --prefix frontend
+npm run build --prefix frontend
+git diff --check
+```
+
+Results:
+
+- Backendens metric- och API-kontrakt passerade `21/21`.
+- Frontendens riktade beteendetest passerade `2/2`, inklusive tillgängliga
+  gröna bockar och röda kryss utan synliga statusord.
+- TypeScript, ESLint och Vites produktionsbygge passerade utan fel.
+- Rankingintervall med noll icke-push-observationer returnerar `null`, inte en
+  missvisande träffprocent på noll.
+- Ingen readiness-ruta ändrades; arbetet förbättrar presentation och
+  deskriptiv diagnostik men tillför inte nytt forwardbevis.
+
+Insight:
+En rättvis enkel baseline kan härledas utan ett nytt modellantagande genom att
+jämföra prediktorn med alltid OVER respektive alltid UNDER på exakt samma
+rättade observationer. Den bästa konstanta riktningen är fortfarande endast en
+deskriptiv referens och inte bevis för framtida edge.
+
+Remaining:
+
+- Hosted deployment och den faktiska responsiva renderingen är ännu inte
+  verifierade på den pushade committen.
+- Den dyraste oprövade premissen är fortsatt om rankingstyrkan överlever fler
+  nya in-domain forwardmatcher; historiska eller små score buckets får inte
+  beskrivas som bevisad ROI.
+
+Next:
+
+- Leverera till `main`, verifiera `origin/main`, och kontrollera därefter bara
+  den nya hostade översikten när deploymenten är klar. Låt nya automatiska
+  forwardresultat bygga stickprovet i stället för att återköra historiska
+  experiment.
+
 ### 2026-08-30 - Historical matchup result recovery and terminal journal isolation
 
 Status: `VERIFIED` for the 2026-08-22 production cards and local regression

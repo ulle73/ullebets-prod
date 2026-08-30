@@ -22,7 +22,7 @@ function confidenceSegments(strength: MarketBiasProfileSummary['strength']): num
 function label(profile: MarketBiasProfileSummary): string {
   if (profile.direction === 'insufficient') return `${profile.teamName}: otillräckligt underlag, ${profile.sampleSize} matcher och ${profile.pushCount} pushar.`;
   const direction = profile.direction === 'over' ? 'ÖVER' : profile.direction === 'under' ? 'UNDER' : 'neutral';
-  return `${profile.teamName}: ${direction} mot Unibet-linan, residual ${signed(profile.shrunkMeanResidual)}, ${profile.overCount} av ${profile.nonPushSampleSize} över och ${profile.pushCount} pushar.`;
+  return `${profile.teamName}: ${direction} mot historisk marknadslina, residual ${signed(profile.shrunkMeanResidual)}, ${profile.overCount} av ${profile.nonPushSampleSize} över och ${profile.pushCount} pushar.`;
 }
 
 function BiasRow({ profile }: { profile: MarketBiasProfileSummary }) {
@@ -37,5 +37,5 @@ function BiasRow({ profile }: { profile: MarketBiasProfileSummary }) {
 
 export function MarketBiasIndicator({ bias, leagueBaseline }: MarketBiasIndicatorProps) {
   const profiles = [...(bias?.profiles ?? [])].sort((left, right) => (left.venueContext === 'home' ? -1 : 1) - (right.venueContext === 'home' ? -1 : 1));
-  return <section className="market-bias" aria-label="Mot Unibet-linan"><header><strong>Mot Unibet-linan</strong><span>Ligasnitt {leagueBaseline === null ? '—' : leagueBaseline.toLocaleString('sv-SE', { maximumFractionDigits: 2 })}</span></header>{profiles.length ? <ul>{profiles.map((profile) => <BiasRow key={profile.teamKey} profile={profile} />)}</ul> : <div className="market-bias__empty">—</div>}</section>;
+  return <section className="market-bias" aria-label="Historisk linjeprofil"><header><strong>Historisk linjeprofil</strong><span>Predictortröskel {leagueBaseline === null ? 'saknas' : leagueBaseline.toLocaleString('sv-SE', { maximumFractionDigits: 2 })}</span></header>{profiles.length ? <ul>{profiles.map((profile) => <BiasRow key={profile.teamKey} profile={profile} />)}</ul> : <div className="market-bias__empty">Ingen historisk linjeprofil</div>}</section>;
 }
