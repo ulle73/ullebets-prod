@@ -1,12 +1,8 @@
 import { ArrowLeft, Clock3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { TeamCrest } from '../../components/TeamCrest';
 import type { MatchSummary, TeamProfileSummary } from '../../domain/types';
 import type { MatchPeriod } from './view-model';
-
-function initials(name: string | null): string {
-  if (!name) return '—';
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase('sv-SE') ?? '').join('');
-}
 
 function kickoff(iso: string | null): string | null {
   if (!iso) return null;
@@ -35,10 +31,7 @@ function TeamIdentity({
 }) {
   const content = (
     <>
-      <span className="match-team__crest">
-        <span aria-hidden="true">{initials(name)}</span>
-        {imageUrl ? <img src={imageUrl} alt={name ?? 'Lag'} onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
-      </span>
+      <TeamCrest name={name} imageUrl={imageUrl} teamKey={teamKey} size="lg" className="match-team__crest" />
       <span className="match-team__copy">
         <strong>{name ?? 'Okänt lag'}</strong>
         <small>{profile ? `${profile.sampleSize} matcher` : 'Profil saknas'}</small>
