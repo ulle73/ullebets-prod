@@ -115,3 +115,64 @@ final result: partial
 - Check both charts and all period/context controls, then resolve every P0-P2.
 
 final result: blocked
+
+## Team profile all-period sorting - 2026-08-30
+
+**Findings**
+
+- [P1] Post-fix implementation capture is unavailable.
+  Location: `/lag/:teamId`, FÖR and MOT league-comparison charts.
+  Evidence: the supplied implementation screenshot shows only ten bars and a
+  period selector, while the supplied target shows many combinations ordered
+  from highest positive deviation at the left to lowest negative deviation at
+  the right. Code and behavior tests now build 30 sorted combinations and
+  remove that selector, but this session still has no controllable in-app
+  browser for a valid rendered after-image.
+  Impact: exact bar density, text legibility, panel height and spacing cannot
+  be visually accepted from code and DOM assertions alone.
+  Fix: capture the deployed team route at the same desktop state and compare
+  both images together.
+
+**Evidence and state**
+
+- Source visual truth: `C:/Users/ryd/AppData/Local/Temp/codex-clipboard-7dd4fa8d-3ebc-440e-97bb-a490265b93f5.png`
+- Pre-fix implementation: `C:/Users/ryd/AppData/Local/Temp/codex-clipboard-0453359c-5d89-498c-aebb-f6b3fa2737ea.png`
+- Source pixels: 1034 x 370; pre-fix implementation pixels: 1619 x 940.
+- Intended state: desktop dark theme, one FÖR graph and one MOT graph, home
+  profile, all three periods represented in each graph, descending deviation.
+- Post-fix implementation screenshot: unavailable.
+- Automated evidence: 30 unique combinations per graph; positive-to-negative
+  ordering; null comparisons last; no period selector; zero-origin marker on
+  every combination.
+- Console errors: not checked because no browser-rendered post-fix state was
+  available.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: blocked pending post-fix capture; sizes were reduced
+  for 30-column density.
+- Spacing and layout rhythm: blocked pending post-fix capture; both chart
+  panels remain separate and share the same 1100 px plot contract.
+- Colors and visual tokens: unchanged green/amber/red and league-average line
+  tokens from the previous implementation.
+- Image quality and assets: no raster assets are required; Recharts owns the
+  chart rendering.
+- Copy and content: all ten stat names, all three Swedish period labels, FÖR,
+  MOT, home/away context and liga-relative legend are implemented and tested.
+
+**Comparison history**
+
+- First visible comparison: P1 because only one period and ten bars were shown.
+- Fix made: period moved into each row identity, 30 rows are always generated,
+  sorting is descending by percentage deviation, and period controls removed.
+- Post-fix comparison: blocked because the rendered implementation screenshot
+  could not be captured.
+
+**Implementation Checklist**
+
+- Capture the deployed route at desktop width.
+- Verify left-to-right order visually matches descending percentage labels.
+- Verify 30 labels remain readable without obscuring the zero line.
+- Compare the new capture with the target in one combined image input.
+
+final result: blocked

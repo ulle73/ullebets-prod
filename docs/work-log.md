@@ -19,6 +19,63 @@ still worth testing. Detailed evidence remains in the linked reports.
 
 Valid empty source responses are not failures when no matches or markets exist.
 
+### 2026-08-30 - Alla periodkombinationer i sorterade laggrafer
+
+Status: `VERIFIED` lokalt för datakontrakt, frontendbeteende och
+produktionsbygge; `PARTIAL` för slutlig renderad referensjämförelse.
+
+Objective:
+Samla totalt, första halvlek och andra halvlek för samtliga tio spelbara
+statnycklar i samma FÖR-graf respektive MOT-graf och alltid sortera staplarna
+från högsta till lägsta procentavvikelse mot ligasnittet.
+
+Changes:
+
+- Varje graf bygger nu alltid 30 unika kombinationer (`10 stats x 3 perioder`)
+  i stället för tio rader för en vald period.
+- Sorteringen använder liga-relativ procentavvikelse fallande. Alla jämförbara
+  positiva och negativa värden behåller en gemensam ordning; kombinationer
+  utan ligasnitt ligger sist och visas som saknade i stället för att döljas.
+- Tog bort periodväljaren från lagsidan. Hemma/borta är fortsatt det enda
+  profilfiltret, medan varje stapel visar statnamn, period och faktiskt värde.
+- Minskade stapel- och etikettstorleken så alla kombinationer ryms i samma
+  grafyta med bibehållen nollinje och separata FÖR/MOT-paneler.
+
+Tests:
+
+```text
+npm --prefix frontend test -- --run src/domain/team-stats.test.ts src/app/step2-drilldowns.test.tsx
+npm --prefix frontend run typecheck
+npm --prefix frontend run lint
+npm --prefix frontend run build
+git diff --check
+```
+
+Results:
+
+- `4/4` riktade tester passerade.
+- Det nya domäntestet bevisar exakt 30 unika stat/period-identiteter, fallande
+  sortering på procentavvikelse och att saknade jämförelser hamnar sist.
+- Sidtestet bevisar 30 staplar i både FÖR och MOT, tre instanser vardera av
+  insparkar/inkast och att periodknapparna inte längre finns.
+- TypeScript, ESLint, Vite-produktionsbygge och `git diff --check` passerade.
+
+Insight:
+Grundfelet var att perioden modellerades som ett sidfilter och därför togs
+bort ur grafens radidentitet. Den hållbara lösningen är att period ingår i den
+unika visualiseringsnyckeln och sorteras tillsammans med statnyckeln.
+
+Remaining:
+
+- En ny browser-renderad implementationbild kunde inte fångas i sessionen;
+  post-fix pixeljämförelse mot referensen är därför fortsatt `BLOCKED` i
+  `design-qa.md` och ingen exakt visuell matchning hävdas.
+
+Next:
+
+- När styrbar browser finns: fånga den hostade lagsidan i samma desktopbredd,
+  jämför mot referensen och rätta endast eventuella kvarvarande P0-P2-fel.
+
 ### 2026-08-30 - Liga-relativa FÖR/MOT-grafer för lagprofil
 
 Status: `VERIFIED` lokalt för datakontrakt, beteendetester och produktionsbygge;

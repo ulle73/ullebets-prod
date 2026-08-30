@@ -18,7 +18,13 @@ export const TEAM_PROFILE_STATS = [
  {statKey:'throwIns',label:'Inkast'},
 ] as const;
 
-export interface TeamStatChartRow{statKey:string;label:string;value:number|null;leagueAverage:number|null;deviationPct:number|null;deviationLabel:string;valueLabel:string;}
+export const TEAM_PROFILE_PERIODS = [
+ {period:'ALL',label:'Totalt'},
+ {period:'1ST',label:'1:a halvlek'},
+ {period:'2ND',label:'2:a halvlek'},
+] as const;
+
+export interface TeamStatChartRow{rowKey:string;statKey:string;label:string;period:string;periodLabel:string;value:number|null;leagueAverage:number|null;deviationPct:number|null;deviationLabel:string;valueLabel:string;}
 
 function nodeValue(node:TeamProfileStatNode|undefined):number|null{return typeof node?.value==='number'?node.value:null;}
 export function deviationPct(value:number,average:number|null):number|null{return average===null||average===0?null:((value-average)/average)*100;}
@@ -27,4 +33,4 @@ export function flattenContext(context:RichTeamProfileContext|null,contextKey:Pr
 export function allTeamInsights(team:RichTeamResponse):TeamStatInsight[]{return[...flattenContext(team.contexts.home,'home'),...flattenContext(team.contexts.away,'away')];}
 export function strongestDeviations(team:RichTeamResponse,limit=4){const rows=allTeamInsights(team);const above=rows.filter((row)=>row.deviationPct!==null&&row.deviationPct>0).sort((a,b)=>(b.deviationPct??0)-(a.deviationPct??0)).slice(0,limit);const below=rows.filter((row)=>row.deviationPct!==null&&row.deviationPct<0).sort((a,b)=>(a.deviationPct??0)-(b.deviationPct??0)).slice(0,limit);return{above,below};}
 
-export function buildTeamStatChartRows(context:RichTeamProfileContext|null,contextKey:ProfileContextKey,orientation:Orientation,period:string):TeamStatChartRow[]{const insights=flattenContext(context,contextKey);const lookup=new Map(insights.filter((row)=>row.orientation===orientation&&row.period===period).map((row)=>[row.statKey,row]));return TEAM_PROFILE_STATS.map(({statKey,label})=>{const row=lookup.get(statKey);const deviation=row?.deviationPct??null;return{statKey,label,value:row?.value??null,leagueAverage:row?.leagueAverage??null,deviationPct:deviation,deviationLabel:deviation===null?'—':`${deviation>0?'+':''}${deviation.toLocaleString('sv-SE',{maximumFractionDigits:0})}%`,valueLabel:row?.value?.toLocaleString('sv-SE',{maximumFractionDigits:2})??'—'};});}
+export function buildTeamStatChartRows(context:RichTeamProfileContext|null,contextKey:ProfileContextKey,orientation:Orientation):TeamStatChartRow[]{const insights=flattenContext(context,contextKey);const lookup=new Map(insights.filter((row)=>row.orientation===orientation).map((row)=>[`${row.statKey}:${row.period}`,row]));const rows=TEAM_PROFILE_STATS.flatMap(({statKey,label})=>TEAM_PROFILE_PERIODS.map(({period,label:periodLabel})=>{const row=lookup.get(`${statKey}:${period}`);const deviation=row?.deviationPct??null;return{rowKey:`${statKey}:${period}`,statKey,label,period,periodLabel,value:row?.value??null,leagueAverage:row?.leagueAverage??null,deviationPct:deviation,deviationLabel:deviation===null?'—':`${deviation>0?'+':''}${deviation.toLocaleString('sv-SE',{maximumFractionDigits:0})}%`,valueLabel:row?.value?.toLocaleString('sv-SE',{maximumFractionDigits:2})??'—'};}));return rows.sort((left,right)=>{if(left.deviationPct===null)return right.deviationPct===null?0:1;if(right.deviationPct===null)return-1;return right.deviationPct-left.deviationPct;});}
