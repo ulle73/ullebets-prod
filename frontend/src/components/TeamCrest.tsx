@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 
 interface TeamCrestProps {
   name: string | null | undefined;
-  imageUrl?: string | null;
-  teamId?: string | number | null;
-  teamKey?: string | null;
-  size?: 'xs' | 'sm' | 'md' | 'lg';
-  className?: string;
+  imageUrl?: string | null | undefined;
+  teamId?: string | number | null | undefined;
+  teamKey?: string | null | undefined;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | undefined;
+  className?: string | undefined;
 }
 
 function initials(name: string | null | undefined): string {
@@ -39,11 +39,13 @@ function numericId(value: string | number | null | undefined): string | null {
   return tagged?.[1] ?? null;
 }
 
-export function teamCrestSources({
-  imageUrl,
-  teamId,
-  teamKey,
-}: Pick<TeamCrestProps, 'imageUrl' | 'teamId' | 'teamKey'>): string[] {
+type TeamCrestSourceInput = {
+  imageUrl: string | null | undefined;
+  teamId: string | number | null | undefined;
+  teamKey: string | null | undefined;
+};
+
+export function teamCrestSources({ imageUrl, teamId, teamKey }: TeamCrestSourceInput): string[] {
   const sources: string[] = [];
   const add = (source: string | null | undefined) => {
     if (source && !sources.includes(source)) sources.push(source);
