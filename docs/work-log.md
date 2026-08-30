@@ -19,6 +19,63 @@ still worth testing. Detailed evidence remains in the linked reports.
 
 Valid empty source responses are not failures when no matches or markets exist.
 
+### 2026-08-30 - Responsiv laggraf och korrekt hoverposition
+
+Status: `VERIFIED` lokalt för regressionskontrakt, typkontroll, lint och
+produktionsbygge; `PARTIAL` för browser-renderad hover- och referenskontroll.
+
+Objective:
+Låta FÖR/MOT-graferna använda hela lagsidans tillgängliga bredd utan att
+statetiketterna sticker ut och utan att hoverns träffyta förskjuts till en annan
+stapel.
+
+Changes:
+
+- Ersatte den fasta `1100 px`-bredden i Recharts med `ResponsiveContainer`, så
+  diagrammets synliga bredd och interna pekarkoordinater alltid mäts från samma
+  verkliga container.
+- Tog bort CSS-regeln som visuellt sträckte en redan fixerad Recharts-wrapper
+  samt de hårda minbredderna som skapade horisontellt överhäng.
+- Lät lagsidan och båda diagramkorten fylla tillgänglig bredd och justerade den
+  30-delade värderaden till samma fasta vänster/högermarginaler som diagrammets
+  ritområde.
+- Lade till regressionstest som kräver en responsiv container i både FÖR- och
+  MOT-grafen.
+
+Tests:
+
+```text
+npm test -- --run src/app/step2-drilldowns.test.tsx
+npm run typecheck
+npm run lint
+npm run build
+git diff --check
+```
+
+Results:
+
+- Regressionstestet föll först eftersom båda diagrammen saknade
+  `.recharts-responsive-container`, och passerade efter ändringen (`3/3`).
+- TypeScript, ESLint och Vite-produktionsbygget passerade.
+- `git diff --check` passerade.
+
+Insight:
+Grundfelet var inte sorteringen av statnycklar. En `1100 px` bred Recharts-yta
+skalades visuellt till `100%` av CSS, men bibliotekets interna hoverkoordinater
+fortsatte använda den fasta bredden. Därför hamnade markeringen flera staplar
+från pekaren.
+
+Remaining:
+
+- Sessionen saknar en styrbar in-app-browser. Faktisk hover i renderad browser,
+  console och pixeljämförelse mot användarens skärmbild är därför fortsatt
+  `BLOCKED` i `design-qa.md`; ingen browserverifiering hävdas.
+
+Next:
+
+- När styrbar browser finns: kontrollera första, mittersta och sista stapelns
+  hover vid samma desktopbredd och fånga post-fix-bilden för visuell jämförelse.
+
 ### 2026-08-30 - Alla periodkombinationer i sorterade laggrafer
 
 Status: `VERIFIED` lokalt för datakontrakt, frontendbeteende och

@@ -27,6 +27,8 @@ describe('step 2 drilldown pages',()=>{
   expect(within(againstChart).getAllByText('Inkast')).toHaveLength(3);
   expect(forChart.querySelectorAll('[data-stat-bar]')).toHaveLength(30);
   expect(againstChart.querySelectorAll('[data-stat-bar]')).toHaveLength(30);
+  expect(forChart.querySelector('.recharts-responsive-container')).toBeInTheDocument();
+  expect(againstChart.querySelector('.recharts-responsive-container')).toBeInTheDocument();
   expect(forChart.querySelector('[data-stat-bar="shotsOnGoal:ALL"]')).toHaveAttribute('data-bar-origin','zero');
   expect(main().queryByRole('button',{name:'Första halvlek'})).not.toBeInTheDocument();
   expect(main().getByRole('link',{name:/Opponent FC/})).toHaveAttribute('href','/lag/opp');

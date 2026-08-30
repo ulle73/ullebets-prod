@@ -116,6 +116,68 @@ final result: partial
 
 final result: blocked
 
+## Team profile responsive width and hover alignment - 2026-08-30
+
+**Findings**
+
+- [P1] Post-fix rendered hover evidence is unavailable.
+  Location: `/lag/:teamId`, all bars in both FÖR and MOT charts.
+  Evidence: the supplied implementation screenshot shows the 30-column value
+  row extending beyond its intended plot alignment and a hover marker several
+  columns away from the pointer. The implementation now uses Recharts'
+  measured responsive container instead of CSS-scaling a fixed 1100 px chart,
+  but this session has no controllable in-app browser for an after-capture.
+  Impact: source-level and automated evidence prove the coordinate-system fix,
+  but the actual first/middle/last hover states cannot be visually accepted.
+  Fix: capture the revised route at the same viewport and verify that each
+  pointer position highlights and labels the same stat/period column.
+
+**Source and intended state**
+
+- Source visual truth:
+  `C:/Users/ryd/AppData/Local/Temp/codex-clipboard-f612f822-16a4-43ac-8225-38485f4f085a.png`
+- Source pixels: 1613 x 969; CSS viewport and device density not provided.
+- Intended route: `/lag/:teamId`, dark desktop theme, home profile, 30 sorted
+  stat/period combinations in each of the separate FÖR and MOT charts.
+- Post-fix implementation screenshot: unavailable.
+- Primary automated interaction contract: both chart regions own a
+  `.recharts-responsive-container`; both retain exactly 30 stat identities.
+- Console errors: not checked because no browser-rendered state was available.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: unchanged; exact rendered label legibility remains
+  blocked pending the after-capture.
+- Spacing and layout rhythm: the page, cards and plots now use full available
+  width; hard `1016/1100 px` minimum widths are removed; the value grid aligns
+  to the plot's 60 px left and 26 px right drawable offsets.
+- Colors and visual tokens: unchanged existing green/amber/red and league-line
+  tokens.
+- Image quality and assets: no image assets are involved; Recharts renders the
+  data visualization.
+- Copy and content: unchanged; all ten stats and all three periods remain in
+  each chart and are covered by the existing behavior test.
+
+**Comparison history**
+
+- Pre-fix finding: the fixed 1100 px `BarChart` was visually stretched to
+  `100%` by CSS while its internal hover coordinate system remained fixed;
+  labels also retained hard minimum widths.
+- Fix made: replaced the fixed chart with `ResponsiveContainer`, removed the
+  forced wrapper width and overflow minimums, expanded the profile to full
+  width, and aligned the footer grid with the drawable plot bounds.
+- Post-fix comparison: blocked because no valid rendered implementation
+  screenshot or browser hover capture is available in this session.
+
+**Implementation Checklist**
+
+- Capture the full revised team page at the source desktop width.
+- Hover the first, a middle and the final stat and confirm tooltip identity.
+- Check that neither chart nor its value row creates horizontal page overflow.
+- Compare the revised chart region with the supplied screenshot in one image.
+
+final result: blocked
+
 ## Team profile all-period sorting - 2026-08-30
 
 **Findings**
