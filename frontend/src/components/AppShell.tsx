@@ -43,40 +43,42 @@ export function AppShell({ children }: PropsWithChildren) {
       <div className={`app-shell${focusMode ? ' app-shell--focus' : ''}`}>
         {focusMode ? null : <aside className="desktop-rail">{rail}</aside>}
         <section className="workspace-shell">
-          {focusMode ? null : <header className="workspace-header">
-            <div className="brand-row">
-              <Link className="brand" to={`/oversikt${sharedSearch}`} aria-label="Ullebets översikt"><span className="brand__mark">U</span><span>ULLEBETS</span></Link>
-              <span className="preview-badge">Live</span>
-            </div>
-            <div className="workspace-header__actions">
-              <nav className="utility-nav" aria-label="Verktyg">
-                <Link to={`/modell${sharedSearch}`}><BrainCircuit size={14} aria-hidden="true" /><span>Modell & proof</span></Link>
-                <Link to={`/systemstatus${sharedSearch}`}><Activity size={14} aria-hidden="true" /><span>Systemstatus</span></Link>
-              </nav>
-              <div className="mobile-menu">
-                <Dialog.Root open={mobileMatchesOpen} onOpenChange={setMobileMatchesOpen}>
-                  <Dialog.Trigger asChild><button type="button" className="icon-button" aria-label="Öppna matcher"><Menu size={20} aria-hidden="true" /></button></Dialog.Trigger>
-                  <Dialog.Portal>
-                    <Dialog.Overlay className="drawer-overlay" />
-                    <Dialog.Content className="drawer-content" aria-describedby={undefined}>
-                      <Dialog.Title className="sr-only">Dagens matcher</Dialog.Title>
-                      <Dialog.Close asChild><button type="button" className="drawer-close" aria-label="Stäng matcher"><X size={20} aria-hidden="true" /></button></Dialog.Close>
-                      <Suspense fallback={<span role="status">Laddar matcherlista</span>}>
-                        <MobileMatchDrawer>
-                          {rail}
-                        </MobileMatchDrawer>
-                      </Suspense>
-                      <nav className="mobile-utility-nav" aria-label="Verktyg i mobil">
-                        <Link to={`/modell${sharedSearch}`}><BrainCircuit size={15} aria-hidden="true" /><span>Modell & proof</span></Link>
-                        <Link to={`/systemstatus${sharedSearch}`}><Activity size={15} aria-hidden="true" /><span>Systemstatus</span></Link>
-                      </nav>
-                    </Dialog.Content>
-                  </Dialog.Portal>
-                </Dialog.Root>
+          {focusMode ? null : (
+            <header className="workspace-header">
+              <div className="brand-row">
+                <Link className="brand" to={`/oversikt${sharedSearch}`} aria-label="Ullebets översikt"><span className="brand__mark">U</span><span>ULLEBETS</span></Link>
+                <span className="preview-badge">Live</span>
               </div>
-            </div>
-          </header>}
-          {focusMode ? null : <TopNav />}
+              <TopNav />
+              <div className="workspace-header__actions">
+                <nav className="utility-nav" aria-label="Verktyg">
+                  <Link to={`/modell${sharedSearch}`}><BrainCircuit size={14} aria-hidden="true" /><span>Modell & proof</span></Link>
+                  <Link to={`/systemstatus${sharedSearch}`}><Activity size={14} aria-hidden="true" /><span>Systemstatus</span></Link>
+                </nav>
+                <div className="mobile-menu">
+                  <Dialog.Root open={mobileMatchesOpen} onOpenChange={setMobileMatchesOpen}>
+                    <Dialog.Trigger asChild><button type="button" className="icon-button" aria-label="Öppna matcher"><Menu size={20} aria-hidden="true" /></button></Dialog.Trigger>
+                    <Dialog.Portal>
+                      <Dialog.Overlay className="drawer-overlay" />
+                      <Dialog.Content className="drawer-content" aria-describedby={undefined}>
+                        <Dialog.Title className="sr-only">Dagens matcher</Dialog.Title>
+                        <Dialog.Close asChild><button type="button" className="drawer-close" aria-label="Stäng matcher"><X size={20} aria-hidden="true" /></button></Dialog.Close>
+                        <Suspense fallback={<span role="status">Laddar matcherlista</span>}>
+                          <MobileMatchDrawer>
+                            {rail}
+                          </MobileMatchDrawer>
+                        </Suspense>
+                        <nav className="mobile-utility-nav" aria-label="Verktyg i mobil">
+                          <Link to={`/modell${sharedSearch}`}><BrainCircuit size={15} aria-hidden="true" /><span>Modell & proof</span></Link>
+                          <Link to={`/systemstatus${sharedSearch}`}><Activity size={15} aria-hidden="true" /><span>Systemstatus</span></Link>
+                        </nav>
+                      </Dialog.Content>
+                    </Dialog.Portal>
+                  </Dialog.Root>
+                </div>
+              </div>
+            </header>
+          )}
           <main className="workspace" id="main-content" tabIndex={-1}>{children}</main>
         </section>
       </div>
