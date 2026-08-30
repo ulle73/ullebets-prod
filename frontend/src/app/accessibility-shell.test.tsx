@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { renderApp } from '../test/render-app';
 
 describe('shell information architecture', () => {
-  it('keeps four primary destinations while exposing model and status as contextual tools', () => {
-    renderApp('/oversikt');
+  it('keeps four primary destinations inside the compact workspace header while exposing model and status as contextual tools', () => {
+    const { container } = renderApp('/oversikt');
     const primary = screen.getByRole('navigation', { name: 'Huvudnavigation' });
     expect(within(primary).getAllByRole('link')).toHaveLength(4);
     expect(within(primary).queryByText(/Modell|Systemstatus/i)).not.toBeInTheDocument();
+    const header = container.querySelector('.workspace-header');
+    expect(header).not.toBeNull();
+    expect(header).toContainElement(primary);
     const tools = screen.getByRole('navigation', { name: 'Verktyg' });
     expect(within(tools).getByRole('link', { name: 'Modell & proof' })).toHaveAttribute('href', '/modell');
     expect(within(tools).getByRole('link', { name: 'Systemstatus' })).toHaveAttribute('href', '/systemstatus');
