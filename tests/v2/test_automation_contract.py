@@ -479,6 +479,8 @@ def test_matchup_history_workflow_builds_missing_rankings_before_settlement() ->
     assert "--start-date" in workflow
     assert "--end-date" in workflow
     assert "45 days ago" in workflow
+    assert "ENRICH_START_DATE=$(date -u -d 'yesterday'" in workflow
+    assert "ENRICH_START_DATE=$(date -u -d '8 days ago'" not in workflow
 
 
 def test_workflow_directory_rejects_postmatch_recovery_without_catch_up() -> None:

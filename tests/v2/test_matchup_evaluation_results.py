@@ -1,7 +1,12 @@
 from datetime import UTC, datetime
 import pytest
 
-from ullebets_v2.matchup_evaluation.results import MatchupResultConflict, build_matchup_result_docs, merge_matchup_result
+from ullebets_v2.matchup_evaluation.results import (
+    MatchupResultConflict,
+    build_matchup_result_docs,
+    filter_refreshable_observations,
+    merge_matchup_result,
+)
 
 NOW = datetime(2026, 9, 1, 21, tzinfo=UTC)
 
@@ -34,3 +39,10 @@ def test_terminal_conflict_fails_closed() -> None:
     original = {"observation_key": "obs", "lifecycle_status": "resolved_market", "actual_value": 12, "market_verdict": "win"}
     changed = {**original, "actual_value": 8, "market_verdict": "loss"}
     with pytest.raises(MatchupResultConflict): merge_matchup_result(original, changed)
+
+
+def test_refresh_skips_terminal_legacy_descriptive_observations() -> None:
+    forward = {"observation_key": "forward", "evidence_class": "forward"}
+    legacy = {"observation_key": "legacy", "evidence_class": "legacy_descriptive"}
+
+    assert filter_refreshable_observations([legacy, forward]) == [forward]

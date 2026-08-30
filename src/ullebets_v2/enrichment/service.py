@@ -27,6 +27,31 @@ from ullebets_v2.settlement.service import FORWARD_BET_SELECTION_SOURCE, build_s
 TERMINAL_MATCHUP_STATUSES = {"resolved_predictor_only", "resolved_market", "missing_actual", "excluded_timing", "excluded_mapping"}
 
 
+def select_unresolved_matchup_output_match_keys(
+    *,
+    matchup_rows: list[dict[str, Any]],
+    fixture_docs: list[dict[str, Any]],
+    reference_time: datetime,
+    minimum_match_age: timedelta,
+    limit: int,
+) -> list[str]:
+    if limit <= 0:
+        return []
+    pending_keys = {
+        str(row["match_key"])
+        for row in matchup_rows
+        if row.get("match_key") and row.get("outcome_status") == "pending_result"
+    }
+    cutoff = reference_time - minimum_match_age
+    eligible = []
+    for fixture in fixture_docs:
+        match_key = str(fixture.get("match_key") or "")
+        start_time = to_utc_datetime(fixture.get("start_time"))
+        if match_key in pending_keys and start_time is not None and start_time <= cutoff:
+            eligible.append((start_time, match_key))
+    return [match_key for _, match_key in sorted(set(eligible))[:limit]]
+
+
 def select_unresolved_matchup_match_keys(*, observation_docs: list[dict[str, Any]], result_docs: list[dict[str, Any]], reference_time: datetime, minimum_match_age: timedelta) -> list[str]:
     terminal = {str(row.get("observation_key")) for row in result_docs if row.get("lifecycle_status") in TERMINAL_MATCHUP_STATUSES}
     cutoff = reference_time - minimum_match_age

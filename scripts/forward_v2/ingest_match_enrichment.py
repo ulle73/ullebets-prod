@@ -19,6 +19,7 @@ from ullebets_v2.enrichment.service import (
     run_match_enrichment_window,
     select_unresolved_forward_match_keys,
     select_unresolved_matchup_match_keys,
+    select_unresolved_matchup_output_match_keys,
 )
 from ullebets_v2.fixtures.replay import iter_target_dates
 from ullebets_v2.odds.service import load_replay_fixture_targets
@@ -37,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fixture-source", choices=("replay", "db"), default="db")
     parser.add_argument("--include-unresolved-forward-bets", action="store_true")
     parser.add_argument("--include-unresolved-matchup-observations", action="store_true")
+    parser.add_argument("--unresolved-matchup-recovery-limit", type=int, default=10)
     parser.add_argument("--minimum-match-age-hours", type=float, default=3.0)
     parser.add_argument("--source-workflow", default="update-teamstats-and-teamprofiles.yml")
     parser.add_argument("--dry-run", action="store_true")
@@ -90,20 +92,62 @@ def load_unresolved_forward_fixture_targets(
     )
 
 
-def load_unresolved_matchup_fixture_targets(database, *, reference_time: datetime, minimum_match_age: timedelta) -> list[dict]:
+def load_unresolved_matchup_fixture_targets(
+    database,
+    *,
+    reference_time: datetime,
+    minimum_match_age: timedelta,
+    recovery_limit: int,
+) -> list[dict]:
     observations = list(database["matchup_observations"].find({}, projection={"_id": 0}))
-    if not observations:
-        return []
     keys = [str(row.get("observation_key")) for row in observations if row.get("observation_key")]
     results = list(database["matchup_results"].find({"observation_key": {"$in": keys}}, projection={"_id": 0}))
-    unresolved = select_unresolved_matchup_match_keys(observation_docs=observations, result_docs=results, reference_time=reference_time, minimum_match_age=minimum_match_age)
-    return list(database["fixtures_canonical"].find({"match_key": {"$in": unresolved}}, projection={"_id": 0})) if unresolved else []
+    observation_keys = select_unresolved_matchup_match_keys(
+        observation_docs=observations,
+        result_docs=results,
+        reference_time=reference_time,
+        minimum_match_age=minimum_match_age,
+    )
+    pending_outputs = list(
+        database["matchups_score"].find(
+            {"outcome_status": "pending_result"},
+            projection={"_id": 0, "match_key": 1, "outcome_status": 1},
+        )
+    )
+    candidate_keys = sorted(
+        {
+            *observation_keys,
+            *(str(row["match_key"]) for row in pending_outputs if row.get("match_key")),
+        }
+    )
+    if not candidate_keys:
+        return []
+    fixtures = list(
+        database["fixtures_canonical"].find(
+            {"match_key": {"$in": candidate_keys}},
+            projection={"_id": 0},
+        )
+    )
+    output_keys = select_unresolved_matchup_output_match_keys(
+        matchup_rows=pending_outputs,
+        fixture_docs=fixtures,
+        reference_time=reference_time,
+        minimum_match_age=minimum_match_age,
+        limit=recovery_limit,
+    )
+    unresolved = set(observation_keys) | set(output_keys)
+    return sorted(
+        (row for row in fixtures if str(row.get("match_key") or "") in unresolved),
+        key=lambda row: (str(row.get("start_time") or ""), str(row.get("match_key") or "")),
+    )[:recovery_limit]
 
 
 def main() -> int:
     args = parse_args()
     if args.minimum_match_age_hours < 0:
         raise RuntimeError("--minimum-match-age-hours must be non-negative.")
+    if args.unresolved_matchup_recovery_limit < 0:
+        raise RuntimeError("--unresolved-matchup-recovery-limit must be non-negative.")
     config = V2Config.from_env(args.repo_root)
     ensure_v2_database(config)
     config.ensure_directories()
@@ -156,6 +200,7 @@ def main() -> int:
                     read_database,
                     reference_time=datetime.now(tz=UTC),
                     minimum_match_age=timedelta(hours=args.minimum_match_age_hours),
+                    recovery_limit=args.unresolved_matchup_recovery_limit,
                 )
                 targets = list({str(row["match_key"]): row for row in [*targets, *recovery_targets] if row.get("match_key")}.values())
         else:

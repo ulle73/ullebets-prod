@@ -34,7 +34,7 @@ jobs:
         if [ -z "$DATE" ]; then
           START_DATE=$(date -u -d '45 days ago' +'%Y-%m-%d')
           END_DATE=$(date -u -d 'yesterday' +'%Y-%m-%d')
-          ENRICH_START_DATE=$(date -u -d '8 days ago' +'%Y-%m-%d')
+          ENRICH_START_DATE=$(date -u -d 'yesterday' +'%Y-%m-%d')
         elif [ "${#DATE}" -eq 10 ]; then
           START_DATE="$DATE"
           END_DATE="$DATE"

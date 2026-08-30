@@ -36,6 +36,14 @@ TERMINAL_FIELDS = {
 }
 
 
+def filter_refreshable_observations(observations: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in observations
+        if row.get("evidence_class") != "legacy_descriptive"
+    ]
+
+
 def _number(value: Any) -> float | None:
     try:
         result = float(value)
@@ -267,7 +275,9 @@ def refresh_matchup_results(*, database: Any, refreshed_at: datetime, date_from:
         if date_to:
             date_filter["$lte"] = date_to
         query["fixture_date_stockholm"] = date_filter
-    observations = list(database[MATCHUP_OBSERVATIONS].find(query, projection={"_id": 0}))
+    observations = filter_refreshable_observations(
+        database[MATCHUP_OBSERVATIONS].find(query, projection={"_id": 0})
+    )
     match_keys = sorted({str(row.get("match_key")) for row in observations if row.get("match_key")})
     match_query = {"match_key": {"$in": match_keys}}
     result_docs = build_matchup_result_docs(

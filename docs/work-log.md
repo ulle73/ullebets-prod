@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -18,6 +18,76 @@ still worth testing. Detailed evidence remains in the linked reports.
 - `NOT STARTED`: a required product area has no completed implementation yet.
 
 Valid empty source responses are not failures when no matches or markets exist.
+
+### 2026-08-30 - Historical matchup result recovery and terminal journal isolation
+
+Status: `VERIFIED` for the 2026-08-22 production cards and local regression
+coverage; `PARTIAL` for the next hosted automatic run on the final commit.
+
+Objective:
+Determine why visible 2026-08-22 matchup cards remained `VÄNTAR` despite
+available source statistics, repair that date, and prevent the daily recovery
+workflow from either timing out on broad refetches or rewriting frozen legacy
+evidence.
+
+Changes:
+
+- Ran the production workflow for exactly 2026-08-22. It populated missing
+  canonical results and 258-282 canonical stat rows for each of the four
+  visible example fixtures, then bulk-settled the historical matchup outputs.
+- Added bounded recovery of up to 10 old `matchups_score` fixtures whose
+  outcome is still `pending_result`, including pre-journal rows that have no
+  immutable matchup observation.
+- Reduced the normal live enrichment window from eight days to yesterday;
+  the 45-day ranking/settlement repair remains and now combines with the
+  bounded unresolved queue.
+- Excluded terminal `legacy_descriptive` observations from the generic result
+  refresh. Their dedicated legacy materializer remains the only writer, so the
+  immutable conflict gate stays fail-closed.
+
+Verification:
+
+```text
+Read-only production dashboard before repair: 40 cards = 14 resolved, 26 pending_result
+GitHub Actions run 33295677436 on f2ed2d970c07e255d513b3f914235f9b4a79fd7c, target_date=2026-08-22
+Read-only production dashboard after settlement: 40 cards = 40 resolved; 28 hit, 12 miss
+python -m pytest tests/v2/test_matchup_evaluation_results.py tests/v2/test_matchup_evaluation_legacy.py tests/v2/test_match_enrichment.py tests/v2/test_automation_contract.py -q
+python scripts/forward_v2/refresh_matchup_results.py --date-from 2026-08-22 --date-to 2026-08-22 --dry-run
+```
+
+Results:
+
+- All 40 visible top cards for 2026-08-22 are now corrected; no visible card
+  remains `VÄNTAR`.
+- The production settlement resolved 5,760 combined score/league rows. It
+  retained 648 `pending_result` rows for Olympique de Marseille - RC Strasbourg
+  and Real Betis - Real Sociedad because neither V2 canonical storage nor the
+  read-only legacy `teamstats` source currently contains a finished result or
+  stats for those two fixtures. Udinese - Como retains 36 combined
+  `missing_actual` rows for stat contexts absent from its otherwise complete
+  261-row canonical payload.
+- The run then correctly exposed a terminal conflict after inserting 1,380
+  legacy observations/results: generic refresh classified those descriptive
+  rows as excluded. The final code fixes the writer boundary rather than
+  weakening conflict detection.
+- Related regression coverage passes `41/41`. The exact-date dry refresh now
+  selects zero legacy observations and returns zero conflicts.
+
+Remaining:
+
+- Hosted run 33295677436 is `FAILED` only at the now-fixed final refresh step;
+  its enrichment, settlement, legacy materialization, and live dashboard
+  publication completed. A later scheduled run must prove terminal hosted
+  success on the final commit.
+- The two fixtures with no finished canonical or legacy source payload remain
+  unresolved by design; the bounded daily recovery queue will retry them
+  without blocking new match days.
+
+Next:
+
+- Push the final recovery/journal-boundary commit and use the next scheduled
+  run as hosted acceptance evidence; do not repeat the already-successful
+  2026-08-22 provider fetch solely for verification.
 
 ### 2026-08-29 - Automatic historical matchup repair and immutable evaluation
 
@@ -37,7 +107,7 @@ Changes:
   metrics.
 - Added bounded legacy-descriptive backfill and historical ranking repair. The
   daily workflow repairs 45 days from stored V2 data, limits normal live
-  enrichment to eight days, and selectively retries unresolved observations.
+  enrichment to yesterday, and selectively retries a bounded unresolved queue.
 - Wired T-1D materialization before model scoring, post-match result refresh,
   exact-line T-10/T-30 CLV, API/card presentation, and accessible odds movement.
 - Replaced serial matchup-settlement writes with bounded 100-row bulk upserts.

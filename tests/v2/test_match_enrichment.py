@@ -1,8 +1,12 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import json
 
-from ullebets_v2.enrichment.service import run_match_enrichment_backfill_from_raw, run_match_enrichment_window
+from ullebets_v2.enrichment.service import (
+    run_match_enrichment_backfill_from_raw,
+    run_match_enrichment_window,
+    select_unresolved_matchup_output_match_keys,
+)
 from ullebets_v2.enrichment.persistence import persist_enrichment_records
 from ullebets_v2.enrichment.replay import (
     build_match_enrichment_documents,
@@ -559,6 +563,32 @@ def test_persist_enrichment_records_chunks_large_bulk_upserts() -> None:
     assert collection.bulk_calls == 3
     assert collection.bulk_sizes == [200, 200, 1]
     assert collection.count_documents() == 401
+
+
+def test_pending_matchup_outputs_are_bounded_recovery_targets_without_observations() -> None:
+    reference_time = datetime(2026, 8, 30, 8, 0, tzinfo=UTC)
+    matchup_rows = [
+        {"match_key": "match:oldest", "outcome_status": "pending_result"},
+        {"match_key": "match:older", "outcome_status": "pending_result"},
+        {"match_key": "match:resolved", "outcome_status": "resolved"},
+        {"match_key": "match:missing-stat", "outcome_status": "missing_actual"},
+        {"match_key": "match:future", "outcome_status": "pending_result"},
+    ]
+    fixtures = [
+        {"match_key": "match:oldest", "start_time": datetime(2026, 8, 22, 18, 0, tzinfo=UTC)},
+        {"match_key": "match:older", "start_time": datetime(2026, 8, 23, 18, 0, tzinfo=UTC)},
+        {"match_key": "match:resolved", "start_time": datetime(2026, 8, 24, 18, 0, tzinfo=UTC)},
+        {"match_key": "match:missing-stat", "start_time": datetime(2026, 8, 25, 18, 0, tzinfo=UTC)},
+        {"match_key": "match:future", "start_time": datetime(2026, 8, 30, 7, 0, tzinfo=UTC)},
+    ]
+
+    assert select_unresolved_matchup_output_match_keys(
+        matchup_rows=matchup_rows,
+        fixture_docs=fixtures,
+        reference_time=reference_time,
+        minimum_match_age=timedelta(hours=3),
+        limit=1,
+    ) == ["match:oldest"]
 
 
 def test_build_teamstats_source_rows_accepts_utf8_bom(tmp_path: Path) -> None:

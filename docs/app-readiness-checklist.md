@@ -120,8 +120,10 @@ Status details and evidence:
   parity and the unresolved Real Racing Club home-profile mapping remain open.
 - [ ] `PARTIAL` Matchup outcome settlement is production-proven over 22-28
   August with `12,780` resolved score/league rows and automatic missing-date
-  repair. Hosted scheduling, legacy-evaluation publication, and remaining
-  missing-profile fixtures still require acceptance evidence.
+  repair. The 2026-08-22 live dashboard is additionally verified at 40/40
+  resolved cards after bounded source recovery. Terminal hosted scheduling on
+  the final recovery commit and two source-empty fixtures still require
+  acceptance evidence.
 
 ## 5. Unibet/Kambi odds
 
