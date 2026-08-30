@@ -35,8 +35,9 @@ describe('Rättade matchups', () => {
       '/api/v1/matchups/evaluation': summary,
     });
 
-    expect(await screen.findByText('Prediktor: TRÄFF')).toBeInTheDocument();
-    expect(screen.getByText('Marknad: VUNNEN')).toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: 'Prediktor: träff' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Marknad: vunnen' })).toBeInTheDocument();
+    expect(screen.queryByText(/TRÄFF|MISS|VUNNEN|FÖRLORAD/)).not.toBeInTheDocument();
     expect(screen.getByText('100 %')).toBeInTheDocument();
     const trigger = screen.getByRole('button', { name: /Visa oddsrörelse/ });
     fireEvent.pointerEnter(trigger);

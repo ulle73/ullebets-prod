@@ -90,7 +90,35 @@ export interface MatchupEvaluation {
 
 export interface MatchupEvaluationResponse {
   filters: Record<string, string | null>;
-  predictor: { contexts: number; resolved: number; pending: number; missingActual: number; hits: number; misses: number; pushes: number; nonPushHitRatePct: number | null };
+  predictor: {
+    contexts: number;
+    resolved: number;
+    pending: number;
+    missingActual: number;
+    hits: number;
+    misses: number;
+    pushes: number;
+    nonPushHitRatePct: number | null;
+    medianSignedResidual: number | null;
+    constantDirectionBaseline: {
+      overHitRatePct: number | null;
+      underHitRatePct: number | null;
+      bestDirection: 'over' | 'under' | 'tie' | null;
+      bestHitRatePct: number | null;
+      liftPctPoints: number | null;
+    };
+    scoreBuckets: Array<{
+      key: '90_100' | '80_89' | '70_79' | 'under_70';
+      label: string;
+      resolved: number;
+      nonPush: number;
+      hits: number;
+      misses: number;
+      pushes: number;
+      nonPushHitRatePct: number | null;
+      medianSignedResidual: number | null;
+    }>;
+  };
   market: { eligible: number; resolved: number; stakeUnits: number; pnlUnits: number; roiPct: number | null; closingCovered: number; meanClvPct: number | null; beatClosing: number };
   coverage: { marketEligiblePct: number | null };
   legacyDescriptive: { resolved: number; nonPushHitRatePct: number | null };
