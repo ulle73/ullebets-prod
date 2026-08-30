@@ -57,6 +57,8 @@ describe('complete Style-1 route surface', () => {
     expect(await screen.findByRole('heading', { name: 'Live Team' })).toBeInTheDocument();
     expect(screen.getAllByText('10,2').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Öppna ligan' })).toHaveAttribute('href', '/liga/league-key');
+    const crest = screen.getByRole('img', { name: 'Live Team klubbmärke' });
+    expect(crest.querySelector('img')).toHaveAttribute('src', '/images/teams/1.png');
   });
 
   it('renders model counters returned by V2', async () => {
