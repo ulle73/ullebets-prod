@@ -5,6 +5,7 @@ import { formatKickoff } from '../domain/formatters';
 import { publicMatchId } from '../domain/match-route';
 import type { MatchState, MatchSummary } from '../domain/types';
 import { EntityLink } from './EntityLink';
+import { TeamCrest } from './TeamCrest';
 
 interface MatchRailProps {
   matches: MatchSummary[];
@@ -98,9 +99,14 @@ export function MatchRail({ matches, selectedDate, onDateChange, loading = false
                   <article className={`match-row${activeMatchId === publicMatchId(match.matchKey) ? ' is-active' : ''}`} key={match.matchKey}>
                     <time dateTime={match.startTime ?? undefined}>{match.startTime ? formatKickoff(match.startTime) : '—'}</time>
                     <span className="match-row__teams">
-                      <strong><EntityLink kind="team" id={match.homeTeamKey}>{match.homeTeamName ?? 'Okänt lag'}</EntityLink></strong>
-                      <span className="match-row__versus">–</span>
-                      <strong><EntityLink kind="team" id={match.awayTeamKey}>{match.awayTeamName ?? 'Okänt lag'}</EntityLink></strong>
+                      <span className="match-row__team">
+                        <TeamCrest name={match.homeTeamName} imageUrl={match.homeTeamImageUrl} teamKey={match.homeTeamKey} size="xs" />
+                        <strong><EntityLink kind="team" id={match.homeTeamKey}>{match.homeTeamName ?? 'Okänt lag'}</EntityLink></strong>
+                      </span>
+                      <span className="match-row__team">
+                        <TeamCrest name={match.awayTeamName} imageUrl={match.awayTeamImageUrl} teamKey={match.awayTeamKey} size="xs" />
+                        <strong><EntityLink kind="team" id={match.awayTeamKey}>{match.awayTeamName ?? 'Okänt lag'}</EntityLink></strong>
+                      </span>
                     </span>
                     {match.state === 'finished' && match.homeScore !== null && match.awayScore !== null ? (
                       <span className="match-row__score" aria-label={`Slutresultat ${match.homeScore}–${match.awayScore}`}>{match.homeScore}–{match.awayScore}</span>
