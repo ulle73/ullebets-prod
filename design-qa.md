@@ -116,6 +116,65 @@ final result: partial
 
 final result: blocked
 
+## Team profile tall charts and angled labels - 2026-08-30
+
+**Findings**
+
+- [P1] Post-fix rendered comparison is unavailable.
+  Location: `/lag/:teamId`, FÖR and MOT chart plot and category labels.
+  Evidence: the supplied source clearly uses tall plots and diagonal category
+  labels. The implementation now encodes a 420 px plot and one -50 degree
+  stat-plus-period label for each of the 30 columns, but no approved browser
+  capture of that implementation exists in this session.
+  Impact: automated evidence proves structure and sizing contracts, not actual
+  typography, overlap, visual rhythm or hover fidelity.
+  Fix: capture the revised route at the same desktop state and compare the full
+  chart plus a focused label region against the source in one image.
+
+**Evidence and state**
+
+- Source visual truth:
+  `C:/Users/ryd/AppData/Local/Temp/codex-clipboard-d0f861e2-f683-4670-9ba3-0765f1085451.png`
+- Source pixels: 1212 x 450; CSS viewport and density are not provided.
+- Intended route and state: `/lag/:teamId`, dark desktop theme, home profile,
+  FÖR above MOT, all ten stats across total/first half/second half.
+- Implementation screenshot: unavailable.
+- Automated interaction contract: 420 px responsive container, 30 angled
+  stat/period label groups and 30 stat identities in each chart.
+- Console and live hover: not checked because no approved controlled browser
+  capture was run.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: stat and period are grouped in a compact two-line
+  label and rotated -50 degrees; rendered legibility remains blocked.
+- Spacing and layout rhythm: the plot is 420 px high and label space is 112 px;
+  exact visual balance remains blocked pending capture.
+- Colors and visual tokens: unchanged product green/amber/red and average-line
+  tokens.
+- Image quality and assets: no image assets are involved; this is a Recharts
+  data visualization.
+- Copy and content: all existing stat names, periods and actual values remain;
+  no source data is invented or removed.
+
+**Comparison history**
+
+- Earlier finding: labels were small, horizontal and cramped; the 300 px plot
+  made the bars materially shorter than the source.
+- Fix made: raised the responsive plot to 420 px and introduced a dedicated
+  diagonal stat-plus-period label beneath each value.
+- Post-fix comparison: blocked because a browser-rendered after-image is not
+  available.
+
+**Implementation Checklist**
+
+- Capture the full FÖR and MOT charts at desktop width.
+- Compare the -50 degree label angle and label spacing against the source.
+- Verify no first or last label clips at either chart edge.
+- Hover the first, middle and last columns and verify tooltip identity.
+
+final result: blocked
+
 ## Team profile responsive width and hover alignment - 2026-08-30
 
 **Findings**

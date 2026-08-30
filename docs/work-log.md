@@ -19,6 +19,60 @@ still worth testing. Detailed evidence remains in the linked reports.
 
 Valid empty source responses are not failures when no matches or markets exist.
 
+### 2026-08-30 - Högre laggrafer med lutade statetiketter
+
+Status: `VERIFIED` lokalt för komponentkontrakt, typkontroll, lint och
+produktionsbygge; `PARTIAL` för browser-renderad referensjämförelse.
+
+Objective:
+Efterlikna referensens läsbara 30-kolumnslayout genom att visa statnyckel och
+period lutande under varje kolumn samt göra diagrammen och staplarna högre.
+
+Changes:
+
+- Höjde varje FÖR/MOT-plot från `300 px` till `420 px`, inklusive Recharts
+  responsiva mätcontainer och initialdimension.
+- Samlade statnamn och period i en gemensam axeletikett per kombination och
+  roterade den `-50deg` med kolumnens mittpunkt som ankare.
+- Gav etikettraden ett eget `112 px` högt utrymme så de lutade etiketterna får
+  plats utan att trycka ihop eller flytta staplarnas träffytor.
+- Behöll faktisk statnivå horisontellt ovanför respektive lutad etikett.
+- Utökade regressionstestet till att kräva `420 px` plotthöjd och exakt 30
+  axeletiketter i både FÖR och MOT.
+
+Tests:
+
+```text
+npm test -- --run src/app/step2-drilldowns.test.tsx
+npm run typecheck
+npm run lint
+npm run build
+git diff --check
+```
+
+Results:
+
+- Regressionstestet föll först på den gamla `300 px`-höjden och passerade
+  efter ändringen (`3/3`).
+- TypeScript, ESLint och Vite-produktionsbygget passerade.
+- `git diff --check` passerade.
+
+Insight:
+Referensens läsbarhet kommer inte bara från större bredd. Den skapar vertikalt
+utrymme åt både längre staplar och diagonala kategorietiketter; att endast göra
+horisontell text mindre gör 30 kombinationer svårare att koppla till rätt data.
+
+Remaining:
+
+- Ingen godkänd browser-renderad efterbild eller hoverkontroll finns i denna
+  session. Exakt typografi, överlapp och visuell referensmatchning är därför
+  fortsatt `BLOCKED` i `design-qa.md`.
+
+Next:
+
+- Fånga samma lagsida i desktopläge och jämför etikettvinkel, stapelhöjd och
+  första/mitten/sista hover mot referensen.
+
 ### 2026-08-30 - Responsiv laggraf och korrekt hoverposition
 
 Status: `VERIFIED` lokalt för regressionskontrakt, typkontroll, lint och
