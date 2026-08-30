@@ -15,6 +15,8 @@ STAT_PATTERNS: list[tuple[str, str]] = [
     ("fouls", rf"(?:Totala utförda|{STAT_PREFIX}) fouls"),
     ("totalTackle", rf"{STAT_PREFIX} tacklingar"),
     ("offsides", rf"{STAT_PREFIX} offside"),
+    ("goalKicks", rf"{STAT_PREFIX} insparkar"),
+    ("throwIns", rf"{STAT_PREFIX} inkast"),
 ]
 
 

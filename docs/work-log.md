@@ -19,6 +19,68 @@ still worth testing. Detailed evidence remains in the linked reports.
 
 Valid empty source responses are not failures when no matches or markets exist.
 
+### 2026-08-30 - Liga-relativa FÖR/MOT-grafer för lagprofil
+
+Status: `VERIFIED` lokalt för datakontrakt, beteendetester och produktionsbygge;
+`PARTIAL` för visuell referensjämförelse och verklig marknadstäckning.
+
+Objective:
+Visa samma tio spelbara lagstatistiknycklar i två tydliga liga-relativa grafer
+för FÖR och MOT, med hemma/borta samt hela/första/andra halvlek, och utan att
+positiva staplar fortsätter under nollinjen.
+
+Changes:
+
+- Ersatte den växlade FOR/AGAINST-tabellen på lagsidan med två samtidiga
+  Recharts-grafer för FÖR och MOT, symmetrisk nollinje, grön/gul/röd avvikelse,
+  faktiska värden under grafen och explicita saknade värden.
+- Låste grafordningen till skott på mål, skott, hörnor, gula kort, frisparkar,
+  fouls, tacklingar, offsides, insparkar och inkast.
+- Lade till insparkar (`goalKicks`) och inkast (`throwIns`) i frontendetiketter,
+  filter, matchupstatlista, Unibet-normalisering och settlement-registret.
+- Båda nya nycklarna är settlement-stödda men inte felaktigt markerade som
+  modellstödda.
+
+Tests:
+
+```text
+python -m pytest tests/v2/test_odds_ingest.py tests/v2/test_stat_registry.py tests/v2/test_teamprofiles.py -q
+npm --prefix frontend test -- --run src/app/step2-drilldowns.test.tsx
+npm --prefix frontend run typecheck
+npm --prefix frontend run lint
+npm --prefix frontend run build
+git diff --check
+```
+
+Results:
+
+- Backend: `23/23` tester passerade, inklusive normalisering av insparkar och
+  inkast samt settlement-stöd utan modellflagga.
+- Frontend: `3/3` riktade tester passerade och bevisar tio statnycklar i både
+  FÖR och MOT samt nollinje som staplarnas ursprung.
+- TypeScript, ESLint, Vite-produktionsbygge och `git diff --check` passerade.
+- In-app-browserns kontrollverktyg var inte tillgängligt i sessionen. Därför
+  saknas den obligatoriska renderade jämförelsebilden mot användarens referens;
+  `design-qa.md` är korrekt markerad `blocked` och ingen pixelperfekt matchning
+  hävdas.
+
+Insight:
+Lagprofilens datakontrakt hade redan `throwIns` och konfiguration för
+`goalKicks`, men oddsnormalisering och settlement-register saknade båda. Det
+var en kedjelucka, inte bara en presentationsmiss.
+
+Remaining:
+
+- Verkliga provideretiketter och faktisk oddstäckning för insparkar/inkast är
+  `UNPROVEN` tills sådana marknader observeras i råa payloads.
+- Visuell jämförelse i samma viewport är `BLOCKED` i denna session eftersom
+  ingen styrbar in-app-browser kunde väljas.
+
+Next:
+
+- När en styrbar browser finns: rendera en riktig lagprofil i desktopviewport,
+  jämför den sida vid sida med referensen och rätta eventuella P0-P2-avvikelser.
+
 ### 2026-08-30 - Pedagogisk matchupöversikt och rankingdiagnostik
 
 Status: `VERIFIED` lokalt för API-kontrakt, frontendbeteende och produktionsbygge;

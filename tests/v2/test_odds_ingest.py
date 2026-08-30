@@ -307,6 +307,46 @@ def test_map_unibet_odds_matches_original_mapper_behavior() -> None:
     assert player_specific == []
 
 
+def test_map_unibet_odds_includes_goal_kicks_and_throw_ins() -> None:
+    mapped = map_unibet_odds(
+        [
+            {
+                "criterion": {"label": "Totalt antal insparkar - Arsenal - första halvlek"},
+                "outcomes": [
+                    {"englishLabel": "Over", "odds": 1900, "line": 4500},
+                    {"englishLabel": "Under", "odds": 1800, "line": 4500},
+                ],
+            },
+            {
+                "criterion": {"label": "Totala inkast"},
+                "outcomes": [
+                    {"englishLabel": "Over", "odds": 2050, "line": 39500},
+                    {"englishLabel": "Under", "odds": 1700, "line": 39500},
+                ],
+            },
+        ],
+        "Arsenal",
+        "Bournemouth",
+    )
+
+    assert mapped == [
+        {
+            "statKey": "goalKicks",
+            "scope": "home",
+            "period": "1ST",
+            "line": 4.5,
+            "odds": {"over": 1.9, "under": 1.8},
+        },
+        {
+            "statKey": "throwIns",
+            "scope": "total",
+            "period": "ALL",
+            "line": 39.5,
+            "odds": {"over": 2.05, "under": 1.7},
+        },
+    ]
+
+
 def test_find_unibet_event_for_match_prefers_league_and_swapped_team_order() -> None:
     support_docs = build_support_docs()
     match = {

@@ -2,24 +2,33 @@ import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderApp } from '../test/render-app';
 
+const profileStats=['shotsOnGoal','totalShots','cornerKicks','yellowCards','freeKicks','fouls','totalTackle','offsides','goalKicks','throwIns'];
+function statSide(multiplier:number){return Object.fromEntries(profileStats.map((statKey,index)=>[statKey,{ALL:{value:(index+1)*multiplier,rank:index+1,history:[]},'1ST':{value:(index+1)*multiplier/2,rank:index+1,history:[]},'2ND':{value:(index+1)*multiplier/2,rank:index+1,history:[]}}]));}
+
 const emptyDashboard={selectedDate:'2026-08-13',timezone:'Europe/Stockholm',generatedAt:'2026-08-12T20:00:00Z',matchupSource:'missing',matches:[],matchups:[]};
 const match={matchKey:'m1',sourceMatchId:1,sourceDate:'2026-08-13',startTime:'2026-08-13T18:00:00Z',leagueKey:'league-a',leagueName:'League A',homeTeamKey:'home',awayTeamKey:'away',homeTeamName:'Home FC',awayTeamName:'Away FC',statusType:'finished',state:'finished',homeScore:1,awayScore:2,resultFetchedAt:'2026-08-13T21:00:00Z'};
 
 function main(){return within(screen.getByRole('main'));}
 
 describe('step 2 drilldown pages',()=>{
- it('team page exposes home/away, for/against, strongest deviations and clickable history',async()=>{
+ it('team page compares all playable stats for and against without positive bars below zero',async()=>{
   renderApp('/lag/home',{'/api/v1/dashboard':emptyDashboard,'/api/v1/teams/home':{
    team:{teamKey:'home',leagueKey:'league-a',teamId:1,teamName:'Home FC',teamImageUrl:null,optaId:null,optaRank:22,optaRating:81.2,capturedAt:null},
    league:{leagueKey:'league-a',leagueName:'League A',leagueId:1,country:'SE',seasonId:2026,categoryId:null,groupId:null,capturedAt:null},
-   contexts:{home:{profileKey:'p',profileDate:'current',generatedAt:'2026-08-12T20:00:00Z',matchType:'home',leagueTeamCount:18,savedAt:null,games:[{matchId:77,matchKey:'past-77',date:'2026-08-10',timestamp:null,opponentName:'Opponent FC',opponentTeamKey:'opp',homeScore:2,awayScore:1}],statistics:{for:{fouls:{ALL:{value:13,rank:2,history:[]}}},against:{fouls:{ALL:{value:8,rank:15,history:[]}}},leagueAverage:{for:{fouls:{ALL:{value:10}}},against:{fouls:{ALL:{value:10}}}}},specials:{firstGoal:{scoreFirstPercentage:0.6}},behaviour:null},away:null},matches:[]
+   contexts:{home:{profileKey:'p',profileDate:'current',generatedAt:'2026-08-12T20:00:00Z',matchType:'home',leagueTeamCount:18,savedAt:null,games:[{matchId:77,matchKey:'past-77',date:'2026-08-10',timestamp:null,opponentName:'Opponent FC',opponentTeamKey:'opp',homeScore:2,awayScore:1}],statistics:{for:statSide(1.3),against:statSide(.8),leagueAverage:{for:statSide(1),against:statSide(1)}},specials:{firstGoal:{scoreFirstPercentage:0.6}},behaviour:null},away:null},matches:[]
   }});
   expect(await main().findByRole('heading',{name:'Home FC'})).toBeInTheDocument();
   expect(main().getByRole('button',{name:'Hemmaprofil'})).toBeInTheDocument();
-  expect(main().getByRole('button',{name:'FOR'})).toBeInTheDocument();
-  expect(main().getByText('Största avvikelser mot ligan')).toBeInTheDocument();
-  expect(main().getByText('+30,0 %')).toBeInTheDocument();
-  expect(main().getByText('−20,0 %')).toBeInTheDocument();
+  const forChart=main().getByRole('region',{name:'Lagets statistik jämfört med ligan'});
+  const againstChart=main().getByRole('region',{name:'Motståndarnas statistik mot laget jämfört med ligan'});
+  expect(within(forChart).getByText('Insparkar')).toBeInTheDocument();
+  expect(within(forChart).getByText('Inkast')).toBeInTheDocument();
+  expect(within(againstChart).getByText('Insparkar')).toBeInTheDocument();
+  expect(within(againstChart).getByText('Inkast')).toBeInTheDocument();
+  expect(forChart.querySelectorAll('[data-stat-bar]')).toHaveLength(10);
+  expect(againstChart.querySelectorAll('[data-stat-bar]')).toHaveLength(10);
+  expect(forChart.querySelector('[data-stat-bar="shotsOnGoal"]')).toHaveAttribute('data-bar-origin','zero');
+  expect(main().getByRole('button',{name:'Första halvlek'})).toBeInTheDocument();
   expect(main().getByRole('link',{name:/Opponent FC/})).toHaveAttribute('href','/lag/opp');
   expect(main().getByRole('link',{name:/2–1/})).toHaveAttribute('href','/matcher/past-77');
  });

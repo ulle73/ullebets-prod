@@ -32,10 +32,11 @@ STATS_FOR_VIEW = (
     ("cornerKicks", "Hörnor"),
     ("fouls", "Fouls"),
     ("yellowCards", "Gula kort"),
-    ("throwIns", "Inkast"),
     ("offsides", "Offsides"),
     ("totalTackle", "Tacklingar"),
     ("freeKicks", "Frisparkar"),
+    ("goalKicks", "Insparkar"),
+    ("throwIns", "Inkast"),
 )
 
 SCOPE_TOTAL = "TOTAL"

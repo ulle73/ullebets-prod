@@ -60,6 +60,18 @@ STAT_DEFINITIONS: dict[str, StatDefinition] = {
         settlement_supported=True,
         aliases=("offside",),
     ),
+    "goalKicks": StatDefinition(
+        stat_key="goalKicks",
+        modeled_in_v1=False,
+        settlement_supported=True,
+        aliases=("goal_kicks", "insparkar"),
+    ),
+    "throwIns": StatDefinition(
+        stat_key="throwIns",
+        modeled_in_v1=False,
+        settlement_supported=True,
+        aliases=("throw_ins", "inkast"),
+    ),
 }
 
 

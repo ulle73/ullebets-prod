@@ -10,6 +10,8 @@ export const STAT_OPTIONS: FilterOption[] = [
   { value: 'fouls', label: 'Fouls' },
   { value: 'totalTackle', label: 'Tacklingar' },
   { value: 'offsides', label: 'Offsides' },
+  { value: 'goalKicks', label: 'Insparkar' },
+  { value: 'throwIns', label: 'Inkast' },
 ];
 
 export const PERIOD_OPTIONS: FilterOption[] = [

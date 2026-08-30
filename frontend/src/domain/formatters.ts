@@ -1,4 +1,4 @@
-export type StatKey = 'shotsOnGoal' | 'totalShots' | 'cornerKicks' | 'yellowCards' | 'freeKicks' | 'fouls' | 'totalTackle' | 'offsides';
+export type StatKey = 'shotsOnGoal' | 'totalShots' | 'cornerKicks' | 'yellowCards' | 'freeKicks' | 'fouls' | 'totalTackle' | 'offsides' | 'goalKicks' | 'throwIns';
 export type PeriodKey = 'ALL' | '1ST' | '2ND';
 export type ScopeKey = 'home' | 'away' | 'total';
 export type ClosingQuality = 't10' | 't30_fallback' | null;
@@ -12,6 +12,8 @@ const statLabels: Record<StatKey, string> = {
   fouls: 'Fouls',
   totalTackle: 'Tacklingar',
   offsides: 'Offsides',
+  goalKicks: 'Insparkar',
+  throwIns: 'Inkast',
 };
 
 const periodLabels: Record<PeriodKey, string> = {
