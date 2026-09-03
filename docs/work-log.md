@@ -21,8 +21,9 @@ Valid empty source responses are not failures when no matches or markets exist.
 
 ### 2026-09-03 - Cosmos session cleanup and bounded matchup repair
 
-Status: `VERIFIED` locally, against the production database, and for the hosted
-scheduler rerun; `PARTIAL` for the next complete scheduled enrichment run.
+Status: `VERIFIED` locally, against the production database, and in hosted
+scheduler/enrichment reruns; `PARTIAL` for the next default 45-day scheduled
+enrichment window.
 
 Objective:
 Diagnose the current failed and timed-out GitHub Actions runs, remove the
@@ -68,6 +69,8 @@ python -m pytest tests/v2/test_matchups.py tests/v2/test_matchup_history.py test
 python -m pytest tests/v2 -q
 python scripts/forward_v2/repair_matchup_history.py --start-date 2026-08-30 --end-date 2026-08-30 --max-rebuild-dates 1 --source-workflow enrich-matchups-results.yml --dry-run
 python scripts/forward_v2/repair_matchup_history.py --start-date 2026-08-30 --end-date 2026-08-30 --max-rebuild-dates 1 --source-workflow enrich-matchups-results.yml
+gh workflow run enrich-matchups-results.yml --ref main -f target_date=2026-09-02 -f dry_run=false
+gh run watch 33804520420 --exit-status --interval 20
 git diff --check
 ```
 
@@ -125,6 +128,12 @@ Results:
 - An immediate identical production rerun completed in `19.11` seconds with
   `rebuilt_dates=0`, `changed_rows=0`, and all `72` missing-actual rows
   unchanged. This proves the completed-date path is idempotent and write-free.
+- Commit `0ac6720` was pushed and verified at `origin/main`. Hosted enrichment
+  run `33804520420` completed successfully on that SHA in `4m56s`. Its live
+  enrichment matched all `10` unresolved targets with `0` errors and produced
+  `10` canonical results plus `1,363` canonical stat rows. The requested repair
+  date had 0 fixtures, 0 rebuilds, and 0 changed matchup rows; every downstream
+  command in the reusable workflow also completed successfully.
 
 Insight:
 The visible failure was not a model error. Multiple short-lived CLI clients
@@ -138,9 +147,9 @@ building those consumes substantial time independently of settlement.
 Remaining:
 
 - The next due hosted capture must exercise the journal write path, and the
-  next complete scheduled enrichment run must prove the final recovery chain
-  on GitHub's runner. The same recovery code is verified against production
-  data locally.
+  next default 45-day scheduled enrichment window must prove the backlog cap
+  under the normal schedule. The hosted runner and full command chain are now
+  verified on an explicitly bounded window.
 - The readiness checklist does not change; this repair adds operational
   reliability but no new model-performance or complete-lifecycle evidence.
 
