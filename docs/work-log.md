@@ -46,6 +46,13 @@ Changes:
   capped at two dates per run. Matchup recovery has its own concurrency group
   so a long backfill cannot evict unrelated pending backend jobs. Its runtime
   budget is 90 minutes for bounded rebuilding plus enrichment/result refresh.
+- Snapshot replacement no longer sends a large `entry_key: {$nin: [...]}`
+  delete to Cosmos. It reads the stored keys for that date, computes the exact
+  stale set locally, and deletes only those keys in batches of at most 100.
+- History repair now checks score and league-average completion independently
+  and consults the latest persisted build status. A failed or interrupted
+  partial build is rebuilt; a completed half is reused. The CLI closes its
+  client in `finally` after success or failure.
 - Repaired the nine exact match keys captured by failed run `33767926969`.
 
 Tests:
@@ -57,6 +64,10 @@ python scripts/forward_v2/materialize_formula_journal.py --repo-root . --registr
 gh workflow run v2-odds-scheduler.yml --ref main -f dry_run=false
 gh run watch 33775279173 --exit-status --interval 20
 python scripts/forward_v2/repair_matchup_history.py --start-date 2026-07-20 --end-date 2026-09-02 --source-workflow enrich-matchups-results.yml
+python -m pytest tests/v2/test_matchups.py tests/v2/test_matchup_history.py tests/v2/test_matchup_settlement.py tests/v2/test_automation_contract.py tests/v2/test_mongo_client_lifecycle.py -q
+python -m pytest tests/v2 -q
+python scripts/forward_v2/repair_matchup_history.py --start-date 2026-08-30 --end-date 2026-08-30 --max-rebuild-dates 1 --source-workflow enrich-matchups-results.yml --dry-run
+python scripts/forward_v2/repair_matchup_history.py --start-date 2026-08-30 --end-date 2026-08-30 --max-rebuild-dates 1 --source-workflow enrich-matchups-results.yml
 git diff --check
 ```
 
@@ -89,27 +100,54 @@ Results:
   matches, 5 due targets, 0 source errors, and 0 new market-snapshot upserts.
   Its all-model stage was correctly skipped, so this run does not by itself
   prove a new hosted journal write.
+- Commit `e5703c2` added the bounded, write-free recovery behavior and was
+  pushed to `main`; `git ls-remote origin refs/heads/main` confirmed the SHA.
+- A production call to
+  `repair_matchup_history(database=database, date_from='2026-08-16', date_to='2026-08-16', source_workflow='enrich-matchups-results.yml', max_rebuild_dates=2)`
+  using this checkout's `V2Config`/V2 database completed in `8.74` seconds:
+  9 fixtures, 0 rebuilt dates, 972 unchanged pending-result rows, 0 changed
+  rows, and 0 newly resolved rows. The unchanged path issued no persistence
+  calls; missing results remain pending rather than being treated as failure.
+- The first full stored-data repair proved another production failure after
+  completing August 29 and upserting the August 30 score rows: Cosmos rejected
+  the date-replacement `delete_many` with `ExecutionTimeout` (`code 50`) at the
+  large `$nin` filter. This is the query removed by the batched stale-key fix.
+- The focused post-fix suite passed `45/45`. A production dry run for August 30
+  then completed successfully, detected the failed partial build, planned
+  `3,042` score and `3,042` league-average rows, and found `6,012` resolvable
+  outcomes plus `72` valid missing-actual rows.
+- The complete V2 regression suite passed `585/585` after the durable cleanup
+  and restart changes.
+- The bounded production rerun for August 30 rebuilt `3,042` score and `3,042`
+  league-average rows with `matchup_stale_deletes=0` in both phases and no
+  timeout. Settlement then resolved `6,012` outcomes; `72` rows remained
+  `missing_actual` because the required canonical statistic is absent.
+- An immediate identical production rerun completed in `19.11` seconds with
+  `rebuilt_dates=0`, `changed_rows=0`, and all `72` missing-actual rows
+  unchanged. This proves the completed-date path is idempotent and write-free.
 
 Insight:
 The visible failure was not a model error. Multiple short-lived CLI clients
 left server-side logical-session cleanup to garbage collection, while the
 largest journal job relied on implicit-session lifecycle across many database
-operations. The separate enrichment
-timeout came from repeatedly processing terminal matchup rows over the whole
-45-day repair window.
+operations. The separate enrichment timeout combined repeated terminal and
+unchanged matchup writes with unbounded rebuilding over the 45-day window.
+The live repair also exposed real missing snapshots for August 29/30;
+building those consumes substantial time independently of settlement.
 
 Remaining:
 
 - The next due hosted capture must exercise the journal write path, and the
-  next complete scheduled enrichment run must prove the final recovery chain.
+  next complete scheduled enrichment run must prove the final recovery chain
+  on GitHub's runner. The same recovery code is verified against production
+  data locally.
 - The readiness checklist does not change; this repair adds operational
   reliability but no new model-performance or complete-lifecycle evidence.
 
 Next:
 
-- Verify the current stored-data history repair's terminal result, then use
-  the next scheduled enrichment run as full hosted-chain evidence without
-  repeating the already successful source fetch.
+- Use the next scheduled enrichment run as full hosted-chain evidence without
+  repeating the already successful source fetch manually.
 
 ### 2026-08-30 - Högre laggrafer med lutade statetiketter
 

@@ -33,15 +33,18 @@ def main() -> int:
     config = V2Config.from_env(args.repo_root)
     ensure_v2_database(config)
     database = get_database(config)
-    summary = repair_matchup_history(
-        database=database,
-        date_from=args.start_date,
-        date_to=args.end_date,
-        source_workflow=args.source_workflow,
-        dry_run=args.dry_run,
-        rebuild_existing=args.rebuild_existing,
-        max_rebuild_dates=args.max_rebuild_dates,
-    )
+    try:
+        summary = repair_matchup_history(
+            database=database,
+            date_from=args.start_date,
+            date_to=args.end_date,
+            source_workflow=args.source_workflow,
+            dry_run=args.dry_run,
+            rebuild_existing=args.rebuild_existing,
+            max_rebuild_dates=args.max_rebuild_dates,
+        )
+    finally:
+        database.client.close()
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
     return 0
 

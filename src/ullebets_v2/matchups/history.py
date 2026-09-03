@@ -23,6 +23,36 @@ def _compact(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _latest_build_statuses(
+    database: Any, *, date_from: str, date_to: str
+) -> dict[tuple[str, str], str]:
+    rows = database["job_runs"].find(
+        {
+            "job_name": {"$in": ["build_matchups_score", "build_matchups_league_avg"]},
+            "target_window.snapshot_date": {"$gte": date_from, "$lte": date_to},
+        },
+        projection={
+            "_id": 0,
+            "job_name": 1,
+            "run_id": 1,
+            "started_at": 1,
+            "status": 1,
+            "target_window.snapshot_date": 1,
+        },
+    )
+    latest: dict[tuple[str, str], tuple[tuple[str, str], str]] = {}
+    for row in rows:
+        job_name = str(row.get("job_name") or "")
+        snapshot_date = str((row.get("target_window") or {}).get("snapshot_date") or "")
+        if not job_name or not snapshot_date:
+            continue
+        order_key = (str(row.get("started_at") or ""), str(row.get("run_id") or ""))
+        key = (job_name, snapshot_date)
+        if key not in latest or order_key > latest[key][0]:
+            latest[key] = (order_key, str(row.get("status") or ""))
+    return {key: value[1] for key, value in latest.items()}
+
+
 def repair_matchup_history(
     *,
     database: Any,
@@ -36,6 +66,9 @@ def repair_matchup_history(
     if max_rebuild_dates is not None and max_rebuild_dates < 1:
         raise ValueError("max_rebuild_dates must be positive")
     dates = iter_dates(date_from, date_to)
+    build_statuses = _latest_build_statuses(
+        database, date_from=date_from, date_to=date_to
+    )
     per_date: list[dict[str, Any]] = []
     rebuilt_dates = 0
     for target_date in reversed(dates):
@@ -51,30 +84,56 @@ def repair_matchup_history(
                 projection={"_id": 0},
             )
         )
+        existing_league_rows = list(
+            database["matchups_league_avg"].find(
+                {"snapshot_date": target_date},
+                projection={"_id": 0},
+            )
+        )
         score_summary = None
         league_summary = None
         score_rows = existing_rows
-        league_rows = None
-        needs_rebuild = bool(fixtures and (rebuild_existing or not existing_rows))
+        league_rows = existing_league_rows
+        score_status = build_statuses.get(("build_matchups_score", target_date))
+        league_status = build_statuses.get(("build_matchups_league_avg", target_date))
+        needs_score = bool(
+            fixtures
+            and (
+                rebuild_existing
+                or not existing_rows
+                or (score_status is not None and score_status != "succeeded")
+            )
+        )
+        needs_league = bool(
+            fixtures
+            and (
+                rebuild_existing
+                or not existing_league_rows
+                or (league_status is not None and league_status != "succeeded")
+            )
+        )
+        needs_rebuild = needs_score or needs_league
         deferred = needs_rebuild and max_rebuild_dates is not None and rebuilt_dates >= max_rebuild_dates
         if needs_rebuild and not deferred:
-            score_summary = run_matchups_score_build(
-                source_workflow=source_workflow,
-                target_matches=fixtures,
-                snapshot_date=target_date,
-                database=database,
-                dry_run=dry_run,
-            )
-            league_summary = run_matchups_league_avg_build(
-                source_workflow=source_workflow,
-                target_matches=fixtures,
-                snapshot_date=target_date,
-                database=database,
-                dry_run=dry_run,
-            )
+            if needs_score:
+                score_summary = run_matchups_score_build(
+                    source_workflow=source_workflow,
+                    target_matches=fixtures,
+                    snapshot_date=target_date,
+                    database=database,
+                    dry_run=dry_run,
+                )
+            if needs_league:
+                league_summary = run_matchups_league_avg_build(
+                    source_workflow=source_workflow,
+                    target_matches=fixtures,
+                    snapshot_date=target_date,
+                    database=database,
+                    dry_run=dry_run,
+                )
             if dry_run:
-                score_rows = score_summary["entry_docs"]
-                league_rows = league_summary["entry_docs"]
+                score_rows = score_summary["entry_docs"] if score_summary is not None else score_rows
+                league_rows = league_summary["entry_docs"] if league_summary is not None else league_rows
             rebuilt_dates += 1
 
         settlement = run_matchup_settlement(
@@ -91,7 +150,7 @@ def repair_matchup_history(
             {
                 "date": target_date,
                 "fixtures": len(fixtures),
-                "ranking_action": "deferred" if deferred else "rebuilt" if score_summary is not None else "reused",
+                "ranking_action": "deferred" if deferred else "rebuilt" if needs_rebuild else "reused",
                 "score_build": _compact(score_summary) if score_summary is not None else None,
                 "league_build": _compact(league_summary) if league_summary is not None else None,
                 "settlement": _compact(settlement),

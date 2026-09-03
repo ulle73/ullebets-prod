@@ -43,6 +43,30 @@ def _upsert_rows(collection: Any, rows: list[dict[str, Any]], key_fields: tuple[
     return upserts
 
 
+def prune_stale_matchup_rows(
+    collection: Any, *, snapshot_date: str, active_entry_keys: set[str]
+) -> int:
+    # Cosmos can time out a delete with thousands of $nin operands even when
+    # no rows are stale. Read only this date's keys, then delete bounded matches.
+    stored_keys = {
+        str(row["entry_key"])
+        for row in collection.find(
+            {"snapshot_date": snapshot_date}, projection={"_id": 0, "entry_key": 1}
+        )
+    }
+    stale_keys = sorted(stored_keys - active_entry_keys)
+    deleted = 0
+    for start in range(0, len(stale_keys), BULK_WRITE_BATCH_SIZE):
+        result = collection.delete_many(
+            {
+                "snapshot_date": snapshot_date,
+                "entry_key": {"$in": stale_keys[start : start + BULK_WRITE_BATCH_SIZE]},
+            }
+        )
+        deleted += int(result.deleted_count)
+    return deleted
+
+
 def persist_matchup_records(
     database: Any,
     *,
@@ -57,11 +81,11 @@ def persist_matchup_records(
 
     # A rerun for a date is a replacement snapshot, not an append-only feed.
     # Upsert first so a partial failure never clears an existing dashboard.
-    active_entry_keys = [str(row["entry_key"]) for row in entry_docs]
-    stale_query: dict[str, Any] = {"snapshot_date": snapshot_date}
-    if active_entry_keys:
-        stale_query["entry_key"] = {"$nin": active_entry_keys}
-    stale_result = database[collection_name].delete_many(stale_query)
+    stale_deletes = prune_stale_matchup_rows(
+        database[collection_name],
+        snapshot_date=snapshot_date,
+        active_entry_keys={str(row["entry_key"]) for row in entry_docs},
+    )
 
     parity_upserts = 0
     for row in parity_rows:
@@ -96,7 +120,7 @@ def persist_matchup_records(
 
     return {
         "matchup_upserts": entry_upserts,
-        "matchup_stale_deletes": int(stale_result.deleted_count),
+        "matchup_stale_deletes": stale_deletes,
         "parity_upserts": parity_upserts,
         "audit_upserts": audit_upserts,
         "health_upserts": health_upserts,

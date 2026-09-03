@@ -128,6 +128,38 @@ def test_matchup_persistence_uses_bounded_bulk_writes_when_available(monkeypatch
     assert collection.batch_sizes == [100, 100, 5]
 
 
+def test_stale_cleanup_deletes_only_bounded_keys_and_skips_empty_deletes() -> None:
+    class BoundedDeleteCollection(FakeCollection):
+        def __init__(self, docs):
+            super().__init__(docs)
+            self.delete_queries = []
+
+        def delete_many(self, query):
+            assert "$nin" not in query["entry_key"]
+            assert 0 < len(query["entry_key"]["$in"]) <= 100
+            self.delete_queries.append(query)
+            return super().delete_many(query)
+
+    day = "2026-08-30"
+    active = {f"active-{index}" for index in range(3500)}
+    collection = BoundedDeleteCollection(
+        [{"snapshot_date": day, "entry_key": key} for key in active]
+        + [{"snapshot_date": day, "entry_key": f"stale-{index}"} for index in range(205)]
+        + [{"snapshot_date": "2026-08-31", "entry_key": "stale-0"}]
+    )
+    deleted = matchup_persistence.prune_stale_matchup_rows(
+        collection, snapshot_date=day, active_entry_keys=active,
+    )
+    assert deleted == 205
+    assert [len(query["entry_key"]["$in"]) for query in collection.delete_queries] == [100, 100, 5]
+    assert len(collection.docs) == 3501
+    collection.delete_queries.clear()
+    assert matchup_persistence.prune_stale_matchup_rows(
+        collection, snapshot_date=day, active_entry_keys=active,
+    ) == 0
+    assert collection.delete_queries == []
+
+
 def test_run_matchups_builds_no_targets_on_empty_window() -> None:
     summary = run_matchups_score_build(
         source_workflow="dump-matchups.yml",
