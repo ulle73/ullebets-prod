@@ -91,6 +91,14 @@ Results:
   öppnade från EV, fokuserade stängknappen, visade nollodds och break-even,
   accepterade `1,50`, uppdaterade break-even till `66,7 %` och ändrade resultatet
   till negativ EV. Escape stängde dialogen och fokus återgick till triggern.
+- Produktändringen är commit `0869180` på `origin/main`. Repositoriet har inga
+  push-utlösta GitHub Actions för denna frontendleverans; de senast listade
+  schemalagda backendkörningarna på föregående main-revision var slutförda med
+  `success`.
+- Vercel-preview `dpl_Gr7VJHpbYwFFtmBP1DgBvtXjUWSJ` byggde den verifierade
+  checkouten och nådde `READY` efter 10 minuter:
+  `https://ullebets-prod-preview-l2ipcne5k-ryds-projects-4371adb0.vercel.app`.
+  Ingen manuell produktionspromovering gjordes i denna session.
 - Det lokala beroendeträdet saknade `recharts` trots att paketet fanns i både
   manifest och låsfil. Offline-installation från befintlig npm-cache återställde
   beroendet utan ändringar i manifest eller låsfil. Det första riktade
