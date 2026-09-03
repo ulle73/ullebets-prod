@@ -14,7 +14,7 @@ const profile = {
 describe('MarketBiasIndicator', () => {
   it('renders a one-profile rail with signed residual, sample and Swedish label', () => {
     render(<MarketBiasIndicator bias={{ scope: 'home', profiles: [profile] }} leagueBaseline={12.6} />);
-    expect(screen.getByText('Mot Unibet-linan')).toBeInTheDocument();
+    expect(screen.getByText('Historisk linjeprofil')).toBeInTheDocument();
     expect(screen.getByText('+1,4')).toBeInTheDocument();
     expect(screen.getByText('7/10')).toBeInTheDocument();
     expect(screen.getByLabelText(/Arsenal.*ÖVER.*7 av 10/i)).toHaveStyle({ '--bias-marker': '62.5%' });

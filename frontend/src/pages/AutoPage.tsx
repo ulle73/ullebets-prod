@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { matchDetailPath } from '../domain/match-route';
 import { OddsMovement } from '../components/OddsMovement';
 import { PageHeader } from '../components/PageHeader';
+import { PriceSensitivity } from '../components/PriceSensitivity';
 import { StateNotice } from '../components/StateNotice';
 import { WorkflowFilters, type WorkflowFilter } from '../components/WorkflowFilters';
 import { useAuto } from '../data/queries';
@@ -321,7 +322,17 @@ export function AutoPage() {
                       <div className="auto-cell auto-cell--numeric" role="cell"><strong>{formatNumber(row.lineValue)}</strong></div>
                       <div className="auto-cell auto-cell--numeric auto-cell--odds" role="cell"><OddsMovement row={row} /></div>
                       <div className="auto-cell auto-cell--numeric auto-cell--model" role="cell"><strong>{row.predictedWinProbability === null ? '—' : formatProbability(row.predictedWinProbability)}</strong><small>{selectionFamily(row) === 'v6' ? 'V6 · PRIMÄR' : 'LEGACY'}</small></div>
-                      <div className="auto-cell auto-cell--numeric auto-cell--ev" role="cell"><strong>{row.expectedRoiUnits === null ? '—' : formatExpectedRoi(row.expectedRoiUnits)}</strong><small>{observationCount(row)} obs · bäst {checkpointLabel(row.bestSnapshotLabel ?? row.snapshotLabel)}</small></div>
+                      <div className="auto-cell auto-cell--numeric auto-cell--ev" role="cell">
+                        <PriceSensitivity
+                          checkpointLabel={checkpointLabel(row.bestSnapshotLabel ?? row.snapshotLabel)}
+                          expectedRoiUnits={row.expectedRoiUnits}
+                          observationCount={observationCount(row)}
+                          predictedWinProbability={row.predictedWinProbability}
+                          selectedOdds={row.selectedOdds}
+                          selectionLabel={`${row.homeTeamName ?? 'Hemmalag'} mot ${row.awayTeamName ?? 'bortalag'} · ${STAT_LABELS[row.statKey ?? ''] ?? row.statKey ?? 'statistik'}`}
+                        />
+                        <small>{observationCount(row)} obs · bäst {checkpointLabel(row.bestSnapshotLabel ?? row.snapshotLabel)}</small>
+                      </div>
                       <div className={`auto-cell auto-cell--numeric auto-cell--clv${acceptedClv(row) ? row.clvPct !== null && row.clvPct !== undefined && row.clvPct >= 0 ? ' is-positive' : ' is-negative' : ''}`} role="cell"><strong>{acceptedClv(row) ? formatClv(row.clvPct) : '—'}</strong><small>{clvDetail(row)}</small></div>
                       <div className="auto-cell auto-cell--result" role="cell"><span className={`auto-result auto-result--${bucket}`}>{resultLabel(bucket)}</span>{detail ? <small>{detail}</small> : null}</div>
                       {row.matchKey ? <Link className="auto-row-link" to={matchDetailPath(row.matchKey)} aria-label={`Öppna ${row.homeTeamName ?? ''} mot ${row.awayTeamName ?? ''}`}><ChevronRight size={17} /></Link> : <span />}

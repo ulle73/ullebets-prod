@@ -120,6 +120,26 @@ describe('Spel & resultat med accepterad CLV', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
   });
 
+  it('förklarar nollpris och visar hur EV ändras utan att lova träffsäkerhet', async () => {
+    renderApp('/auto', {
+      '/api/v1/dashboard': dashboard,
+      '/api/v1/auto': autoResponse,
+    });
+
+    const trigger = await screen.findByRole('button', { name: 'Förklara pris och EV för Home FC mot Away FC · Hörnor' });
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole('dialog', { name: 'Vad kräver oddset?' });
+    expect(within(dialog).getAllByText('1,64')).toHaveLength(2);
+    expect(within(dialog).getAllByText('51,3 %')).toHaveLength(2);
+    expect(within(dialog).getByText(/inte bevisad träffsäkerhet, vinstlöfte eller insatsråd/i)).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Decimalodds' }), { target: { value: '1,50' } });
+    expect(within(dialog).getByText('66,7 %')).toBeInTheDocument();
+    expect(within(dialog).getByText('−8,5 %')).toBeInTheDocument();
+    expect(within(dialog).getByText('Under modellens nollpris')).toBeInTheDocument();
+  });
+
   it('leder gamla Resultatloop-länkar till rättade spel i samma Auto-kontrakt', async () => {
     const { fetchMock } = renderApp('/resultatloop?date=2026-08-13', {
       '/api/v1/dashboard': dashboard,

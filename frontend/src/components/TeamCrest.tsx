@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface TeamCrestProps {
   name: string | null | undefined;
@@ -72,9 +72,8 @@ export function teamCrestSources({ imageUrl, teamId, teamKey }: TeamCrestSourceI
 export function TeamCrest({ name, imageUrl, teamId, teamKey, size = 'sm', className = '' }: TeamCrestProps) {
   const sources = useMemo(() => teamCrestSources({ imageUrl, teamId, teamKey }), [imageUrl, teamId, teamKey]);
   const sourceKey = sources.join('|');
-  const [sourceIndex, setSourceIndex] = useState(0);
-
-  useEffect(() => setSourceIndex(0), [sourceKey]);
+  const [cursor, setCursor] = useState({ sourceKey, index: 0 });
+  const sourceIndex = cursor.sourceKey === sourceKey ? cursor.index : 0;
 
   const source = sources[sourceIndex] ?? null;
   return (
@@ -85,7 +84,10 @@ export function TeamCrest({ name, imageUrl, teamId, teamKey, size = 'sm', classN
           src={source}
           alt=""
           aria-hidden="true"
-          onError={() => setSourceIndex((index) => index + 1)}
+          onError={() => setCursor((current) => ({
+            sourceKey,
+            index: current.sourceKey === sourceKey ? current.index + 1 : 1,
+          }))}
         />
       ) : null}
     </span>

@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -18,6 +18,102 @@ still worth testing. Detailed evidence remains in the linked reports.
 - `NOT STARTED`: a required product area has no completed implementation yet.
 
 Valid empty source responses are not failures when no matches or markets exist.
+
+### 2026-09-04 - Pedagogisk pris- och EV-känslighet
+
+Status: `VERIFIED` lokalt med enhetstester, full frontend-svit,
+produktionsbygge och responsiv webbläsarkontroll mot aktuell V2-läsdata.
+
+Objective:
+Undersöka vilka analysfunktioner etablerade bet-trackingprodukter använder,
+välja en lucka som passar Ullebets nuvarande evidensnivå och implementera den
+utan att blanda ihop modellscenario, CLV och bevisad framåteffekt.
+
+Research and decision:
+
+- Delt beskriver CLV, uppskattad sann träffprocent och osäkerhetsintervall;
+  Betstamp kombinerar tracking, CLV, no-vig/fair-odds- och EV-kalkyler;
+  Pikkit visar automatisk CLV; Action Network och OddsJam betonar odds- och
+  linjerörelse. Källor: <https://www.delt.bet/>,
+  <https://www.betstamp.com/tracking>, <https://www.betstamp.com/calculators>,
+  <https://pikkit.com/closing-line-value>, <https://www.actionnetwork.com/app>
+  och <https://dev.oddsjam.com/odds-screen>.
+- Ullebets hade redan oddshistorik och CLV. Den valda luckan blev därför en
+  pedagogisk pris- och känslighetsdialog på varje giltig EV-rad: modellens
+  nollodds `1 / p`, marknadens break-even `1 / odds` och scenario-EV
+  `p * odds - 1` från samma frysta sannolikhet.
+- Den starkaste felrisken är falsk precision eftersom modellens träffsäkerhet
+  ännu inte är tillräckligt bevisad framåt. Dialogen säger därför uttryckligen
+  att kalkylen inte är bevisad träffsäkerhet, vinstlöfte eller insatsråd och
+  visar gruppens observationsantal och checkpoint. Ingen Kelly- eller
+  insatsrekommendation infördes.
+
+Changes:
+
+- Lade matematiken och all indatavalidering i den rena domänmodulen
+  `frontend/src/domain/price-sensitivity.ts`. Sannolikheten måste ligga strikt
+  mellan noll och ett och decimaloddset måste vara ändligt och större än ett.
+- Lade en återanvändbar Radix-dialog i
+  `frontend/src/components/PriceSensitivity.tsx` med fokuslås, Escape-stängning,
+  unika ARIA-id:n, svenskt decimalstöd, live-resultat och responsiv layout.
+- EV-värdet i `Spel & resultat` är nu dialogens trigger. Rader utan giltigt
+  sannolikhets-/oddspar behåller sitt vanliga, icke-interaktiva värde.
+- Tog bort en blockerande synkron state-återställning i `TeamCrest` och knöt
+  fallback-indexet till aktuell källnyckel. Det bevarar återstart på första
+  klubbmärket när laget ändras utan en extra effekt/rendering.
+- Rättade tre gamla frontendtestförväntningar till nuvarande svenska etikett
+  och klubbmärkets faktiska tillgänglighetskontrakt.
+
+Tests:
+
+```text
+npm install --offline --ignore-scripts --no-audit --no-fund
+.\node_modules\.bin\vitest.cmd run src/domain/price-sensitivity.test.ts src/app/spel-resultat-clv.test.tsx --pool=vmThreads --maxWorkers=1 --fileParallelism=false
+npm run typecheck
+npm run lint
+.\node_modules\.bin\vitest.cmd run src/components/TeamCrest.test.tsx src/domain/price-sensitivity.test.ts src/app/spel-resultat-clv.test.tsx --pool=vmThreads --maxWorkers=1 --fileParallelism=false
+npm run build
+npm test -- --run
+npm run dev
+```
+
+Results:
+
+- Prisdomänen och dialogflödet passerade först `13/13`; den utökade riktade
+  sviten inklusive klubbmärkesbyte passerade `17/17`.
+- `npm run typecheck`, `npm run lint` och `npm run build` passerade. Vite byggde
+  `2,910` moduler på `10.07 s`.
+- Hela frontendsviten passerade `79/79` tester i `23/23` filer. En första full
+  körning gav fyra fel: två femsekunderstimeouter som orsakades av en gammal
+  textförväntning och två gamla assertions för etikett/klubbmärke. Efter att
+  testerna riktades mot nuvarande semantiska kontrakt passerade hela sviten.
+- Chrome verifierade aktuell `/auto`-data på desktop och `390 x 844`: dialogen
+  öppnade från EV, fokuserade stängknappen, visade nollodds och break-even,
+  accepterade `1,50`, uppdaterade break-even till `66,7 %` och ändrade resultatet
+  till negativ EV. Escape stängde dialogen och fokus återgick till triggern.
+- Det lokala beroendeträdet saknade `recharts` trots att paketet fanns i både
+  manifest och låsfil. Offline-installation från befintlig npm-cache återställde
+  beroendet utan ändringar i manifest eller låsfil. Det första riktade
+  Vitest-kommandot använde felaktigt repo-rotsökvägar från frontendens
+  arbetskatalog och hittade därför inga testfiler; kommandona ovan är de
+  korrigerade körningarna.
+
+New insight:
+Ett prisverktyg kan göra EV begripligt utan ny modell- eller backendlogik när
+alla tre värden härleds från samma frysta sannolikhet. Det minskar risken att
+en användare tolkar ett enskilt EV-tal som en stabil egenskap hos spelet när
+priset i själva verket är avgörande.
+
+Unproven or blocked:
+Funktionen förbättrar transparensen men bevisar inte kalibrering, CLV eller
+framåtlönsamhet. Readiness-statusen är därför oförändrad. Den externa
+Sitechat-widgeten loggade en icke-blockerande fetch-varning under lokal visuell
+QA; Ullebets egna V2-anrop och dialogflödet fungerade.
+
+Next justified test:
+När nya officiella T-10-closingvärden och rättade in-domain-val finns, jämför
+modellens nollodds med faktisk closing och kalibrering per förregistrerad
+formel. Ändra inte känslighetsformeln baserat på redan inspekterade utfall.
 
 ### 2026-09-03 - Cosmos session cleanup and bounded matchup repair
 

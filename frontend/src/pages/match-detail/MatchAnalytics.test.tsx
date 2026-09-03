@@ -150,8 +150,8 @@ describe('match analytics page', () => {
 
     expect(await screen.findByRole('heading', { name: 'Cruzeiro mot Mirassol' }, { timeout: 15_000 })).toBeInTheDocument();
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/matches/match-123');
-    expect(screen.getByRole('img', { name: 'Cruzeiro' })).toHaveAttribute('src', '/images/home.png');
-    expect(screen.getByRole('img', { name: 'Mirassol' })).toHaveAttribute('src', '/images/away.png');
+    expect(screen.getByRole('img', { name: 'Cruzeiro klubbmärke' }).querySelector('img')).toHaveAttribute('src', '/images/teams/home.png');
+    expect(screen.getByRole('img', { name: 'Mirassol klubbmärke' }).querySelector('img')).toHaveAttribute('src', '/images/teams/away.png');
 
     const comparison = screen.getByRole('table', { name: 'Lagstatistik för och emot' });
     expect(within(comparison).getByText('För')).toBeInTheDocument();
