@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-08-30
+Last updated: 2026-09-03
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -18,6 +18,82 @@ still worth testing. Detailed evidence remains in the linked reports.
 - `NOT STARTED`: a required product area has no completed implementation yet.
 
 Valid empty source responses are not failures when no matches or markets exist.
+
+### 2026-09-03 - Cosmos session cleanup and bounded matchup repair
+
+Status: `VERIFIED` locally and against the production database; `PARTIAL` until
+the final commit completes in a hosted GitHub Actions run.
+
+Objective:
+Diagnose the current failed and timed-out GitHub Actions runs, remove the
+Cosmos DB session-exhaustion path, recover the exact missed formula journal
+scope, and stop the daily matchup repair from rewriting terminal history.
+
+Changes:
+
+- Formula journal materialization now reuses one explicit Mongo session for
+  snapshot, fixture, model-data, score, immutable-replay, and persistence
+  operations.
+- Formula journal and frozen-model scorer CLIs close their Mongo clients in a
+  `finally` block. The shared Mongo client factory also registers process-exit
+  cleanup so normal CLI completion sends server-side session cleanup for all
+  workflows.
+- Historical matchup repair now reads and persists only rows whose outcome is
+  not already `resolved`; terminal rows are left untouched.
+- Repaired the nine exact match keys captured by failed run `33767926969`.
+
+Tests:
+
+```text
+$env:PYTHONPATH = (Resolve-Path 'src').Path
+python -m pytest tests/v2/test_formula_journal_materialize.py tests/v2/test_formula_journal_observations.py tests/v2/test_matchup_settlement.py tests/v2/test_mongo_client_lifecycle.py tests/v2/test_automation_contract.py tests/v2/test_registered_shadow_model_runner.py tests/v2/test_ev_shadow_candidate.py -q
+python scripts/forward_v2/materialize_formula_journal.py --repo-root . --registry models/ev/shadow_formula_registry_v1.json --match-key sofascore:15235456 --match-key sofascore:15235457 --match-key sofascore:16310945 --match-key sofascore:16363262 --match-key sofascore:16416320 --match-key sofascore:16416321 --match-key sofascore:16416324 --match-key sofascore:16416340 --match-key sofascore:16434028
+git diff --check
+```
+
+Results:
+
+- GitHub run `33767926969` captured `303` market snapshots and persisted `480`
+  frozen-model scores, then failed in formula-observation persistence with
+  Cosmos error `TooManyLogicalSessions` (`code 261`). Earlier scheduler runs
+  `33715988601` and `33741488402` reached the 60-minute job limit after opening
+  the same database path.
+- Run `33752059496` completed live enrichment but timed out at 45 minutes in
+  the 45-day matchup repair. Already resolved dates were being settled and
+  rewritten again; the new unresolved-only contract removes that work.
+- Targeted regression coverage passed `48/48`, including explicit session
+  propagation, process-exit client cleanup, immutable replay, scorer runner,
+  automation order, and terminal matchup-row exclusion.
+- An initial test command named the nonexistent
+  `tests/v2/test_ev_shadow_scoring.py` and ran no tests; the corrected command
+  above passed. A one-off Python import also exposed a stale editable install
+  pointing at an older worktree, so validation explicitly used this checkout's
+  `src` directory.
+- The production repair completed with `19,013` candidate observations:
+  `11,154` inserted, `7,859` immutable existing rows reused, `0` conflicts,
+  `0` oracle errors, and `0` domain-unverified scores.
+  The saved report is
+  `data/v2/reports/formula-journal-0f093592888b42c3ac526037c6433ebd.json`.
+
+Insight:
+The visible failure was not a model error. Multiple short-lived CLI clients
+left server-side logical-session cleanup to garbage collection, while the
+largest journal job opened many implicit sessions. The separate enrichment
+timeout came from repeatedly processing terminal matchup rows over the whole
+45-day repair window.
+
+Remaining:
+
+- The code has production-database evidence but still needs one hosted run on
+  the final commit before the GitHub Actions repair is fully `VERIFIED`.
+- The readiness checklist does not change; this repair adds operational
+  reliability but no new model-performance or complete-lifecycle evidence.
+
+Next:
+
+- Push the final commit, run the match-aware scheduler in hosted write mode,
+  and verify terminal success plus a later scheduled enrichment run without
+  repeating already resolved matchup rows.
 
 ### 2026-08-30 - Högre laggrafer med lutade statetiketter
 

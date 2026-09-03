@@ -140,7 +140,6 @@ def main() -> int:
             database,
             plan=build_formula_journal_index_plan(),
         )
-    oracle = V2JsModelOracle(database, support_docs, runtime_root=runtime_root)
     run_doc = build_job_run_started_doc(
         job_name=JOB_NAME,
         source_workflow=SOURCE_WORKFLOW,
@@ -158,16 +157,24 @@ def main() -> int:
     if not args.dry_run:
         database[JOB_RUNS].insert_one(run_doc)
     try:
-        summary = materialize_formula_observations(
-            database=database,
-            oracle=oracle,
-            registry=registry,
-            runtime_sha256=runtime_sha256,
-            now=now,
-            match_keys=list(args.match_key),
-            training_domains_by_model=training_domains,
-            dry_run=args.dry_run,
-        )
+        with database.client.start_session(causal_consistency=False) as session:
+            oracle = V2JsModelOracle(
+                database,
+                support_docs,
+                runtime_root=runtime_root,
+                session=session,
+            )
+            summary = materialize_formula_observations(
+                database=database,
+                oracle=oracle,
+                registry=registry,
+                runtime_sha256=runtime_sha256,
+                now=now,
+                match_keys=list(args.match_key),
+                training_domains_by_model=training_domains,
+                dry_run=args.dry_run,
+                session=session,
+            )
         summary.update(
             {
                 "job": JOB_NAME,
@@ -245,6 +252,8 @@ def main() -> int:
                 ),
             )
         raise
+    finally:
+        database.client.close()
 
 
 if __name__ == "__main__":

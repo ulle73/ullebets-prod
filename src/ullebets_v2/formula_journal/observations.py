@@ -318,6 +318,8 @@ def build_ml_observation_docs(
 def partition_unseen_formula_observations(
     collection: Any,
     docs: Iterable[dict[str, Any]],
+    *,
+    session: Any | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Keep the first immutable observation for an already claimed identity.
 
@@ -336,10 +338,13 @@ def partition_unseen_formula_observations(
             raise ImmutableFormulaObservationConflict(
                 "formula observation candidate is missing observation_key"
             )
+        find_kwargs = {"projection": {"_id": 0}}
+        if session is not None:
+            find_kwargs["session"] = session
         stored_rows = list(
             collection.find(
                 {"observation_key": {"$in": keys}},
-                projection={"_id": 0},
+                **find_kwargs,
             )
         )
         for stored in stored_rows:
@@ -362,6 +367,8 @@ def partition_unseen_formula_observations(
 def persist_formula_observations(
     collection: Any,
     docs: Iterable[dict[str, Any]],
+    *,
+    session: Any | None = None,
 ) -> dict[str, int]:
     metrics = {"inserted": 0, "existing": 0, "conflicts": 0}
     incoming_by_key: dict[str, dict[str, Any]] = {}
@@ -387,10 +394,13 @@ def persist_formula_observations(
     for offset in range(0, len(incoming_items), batch_size):
         batch = incoming_items[offset : offset + batch_size]
         batch_by_key = dict(batch)
+        find_kwargs = {"projection": {"_id": 0}}
+        if session is not None:
+            find_kwargs["session"] = session
         existing_rows = list(
             collection.find(
                 {"observation_key": {"$in": list(batch_by_key)}},
-                projection={"_id": 0},
+                **find_kwargs,
             )
         )
         existing_by_key = {
@@ -416,6 +426,9 @@ def persist_formula_observations(
         ]
         if not missing:
             continue
+        bulk_kwargs = {"ordered": False}
+        if session is not None:
+            bulk_kwargs["session"] = session
         result = collection.bulk_write(
             [
                 UpdateOne(
@@ -425,7 +438,7 @@ def persist_formula_observations(
                 )
                 for key, doc in missing
             ],
-            ordered=False,
+            **bulk_kwargs,
         )
         inserted = int(result.upserted_count)
         raced = len(missing) - inserted
@@ -435,7 +448,7 @@ def persist_formula_observations(
             raced_rows = list(
                 collection.find(
                     {"observation_key": {"$in": [key for key, _ in missing]}},
-                    projection={"_id": 0},
+                    **find_kwargs,
                 )
             )
             raced_by_key = {

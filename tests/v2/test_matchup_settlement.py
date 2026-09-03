@@ -111,3 +111,29 @@ def test_run_matchup_settlement_handles_empty_window() -> None:
     assert summary["parity_status_counts"] == {"no_targets": 1}
     assert summary["audit_status_counts"] == {"ok": 1}
     assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_run_matchup_settlement_skips_already_resolved_rows_when_repairing() -> None:
+    score_rows, league_rows, match_stats, match_results = build_matchup_rows()
+    settled_score = {**score_rows[0], "outcome_status": "resolved"}
+    settled_league = {**league_rows[0], "outcome_status": "resolved"}
+
+    summary = run_matchup_settlement(
+        source_workflow="enrich-matchups-results.yml",
+        date_from="2025-12-05",
+        score_rows=[settled_score, *score_rows[1:]],
+        league_avg_rows=[settled_league, *league_rows[1:]],
+        match_stats_canonical=match_stats,
+        match_results_canonical=match_results,
+        dry_run=True,
+        unresolved_only=True,
+    )
+
+    output_keys = {
+        row["entry_key"]
+        for row in [*summary["score_docs"], *summary["league_avg_docs"]]
+    }
+    assert settled_score["entry_key"] not in output_keys
+    assert settled_league["entry_key"] not in output_keys
+    assert summary["score_rows"] == len(score_rows) - 1
+    assert summary["league_avg_rows"] == len(league_rows) - 1

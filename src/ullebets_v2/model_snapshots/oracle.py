@@ -184,11 +184,16 @@ class V2JsModelOracle:
         support_docs: dict[str, Any],
         *,
         runtime_root: Path | None = None,
+        session: Any | None = None,
     ) -> None:
         self.read_database = read_database
         self.support_docs = support_docs
         self.runtime_root = runtime_root or (Path(__file__).resolve().parent / "js_runtime")
-        self.data_adapter = V2ModelDataAdapter(read_database, support_docs)
+        self.data_adapter = V2ModelDataAdapter(
+            read_database,
+            support_docs,
+            session=session,
+        )
 
     def build_match_lines(
         self,

@@ -43,8 +43,12 @@ def _find_rows(
     query: dict[str, Any],
     *,
     sort: list[tuple[str, int]] | None = None,
+    session: Any | None = None,
 ) -> list[dict[str, Any]]:
-    cursor = collection.find(query, projection={"_id": 0})
+    kwargs = {"projection": {"_id": 0}}
+    if session is not None:
+        kwargs["session"] = session
+    cursor = collection.find(query, **kwargs)
     if sort and hasattr(cursor, "sort"):
         cursor = cursor.sort(sort)
     return [dict(row) for row in cursor]
@@ -121,6 +125,7 @@ def materialize_formula_observations(
     match_keys: Iterable[str] | None = None,
     training_domains_by_model: dict[str, dict[str, Iterable[str]]] | None = None,
     dry_run: bool = False,
+    session: Any | None = None,
 ) -> dict[str, Any]:
     current_time = now or datetime.now(tz=UTC)
     if current_time.tzinfo is None:
@@ -140,6 +145,7 @@ def materialize_formula_observations(
         database[MARKET_SNAPSHOTS],
         snapshot_query,
         sort=[("match_key", 1), ("snapshot_time", 1), ("offer_key", 1)],
+        session=session,
     )
     snapshot_rows = [
         row
@@ -157,7 +163,11 @@ def materialize_formula_observations(
         if fixture_match_keys
         else {}
     )
-    fixture_rows = _find_rows(database[FIXTURES_CANONICAL], fixture_query)
+    fixture_rows = _find_rows(
+        database[FIXTURES_CANONICAL],
+        fixture_query,
+        session=session,
+    )
     fixtures_by_match = {
         str(row["match_key"]): row
         for row in fixture_rows
@@ -247,6 +257,7 @@ def materialize_formula_observations(
             database[EV_MODEL_SCORES],
             score_query,
             sort=[("model_id", 1), ("score_created_at", 1), ("score_key", 1)],
+            session=session,
         )
         if registered_model_ids
         else []
@@ -277,10 +288,12 @@ def materialize_formula_observations(
         unseen_docs, existing_count = partition_unseen_formula_observations(
             database[FORMULA_OBSERVATIONS],
             all_docs,
+            session=session,
         )
         persistence = persist_formula_observations(
             database[FORMULA_OBSERVATIONS],
             unseen_docs,
+            session=session,
         )
         persistence["existing"] += existing_count
     return {

@@ -704,6 +704,8 @@ def main() -> int:
                 ),
             )
         raise
+    finally:
+        database.client.close()
 
 
 if __name__ == "__main__":

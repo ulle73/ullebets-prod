@@ -79,9 +79,16 @@ def build_legacy_league_rankings(support_docs: dict[str, Any]) -> list[dict[str,
 
 
 class V2ModelDataAdapter:
-    def __init__(self, read_database: Any, support_docs: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        read_database: Any,
+        support_docs: dict[str, Any],
+        *,
+        session: Any | None = None,
+    ) -> None:
         self.read_database = read_database
         self.support_docs = support_docs
+        self.session = session
         self._profiles_cache: dict[str, list[dict[str, Any]]] = {}
         self._result_rows_cache: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self._fixtures_cache: dict[str, dict[str, Any]] = {}
@@ -125,7 +132,10 @@ class V2ModelDataAdapter:
 
     def _collection_find(self, collection_name: str, query: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         try:
-            return list(self.read_database[collection_name].find(query or {}, projection={"_id": 0}))
+            kwargs = {"projection": {"_id": 0}}
+            if self.session is not None:
+                kwargs["session"] = self.session
+            return list(self.read_database[collection_name].find(query or {}, **kwargs))
         except KeyError:
             return []
 

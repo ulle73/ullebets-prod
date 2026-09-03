@@ -8,11 +8,13 @@ from ullebets_v2.formula_journal.materialize import (
     fingerprint_js_runtime,
     materialize_formula_observations,
 )
+from ullebets_v2.model_snapshots.data_adapter import V2ModelDataAdapter
 from ullebets_v2.storage.collections import (
     EV_MODEL_SCORES,
     FIXTURES_CANONICAL,
     FORMULA_OBSERVATIONS,
     MARKET_SNAPSHOTS,
+    TEAMPROFILES,
 )
 
 
@@ -31,6 +33,7 @@ class FakeCursor(list):
 class FakeCollection:
     def __init__(self, rows=()) -> None:
         self.rows = [deepcopy(row) for row in rows]
+        self.sessions = []
 
     @staticmethod
     def _matches(row: dict, query: dict) -> bool:
@@ -51,7 +54,8 @@ class FakeCollection:
                 return False
         return True
 
-    def find(self, query=None, projection=None):  # noqa: ARG002
+    def find(self, query=None, projection=None, session=None):  # noqa: ARG002
+        self.sessions.append(session)
         return FakeCursor(
             [deepcopy(row) for row in self.rows if self._matches(row, query or {})]
         )
@@ -68,8 +72,9 @@ class FakeCollection:
         self.rows.append(deepcopy(update["$setOnInsert"]))
         return SimpleNamespace(upserted_id=str(len(self.rows)))
 
-    def bulk_write(self, operations, *, ordered=False):
+    def bulk_write(self, operations, *, ordered=False, session=None):
         assert ordered is False
+        self.sessions.append(session)
         upserted_count = 0
         for operation in operations:
             if self.find_one(operation._filter) is None:
@@ -227,6 +232,50 @@ def test_materializer_replay_is_idempotent() -> None:
     assert database[FORMULA_OBSERVATIONS].find_one(
         {"formula_id": "js:evPct"}
     )["expected_ev_pct"] == 10.0
+
+
+def test_materializer_reuses_one_explicit_session_for_database_operations() -> None:
+    database = FakeDatabase(
+        {
+            MARKET_SNAPSHOTS: FakeCollection([_snapshot("T_MINUS_2H", 2)]),
+            FIXTURES_CANONICAL: FakeCollection([_fixture()]),
+            EV_MODEL_SCORES: FakeCollection(),
+            FORMULA_OBSERVATIONS: FakeCollection(),
+        }
+    )
+    session = object()
+
+    materialize_formula_observations(
+        database=database,
+        oracle=FakeOracle(),
+        registry=_registry(),
+        runtime_sha256="a" * 64,
+        now=NOW,
+        session=session,
+    )
+
+    for collection_name in (
+        MARKET_SNAPSHOTS,
+        FIXTURES_CANONICAL,
+        FORMULA_OBSERVATIONS,
+    ):
+        sessions = database[collection_name].sessions
+        assert session in sessions
+        assert all(value is None or value is session for value in sessions)
+
+
+def test_model_data_adapter_reuses_explicit_session_for_reads() -> None:
+    session = object()
+    profiles = FakeCollection()
+    adapter = V2ModelDataAdapter(
+        FakeDatabase({TEAMPROFILES: profiles}),
+        {},
+        session=session,
+    )
+
+    adapter._collection_find(TEAMPROFILES, {"team_key": "arsenal"})
+
+    assert profiles.sessions == [session]
 
 
 def test_runtime_fingerprint_changes_when_js_source_changes(tmp_path) -> None:

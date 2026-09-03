@@ -101,8 +101,11 @@ def _load_matchup_rows(
     *,
     date_from: str,
     date_to: str,
+    unresolved_only: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     query = {"snapshot_date": {"$gte": date_from, "$lte": date_to}}
+    if unresolved_only:
+        query["outcome_status"] = {"$ne": "resolved"}
     score_rows = list(database[MATCHUPS_SCORE].find(query, projection={"_id": 0}))
     league_avg_rows = list(database[MATCHUPS_LEAGUE_AVG].find(query, projection={"_id": 0}))
     return score_rows, league_avg_rows
@@ -141,6 +144,7 @@ def run_matchup_settlement(
     database: Any | None = None,
     dry_run: bool = False,
     resolved_at: datetime | None = None,
+    unresolved_only: bool = False,
 ) -> dict[str, Any]:
     timestamp = resolved_at or utc_now()
     upper = date_to or date_from
@@ -153,9 +157,17 @@ def run_matchup_settlement(
             score_docs = score_docs or []
             league_docs = league_docs or []
         else:
-            loaded_score, loaded_league = _load_matchup_rows(database, date_from=date_from, date_to=upper)
+            loaded_score, loaded_league = _load_matchup_rows(
+                database,
+                date_from=date_from,
+                date_to=upper,
+                unresolved_only=unresolved_only,
+            )
             score_docs = loaded_score if score_docs is None else score_docs
             league_docs = loaded_league if league_docs is None else league_docs
+    if unresolved_only:
+        score_docs = [row for row in score_docs or [] if row.get("outcome_status") != "resolved"]
+        league_docs = [row for row in league_docs or [] if row.get("outcome_status") != "resolved"]
     if stats_rows is None or result_rows is None:
         if database is None:
             stats_rows = stats_rows or []

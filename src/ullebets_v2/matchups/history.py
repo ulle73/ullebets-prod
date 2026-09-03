@@ -78,6 +78,7 @@ def repair_matchup_history(
             league_avg_rows=league_rows if dry_run else None,
             database=database,
             dry_run=dry_run,
+            unresolved_only=True,
         )
         per_date.append(
             {

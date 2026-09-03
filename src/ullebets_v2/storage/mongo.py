@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import atexit
+
 from pymongo import MongoClient
 from pymongo.database import Database
 
@@ -10,7 +12,11 @@ from ullebets_v2.safety import ensure_distinct_database_roles, ensure_v2_databas
 def build_mongo_client(config: V2Config) -> MongoClient:
     if not config.mongo_uri:
         raise RuntimeError("MONGODB_URI is required for MongoDB operations.")
-    return MongoClient(config.mongo_uri, tz_aware=True)
+    client = MongoClient(config.mongo_uri, tz_aware=True)
+    # CLI processes must send endSessions, not rely on garbage collection to
+    # release server-side resources. Explicit early close remains safe.
+    atexit.register(client.close)
+    return client
 
 
 def get_database(config: V2Config) -> Database:
