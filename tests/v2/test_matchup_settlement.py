@@ -137,3 +137,65 @@ def test_run_matchup_settlement_skips_already_resolved_rows_when_repairing() -> 
     assert settled_league["entry_key"] not in output_keys
     assert summary["score_rows"] == len(score_rows) - 1
     assert summary["league_avg_rows"] == len(league_rows) - 1
+
+
+def test_empty_incremental_repair_does_not_write_noop_reports() -> None:
+    class NoWritesDatabase:
+        def __getitem__(self, key):
+            raise AssertionError(f"empty repair must not write {key}")
+
+    summary = run_matchup_settlement(
+        source_workflow="enrich-matchups-results.yml",
+        date_from="2025-12-05",
+        score_rows=[],
+        league_avg_rows=[],
+        match_stats_canonical=[],
+        match_results_canonical=[],
+        database=NoWritesDatabase(),
+        unresolved_only=True,
+    )
+
+    assert summary["resolved_rows"] == 0
+    assert summary["health_status_counts"] == {"ok": 1}
+
+
+def test_incremental_repair_does_not_rewrite_unchanged_missing_outcomes() -> None:
+    class NoWritesDatabase:
+        def __getitem__(self, key):
+            raise AssertionError(f"unchanged repair must not write {key}")
+
+    score_rows, league_rows, match_stats, match_results = build_matchup_rows()
+    first = run_matchup_settlement(
+        source_workflow="enrich-matchups-results.yml",
+        date_from="2025-12-05",
+        score_rows=score_rows,
+        league_avg_rows=league_rows,
+        match_stats_canonical=[],
+        match_results_canonical=match_results,
+        dry_run=True,
+    )
+    repeated = run_matchup_settlement(
+        source_workflow="enrich-matchups-results.yml",
+        date_from="2025-12-05",
+        score_rows=first["score_docs"],
+        league_avg_rows=first["league_avg_docs"],
+        match_stats_canonical=[],
+        match_results_canonical=match_results,
+        database=NoWritesDatabase(),
+        unresolved_only=True,
+    )
+    recovered = run_matchup_settlement(
+        source_workflow="enrich-matchups-results.yml",
+        date_from="2025-12-05",
+        score_rows=first["score_docs"],
+        league_avg_rows=first["league_avg_docs"],
+        match_stats_canonical=match_stats,
+        match_results_canonical=match_results,
+        dry_run=True,
+        unresolved_only=True,
+    )
+
+    assert repeated["changed_rows"] == 0
+    assert repeated["unchanged_rows"] == len(score_rows) + len(league_rows)
+    assert recovered["changed_rows"] > 0
+    assert recovered["resolved_rows"] > 0

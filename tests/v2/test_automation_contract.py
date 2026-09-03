@@ -479,6 +479,9 @@ def test_matchup_history_workflow_builds_missing_rankings_before_settlement() ->
     assert "--start-date" in workflow
     assert "--end-date" in workflow
     assert "45 days ago" in workflow
+    assert "--max-rebuild-dates 2" in workflow
+    assert "group: ullebets-v2-matchup-recovery" in workflow
+    assert "group: ullebets-v2-backend" not in workflow
     assert "ENRICH_START_DATE=$(date -u -d 'yesterday'" in workflow
     assert "ENRICH_START_DATE=$(date -u -d '8 days ago'" not in workflow
 

@@ -18,6 +18,26 @@ from ullebets_v2.settlement.common import (
 )
 from ullebets_v2.storage.collections import MATCHUPS_LEAGUE_AVG, MATCHUPS_SCORE
 
+OUTCOME_FIELDS = (
+    "outcome_status",
+    "actual_value",
+    "home_value",
+    "away_value",
+    "actual_source",
+    "outcome",
+)
+
+
+def _changed_outcomes(
+    previous: list[dict[str, Any]],
+    current: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        updated
+        for original, updated in zip(previous, current, strict=True)
+        if any(original.get(field) != updated.get(field) for field in OUTCOME_FIELDS)
+    ]
+
 
 def utc_now() -> datetime:
     return datetime.now(tz=UTC)
@@ -198,6 +218,16 @@ def run_matchup_settlement(
         stat_scope_lookup=stat_scope_lookup,
         resolved_at=timestamp,
     )
+    score_updates = (
+        _changed_outcomes(score_docs or [], settled_score_docs)
+        if unresolved_only
+        else settled_score_docs
+    )
+    league_updates = (
+        _changed_outcomes(league_docs or [], settled_league_avg_docs)
+        if unresolved_only
+        else settled_league_avg_docs
+    )
     report_date = upper
     parity_rows = build_matchup_settlement_parity_rows(
         source_workflow=source_workflow,
@@ -225,6 +255,8 @@ def run_matchup_settlement(
         "date_to": upper,
         "score_rows": len(settled_score_docs),
         "league_avg_rows": len(settled_league_avg_docs),
+        "changed_rows": len(score_updates) + len(league_updates),
+        "unchanged_rows": len(all_docs) - len(score_updates) - len(league_updates),
         "resolved_rows": sum(1 for row in all_docs if row.get("outcome_status") == "resolved"),
         "parity_reports": len(parity_rows),
         "audit_reports": len(audit_rows),
@@ -248,7 +280,7 @@ def run_matchup_settlement(
         "score_docs": settled_score_docs,
         "league_avg_docs": settled_league_avg_docs,
     }
-    if dry_run:
+    if dry_run or (unresolved_only and not score_updates and not league_updates):
         return summary
     if database is None:
         raise RuntimeError("database is required when dry_run is False.")
@@ -264,8 +296,8 @@ def run_matchup_settlement(
     try:
         persistence_metrics = persist_matchup_settlement_records(
             database,
-            score_docs=settled_score_docs,
-            league_avg_docs=settled_league_avg_docs,
+            score_docs=score_updates,
+            league_avg_docs=league_updates,
             parity_rows=parity_rows,
             audit_rows=audit_rows,
             health_rows=health_rows,

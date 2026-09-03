@@ -21,8 +21,8 @@ Valid empty source responses are not failures when no matches or markets exist.
 
 ### 2026-09-03 - Cosmos session cleanup and bounded matchup repair
 
-Status: `VERIFIED` locally and against the production database; `PARTIAL` until
-the final commit completes in a hosted GitHub Actions run.
+Status: `VERIFIED` locally, against the production database, and for the hosted
+scheduler rerun; `PARTIAL` for the next complete scheduled enrichment run.
 
 Objective:
 Diagnose the current failed and timed-out GitHub Actions runs, remove the
@@ -39,15 +39,24 @@ Changes:
   cleanup so normal CLI completion sends server-side session cleanup for all
   workflows.
 - Historical matchup repair now reads and persists only rows whose outcome is
-  not already `resolved`; terminal rows are left untouched.
+  not already `resolved`; terminal rows are left untouched. Empty incremental
+  dates and unchanged missing-result rows return their summary without writing
+  no-op audit/job records or changing only `resolved_at`.
+- Scheduled history rebuilding takes the newest missing dates first and is
+  capped at two dates per run. Matchup recovery has its own concurrency group
+  so a long backfill cannot evict unrelated pending backend jobs. Its runtime
+  budget is 90 minutes for bounded rebuilding plus enrichment/result refresh.
 - Repaired the nine exact match keys captured by failed run `33767926969`.
 
 Tests:
 
 ```text
 $env:PYTHONPATH = (Resolve-Path 'src').Path
-python -m pytest tests/v2/test_formula_journal_materialize.py tests/v2/test_formula_journal_observations.py tests/v2/test_matchup_settlement.py tests/v2/test_mongo_client_lifecycle.py tests/v2/test_automation_contract.py tests/v2/test_registered_shadow_model_runner.py tests/v2/test_ev_shadow_candidate.py -q
+python -m pytest tests/v2/test_formula_journal_materialize.py tests/v2/test_formula_journal_observations.py tests/v2/test_matchup_history.py tests/v2/test_matchup_settlement.py tests/v2/test_mongo_client_lifecycle.py tests/v2/test_automation_contract.py tests/v2/test_registered_shadow_model_runner.py tests/v2/test_ev_shadow_candidate.py -q
 python scripts/forward_v2/materialize_formula_journal.py --repo-root . --registry models/ev/shadow_formula_registry_v1.json --match-key sofascore:15235456 --match-key sofascore:15235457 --match-key sofascore:16310945 --match-key sofascore:16363262 --match-key sofascore:16416320 --match-key sofascore:16416321 --match-key sofascore:16416324 --match-key sofascore:16416340 --match-key sofascore:16434028
+gh workflow run v2-odds-scheduler.yml --ref main -f dry_run=false
+gh run watch 33775279173 --exit-status --interval 20
+python scripts/forward_v2/repair_matchup_history.py --start-date 2026-07-20 --end-date 2026-09-02 --source-workflow enrich-matchups-results.yml
 git diff --check
 ```
 
@@ -61,9 +70,10 @@ Results:
 - Run `33752059496` completed live enrichment but timed out at 45 minutes in
   the 45-day matchup repair. Already resolved dates were being settled and
   rewritten again; the new unresolved-only contract removes that work.
-- Targeted regression coverage passed `48/48`, including explicit session
+- Targeted regression coverage passed `51/51`, including explicit session
   propagation, process-exit client cleanup, immutable replay, scorer runner,
-  automation order, and terminal matchup-row exclusion.
+  automation order, terminal matchup-row exclusion, write-free unchanged
+  outcomes, and newest-first bounded backlog rebuilding.
 - An initial test command named the nonexistent
   `tests/v2/test_ev_shadow_scoring.py` and ran no tests; the corrected command
   above passed. A one-off Python import also exposed a stale editable install
@@ -74,26 +84,32 @@ Results:
   `0` oracle errors, and `0` domain-unverified scores.
   The saved report is
   `data/v2/reports/formula-journal-0f093592888b42c3ac526037c6433ebd.json`.
+- Commit `14df823` was pushed and the remote ref was verified. Hosted scheduler
+  run `33775279173` completed successfully in 30 seconds on that SHA: 59 target
+  matches, 5 due targets, 0 source errors, and 0 new market-snapshot upserts.
+  Its all-model stage was correctly skipped, so this run does not by itself
+  prove a new hosted journal write.
 
 Insight:
 The visible failure was not a model error. Multiple short-lived CLI clients
 left server-side logical-session cleanup to garbage collection, while the
-largest journal job opened many implicit sessions. The separate enrichment
+largest journal job relied on implicit-session lifecycle across many database
+operations. The separate enrichment
 timeout came from repeatedly processing terminal matchup rows over the whole
 45-day repair window.
 
 Remaining:
 
-- The code has production-database evidence but still needs one hosted run on
-  the final commit before the GitHub Actions repair is fully `VERIFIED`.
+- The next due hosted capture must exercise the journal write path, and the
+  next complete scheduled enrichment run must prove the final recovery chain.
 - The readiness checklist does not change; this repair adds operational
   reliability but no new model-performance or complete-lifecycle evidence.
 
 Next:
 
-- Push the final commit, run the match-aware scheduler in hosted write mode,
-  and verify terminal success plus a later scheduled enrichment run without
-  repeating already resolved matchup rows.
+- Verify the current stored-data history repair's terminal result, then use
+  the next scheduled enrichment run as full hosted-chain evidence without
+  repeating the already successful source fetch.
 
 ### 2026-08-30 - Högre laggrafer med lutade statetiketter
 

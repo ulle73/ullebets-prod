@@ -31,10 +31,14 @@ def repair_matchup_history(
     source_workflow: str,
     dry_run: bool = False,
     rebuild_existing: bool = False,
+    max_rebuild_dates: int | None = None,
 ) -> dict[str, Any]:
+    if max_rebuild_dates is not None and max_rebuild_dates < 1:
+        raise ValueError("max_rebuild_dates must be positive")
     dates = iter_dates(date_from, date_to)
     per_date: list[dict[str, Any]] = []
-    for target_date in dates:
+    rebuilt_dates = 0
+    for target_date in reversed(dates):
         fixtures = list(
             database["fixtures_canonical"].find(
                 {"fixture_date_stockholm": target_date},
@@ -51,7 +55,9 @@ def repair_matchup_history(
         league_summary = None
         score_rows = existing_rows
         league_rows = None
-        if fixtures and (rebuild_existing or not existing_rows):
+        needs_rebuild = bool(fixtures and (rebuild_existing or not existing_rows))
+        deferred = needs_rebuild and max_rebuild_dates is not None and rebuilt_dates >= max_rebuild_dates
+        if needs_rebuild and not deferred:
             score_summary = run_matchups_score_build(
                 source_workflow=source_workflow,
                 target_matches=fixtures,
@@ -69,6 +75,7 @@ def repair_matchup_history(
             if dry_run:
                 score_rows = score_summary["entry_docs"]
                 league_rows = league_summary["entry_docs"]
+            rebuilt_dates += 1
 
         settlement = run_matchup_settlement(
             source_workflow=source_workflow,
@@ -84,7 +91,7 @@ def repair_matchup_history(
             {
                 "date": target_date,
                 "fixtures": len(fixtures),
-                "ranking_action": "rebuilt" if score_summary is not None else "reused",
+                "ranking_action": "deferred" if deferred else "rebuilt" if score_summary is not None else "reused",
                 "score_build": _compact(score_summary) if score_summary is not None else None,
                 "league_build": _compact(league_summary) if league_summary is not None else None,
                 "settlement": _compact(settlement),
@@ -95,7 +102,9 @@ def repair_matchup_history(
         "date_from": date_from,
         "date_to": date_to,
         "dates": len(dates),
-        "rebuilt_dates": sum(row["ranking_action"] == "rebuilt" for row in per_date),
+        "rebuilt_dates": rebuilt_dates,
+        "deferred_dates": sum(row["ranking_action"] == "deferred" for row in per_date),
+        "max_rebuild_dates": max_rebuild_dates,
         "resolved_rows": sum(int(row["settlement"].get("resolved_rows") or 0) for row in per_date),
-        "per_date": per_date,
+        "per_date": sorted(per_date, key=lambda row: row["date"]),
     }

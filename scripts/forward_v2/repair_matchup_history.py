@@ -23,6 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--end-date", required=True)
     parser.add_argument("--source-workflow", default="enrich-matchups-results.yml")
     parser.add_argument("--rebuild-existing", action="store_true")
+    parser.add_argument("--max-rebuild-dates", type=int)
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -39,6 +40,7 @@ def main() -> int:
         source_workflow=args.source_workflow,
         dry_run=args.dry_run,
         rebuild_existing=args.rebuild_existing,
+        max_rebuild_dates=args.max_rebuild_dates,
     )
     print(json.dumps(summary, indent=2, ensure_ascii=False, default=str))
     return 0
