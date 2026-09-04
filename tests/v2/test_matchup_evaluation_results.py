@@ -43,6 +43,14 @@ def test_terminal_conflict_fails_closed() -> None:
 
 def test_refresh_skips_terminal_legacy_descriptive_observations() -> None:
     forward = {"observation_key": "forward", "evidence_class": "forward"}
+    resolved = {"observation_key": "resolved", "evidence_class": "forward"}
+    pending = {"observation_key": "pending", "evidence_class": "forward"}
     legacy = {"observation_key": "legacy", "evidence_class": "legacy_descriptive"}
 
-    assert filter_refreshable_observations([legacy, forward]) == [forward]
+    assert filter_refreshable_observations(
+        [legacy, forward, resolved, pending],
+        [
+            {"observation_key": "resolved", "lifecycle_status": "resolved_market"},
+            {"observation_key": "pending", "lifecycle_status": "pending_result"},
+        ],
+    ) == [forward, pending]

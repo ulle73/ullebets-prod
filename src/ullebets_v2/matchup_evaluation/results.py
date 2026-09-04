@@ -34,14 +34,39 @@ TERMINAL_FIELDS = {
     "actual_value", "home_value", "away_value", "predictor_verdict", "signed_residual",
     "market_verdict", "stake_units", "pnl_units",
 }
+DATABASE_QUERY_BATCH_SIZE = 100
 
 
-def filter_refreshable_observations(observations: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+def filter_refreshable_observations(
+    observations: Iterable[dict[str, Any]],
+    existing_results: Iterable[dict[str, Any]] = (),
+) -> list[dict[str, Any]]:
+    terminal_keys = {
+        str(row.get("observation_key"))
+        for row in existing_results
+        if str(row.get("lifecycle_status") or "").startswith(TERMINAL_PREFIX)
+    }
     return [
         row
         for row in observations
         if row.get("evidence_class") != "legacy_descriptive"
+        and str(row.get("observation_key") or "") not in terminal_keys
     ]
+
+
+def _find_by_values(
+    collection: Any,
+    *,
+    field: str,
+    values: Iterable[str],
+    projection: dict[str, int],
+) -> list[dict[str, Any]]:
+    requested = sorted({str(value) for value in values if value})
+    rows: list[dict[str, Any]] = []
+    for start in range(0, len(requested), DATABASE_QUERY_BATCH_SIZE):
+        batch = requested[start : start + DATABASE_QUERY_BATCH_SIZE]
+        rows.extend(collection.find({field: {"$in": batch}}, projection=projection))
+    return rows
 
 
 def _number(value: Any) -> float | None:
@@ -229,7 +254,15 @@ def merge_matchup_result(existing: dict[str, Any] | None, incoming: dict[str, An
 
 def persist_matchup_results(collection: Any, docs: Iterable[dict[str, Any]]) -> dict[str, int]:
     prepared = {str(doc["observation_key"]): dict(doc) for doc in docs}
-    existing = {str(row.get("observation_key")): row for row in collection.find({"observation_key": {"$in": list(prepared)}}, projection={"_id": 0})} if prepared else {}
+    existing = {
+        str(row.get("observation_key")): row
+        for row in _find_by_values(
+            collection,
+            field="observation_key",
+            values=prepared,
+            projection={"_id": 0},
+        )
+    }
     decisions = []
     metrics = {"inserted": 0, "updated": 0, "unchanged": 0, "conflicts": 0}
     try:
@@ -275,22 +308,42 @@ def refresh_matchup_results(*, database: Any, refreshed_at: datetime, date_from:
         if date_to:
             date_filter["$lte"] = date_to
         query["fixture_date_stockholm"] = date_filter
-    observations = filter_refreshable_observations(
+    candidate_observations = list(
         database[MATCHUP_OBSERVATIONS].find(query, projection={"_id": 0})
     )
+    existing_results = _find_by_values(
+        database[MATCHUP_RESULTS],
+        field="observation_key",
+        values=(str(row.get("observation_key") or "") for row in candidate_observations),
+        projection={"_id": 0, "observation_key": 1, "lifecycle_status": 1},
+    )
+    observations = filter_refreshable_observations(candidate_observations, existing_results)
+    legacy_skipped = sum(row.get("evidence_class") == "legacy_descriptive" for row in candidate_observations)
+    terminal_keys = {
+        str(row.get("observation_key"))
+        for row in existing_results
+        if str(row.get("lifecycle_status") or "").startswith(TERMINAL_PREFIX)
+    }
+    terminal_skipped = sum(
+        row.get("evidence_class") != "legacy_descriptive"
+        and str(row.get("observation_key") or "") in terminal_keys
+        for row in candidate_observations
+    )
     match_keys = sorted({str(row.get("match_key")) for row in observations if row.get("match_key")})
-    match_query = {"match_key": {"$in": match_keys}}
     result_docs = build_matchup_result_docs(
         observations=observations,
-        match_stats_canonical=list(database[MATCH_STATS_CANONICAL].find(match_query, projection={"_id": 0})),
-        match_results_canonical=list(database[MATCH_RESULTS_CANONICAL].find(match_query, projection={"_id": 0})),
-        closing_line_docs=list(database[CLOSING_LINES].find(match_query, projection={"_id": 0})),
-        market_snapshot_docs=list(database[MARKET_SNAPSHOTS].find(match_query, projection={"_id": 0})),
+        match_stats_canonical=_find_by_values(database[MATCH_STATS_CANONICAL], field="match_key", values=match_keys, projection={"_id": 0}),
+        match_results_canonical=_find_by_values(database[MATCH_RESULTS_CANONICAL], field="match_key", values=match_keys, projection={"_id": 0}),
+        closing_line_docs=_find_by_values(database[CLOSING_LINES], field="match_key", values=match_keys, projection={"_id": 0}),
+        market_snapshot_docs=_find_by_values(database[MARKET_SNAPSHOTS], field="match_key", values=match_keys, projection={"_id": 0}),
         refreshed_at=refreshed_at,
     ) if match_keys else []
     persistence = {"inserted": 0, "updated": 0, "unchanged": 0, "conflicts": 0} if dry_run else persist_matchup_results(database[MATCHUP_RESULTS], result_docs)
     return {
+        "candidate_observations": len(candidate_observations),
         "observations": len(observations),
+        "legacy_observations_skipped": legacy_skipped,
+        "terminal_results_skipped": terminal_skipped,
         "results": len(result_docs),
         "lifecycle": {status: sum(row.get("lifecycle_status") == status for row in result_docs) for status in sorted({str(row.get("lifecycle_status")) for row in result_docs})},
         "persistence": persistence,

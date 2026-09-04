@@ -46,3 +46,16 @@ def test_immutable_replay_and_conflict() -> None:
     assert persist_matchup_observations(collection, [deepcopy(doc)])["existing"] == 1
     changed = deepcopy(doc); changed["score"] = 81; changed["observation_fingerprint_sha256"] = observation_fingerprint(changed)
     with pytest.raises(ImmutableMatchupObservationConflict): persist_matchup_observations(collection, [changed])
+
+
+def test_fingerprint_survives_bson_millisecond_precision() -> None:
+    original = {
+        "observation_key": "obs",
+        "captured_at": datetime(2026, 9, 4, 14, 24, 32, 809983, tzinfo=UTC),
+    }
+    stored = {
+        **original,
+        "captured_at": datetime(2026, 9, 4, 14, 24, 32, 809000, tzinfo=UTC),
+    }
+
+    assert observation_fingerprint(original) == observation_fingerprint(stored)

@@ -484,6 +484,7 @@ def test_matchup_history_workflow_builds_missing_rankings_before_settlement() ->
     assert "group: ullebets-v2-backend" not in workflow
     assert "ENRICH_START_DATE=$(date -u -d 'yesterday'" in workflow
     assert "ENRICH_START_DATE=$(date -u -d '8 days ago'" not in workflow
+    assert "backfill_legacy_matchup_evaluation.py" not in workflow
 
 
 def test_workflow_directory_rejects_postmatch_recovery_without_catch_up() -> None:

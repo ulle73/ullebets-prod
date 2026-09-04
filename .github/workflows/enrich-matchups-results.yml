@@ -46,5 +46,4 @@ jobs:
         fi
         python scripts/forward_v2/ingest_match_enrichment.py --mode live --fixture-source db --start-date "$ENRICH_START_DATE" --end-date "$END_DATE" --include-unresolved-matchup-observations --source-workflow enrich-matchups-results.yml --dry-run
         python scripts/forward_v2/repair_matchup_history.py --start-date "$START_DATE" --end-date "$END_DATE" --max-rebuild-dates 2 --source-workflow enrich-matchups-results.yml --dry-run
-        python scripts/forward_v2/backfill_legacy_matchup_evaluation.py --date-from "$START_DATE" --date-to "$END_DATE" --dry-run
         python scripts/forward_v2/refresh_matchup_results.py --date-from "$START_DATE" --date-to "$END_DATE" --dry-run

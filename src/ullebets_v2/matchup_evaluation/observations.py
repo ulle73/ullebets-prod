@@ -14,6 +14,7 @@ CHECKPOINT_LABEL = "T_MINUS_1D"
 COMPARABLE_ODDS_MIN = 1.80
 COMPARABLE_ODDS_MAX = 2.20
 FINGERPRINT_EXCLUDED_FIELDS = {"_id", "journaled_at", "observation_fingerprint_sha256"}
+DATABASE_QUERY_BATCH_SIZE = 100
 
 
 class ImmutableMatchupObservationConflict(RuntimeError):
@@ -23,7 +24,12 @@ class ImmutableMatchupObservationConflict(RuntimeError):
 def _json_value(value: Any) -> Any:
     if isinstance(value, datetime):
         parsed = value if value.tzinfo else value.replace(tzinfo=UTC)
-        return parsed.astimezone(UTC).isoformat()
+        parsed = parsed.astimezone(UTC)
+        # BSON persists datetimes with millisecond precision. Hash that durable
+        # representation so a freshly written observation still validates
+        # after a database round trip.
+        parsed = parsed.replace(microsecond=(parsed.microsecond // 1000) * 1000)
+        return parsed.isoformat()
     if isinstance(value, dict):
         return {str(key): _json_value(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -187,7 +193,18 @@ def persist_matchup_observations(collection: Any, docs: Iterable[dict[str, Any]]
             raise ImmutableMatchupObservationConflict(f"duplicate immutable matchup observation conflict: {key}")
         prepared[key] = doc
     keys = list(prepared)
-    existing = {str(row.get("observation_key")): row for row in collection.find({"observation_key": {"$in": keys}}, projection={"_id": 0})} if keys else {}
+    existing: dict[str, dict[str, Any]] = {}
+    for start in range(0, len(keys), DATABASE_QUERY_BATCH_SIZE):
+        batch = keys[start : start + DATABASE_QUERY_BATCH_SIZE]
+        existing.update(
+            {
+                str(row.get("observation_key")): row
+                for row in collection.find(
+                    {"observation_key": {"$in": batch}},
+                    projection={"_id": 0},
+                )
+            }
+        )
     for key, stored in existing.items():
         stored_fp = observation_fingerprint(stored)
         if stored.get("observation_fingerprint_sha256") != stored_fp or stored_fp != observation_fingerprint(prepared[key]):
