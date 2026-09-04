@@ -19,6 +19,105 @@ still worth testing. Detailed evidence remains in the linked reports.
 
 Valid empty source responses are not failures when no matches or markets exist.
 
+### 2026-09-04 - Idempotent matchup-cron och begränsad Cosmos-refresh
+
+Status: `VERIFIED` lokalt mot produktionsdatabasen och i två skarpa hosted
+workflow-körningar på fixrevisionen. Nästa naturligt schemalagda 45-dagarskörning
+är ännu `UNPROVEN` som separat tidsfönster.
+
+Objective:
+Diagnostisera de återkommande felen i `V2 Match-Aware Odds Scheduler` och
+`V2 Enrich matchups results`, bevara frysta observationer/resultat och ta bort
+det återkommande Cosmos-arbete som inte hör hemma i en daglig cron.
+
+Changes:
+
+- Matchup-materialisering frågar nu efter redan frysta observationsnycklar i
+  Cosmos-säkra batcher om högst 100 och bygger endast saknade rader. En senare
+  T-1D-körning återanvänder därför första observationen i stället för att skapa
+  samma identitet med en ny `captured_at`.
+- Observationsfingerprint normaliserar datum till BSON:s millisekundprecision.
+  Nya fingerprints kan därmed verifieras efter en Mongo/Cosmos-rundtur även
+  när källtidpunkten hade mikrosekunder.
+- Resultatrefreshen hämtar befintliga resultat i batcher om högst 100, hoppar
+  över redan terminala forward-resultat före all källinläsning och batchar även
+  återstående matchfrågor. Frysta utfall räknas inte om när den kanoniska
+  källan senare rättas.
+- Den dagliga enrich-workflowen kör inte längre det historiska
+  `backfill_legacy_matchup_evaluation.py`. Legacy-materialisering är en
+  avgränsad migrering; att läsa om 45 dagars `matchups_score` varje dygn gav
+  ingen ny forward-evidens och var den fråga som upprepade gånger nådde Cosmos
+  121-sekundersgräns.
+- Sammanfattningarna redovisar nu frysta/nya observationer samt antal hoppade
+  legacy- och terminalrader, så att idempotens och faktisk arbetsmängd syns i
+  workflow-loggen.
+
+Tests:
+
+```text
+gh auth status
+gh run view 33883517434 --log-failed
+gh run view 33870209025 --log-failed
+$env:PYTHONPATH = (Resolve-Path 'src').Path
+python -m pytest tests/v2/test_matchup_evaluation_observations.py tests/v2/test_matchup_evaluation_materialize.py tests/v2/test_matchup_evaluation_results.py tests/v2/test_automation_contract.py -q
+python scripts/forward_v2/materialize_matchup_observations.py --repo-root . --match-key sofascore:16363262 --dry-run
+python scripts/forward_v2/refresh_matchup_results.py --date-from 2026-08-31 --date-to 2026-08-31 --dry-run
+refresh_matchup_results(..., date_from=<45 days ago>, date_to=<yesterday>, dry_run=True)
+python -m pytest tests/v2 -q
+python -m compileall -q src scripts/forward_v2
+gh workflow run v2-odds-scheduler.yml --ref main -f dry_run=false
+gh workflow run enrich-matchups-results.yml --ref main -f target_date=2026-08-31 -f dry_run=false
+git diff --check
+git ls-remote origin refs/heads/main
+```
+
+Results:
+
+- Scheduler run `33883517434` hade först lyckats skriva 684 snapshots utan
+  källfel men föll på
+  `ImmutableMatchupObservationConflict` för en redan fryst T-1D-identitet.
+  Produktionsjämförelsen visade att den nya kandidaten endast skilde sig i
+  `captured_at` och `minutes_to_kickoff`; den lagrade fingerprinten kunde
+  dessutom inte räknas om efter BSON:s mikrosekund-till-millisekund-trunkering.
+- Enrich run `33870209025` nådde först Cosmos `ExecutionTimeout` (`code 50`)
+  under det återkommande 45-dagars legacy-backfillet. Den fortsatte efter
+  retry men föll sedan på en terminal resultatkonflikt där en kanonisk
+  `away_value` hade ändrats från 14 till 13. Den frysta resultatposten lämnades
+  orörd enligt immutabilitetskontraktet.
+- Det konkreta materialiseringsprovet mot produktion fann 90 redan frysta
+  observationer, 0 nya och 0 konflikter. Den fulla 45-dagarsrefreshen läste
+  2 109 kandidater, hoppade över 1 380 legacy-rader och 383 terminala rader,
+  behandlade 346 återstående rader och slutfördes på 12,33 sekunder utan fel.
+- De riktade regressionstesterna passerade `34/34`. Hela V2-sviten passerade
+  `587/587`, Python-kompileringen passerade och `git diff --check` rapporterade
+  inga whitespace-fel.
+- Fixen är commit `e1e556e` på `origin/main`. Hosted scheduler run
+  `33886956225` slutfördes med `success`: 57 målmatcher, 5 due-matcher,
+  0 källfel och 270 frysta observationer återanvändes med 0 nya och
+  0 konflikter.
+- Hosted enrich run `33886961348` för det tidigare konfliktande datumet
+  slutfördes med `success`: 16 matchade live-mål, 0 källfel, 0 ombyggda datum,
+  383 terminala resultat hoppades över och de 22 återstående raderna gav
+  1 uppdatering, 21 oförändrade och 0 konflikter.
+
+New insight:
+Immutable lagring kräver att schemaläggaren behandlar en existerande identitet
+som avslutad, inte att den bygger om dagens version och jämför den med den
+frysta. Tidsmetadata måste dessutom kanoniseras till databasens faktiska
+precision före hashing. Samma princip gäller resultat: senare källkorrigeringar
+ska granskas separat och får inte skriva om redan terminal forward-evidens.
+
+Unproven or blocked:
+Nästa naturliga schedule-event med standardfönstret har ännu inte inträffat på
+fixrevisionen. Hosted write-pathen, den tidigare konfliktande dagen och den
+fulla 45-dagars läs-/beräkningsmängden är verifierade. Readiness-statusen ändras
+inte eftersom detta är driftsäkerhet och ingen ny modellprestandaevidens.
+
+Next justified test:
+Kontrollera nästa naturligt schemalagda enrich-run. Om den faller ska nästa
+diagnos börja vid live-ingestdelen; legacy-skanningen, terminal omräkning och
+observationens replay-konflikt ska inte återinföras.
+
 ### 2026-09-04 - Pedagogisk pris- och EV-känslighet
 
 Status: `VERIFIED` lokalt med enhetstester, full frontend-svit,
