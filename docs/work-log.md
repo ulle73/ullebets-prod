@@ -61,6 +61,26 @@ of this revision remains unproven until recorded below.
   capture and journal writes, then a replay with no pending work. Expired
   missing forward evidence cannot be reconstructed after kickoff.
 
+Follow-up verification in the same session:
+
+- Hosted `34049866680` capture completed in five seconds, with zero due targets:
+  capture_seconds=0.969, odds_write_seconds=0.0,
+  checkpoint_write_seconds=0.270. This is not nonempty write proof.
+- The hosted journal still accumulated writes slowly (5450 then 7000 rows for
+  the first match) with bulk upserts. Replace those with insert_many batches
+  after identity checks; duplicate races require fingerprint-checked readback.
+  The first hosted control run is deliberately interrupted to resume the
+  already saved immutable rows with this implementation.
+- Scoped model loader now queries only histories involving target teams,
+  through the existing match_key-leading statistics index in batches of 100.
+  Same production match `sofascore:15235450`: original loader 326 snapshots,
+  951 fixtures, 8952 statistics in 18.204s; scoped loader 326/951/384 in 2.589s.
+  pandas.assert_frame_equal and exact audit equality passed for all 15 model
+  rows. Formula/model parameters and as-of rules are unchanged.
+- `pytest` journal observation/materializer and forward adapter tests: 20 passed
+  in 10.50s, including agreeing/conflicting duplicate insert races. Earlier
+  adapter/registry runner check: 5 passed. Final hosted recovery remains pending.
+
 ### 2026-09-04 - Idempotent matchup-cron och begränsad Cosmos-refresh
 
 Status: `VERIFIED` lokalt mot produktionsdatabasen och i två skarpa hosted

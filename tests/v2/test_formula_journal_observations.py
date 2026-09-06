@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
+from pymongo import UpdateOne
 
 from ullebets_v2.formula_journal.observations import (
     ImmutableFormulaObservationConflict,
@@ -113,6 +114,10 @@ class FakeCollection:
     def find_one(self, query: dict, projection: dict | None = None) -> dict | None:  # noqa: ARG002
         row = self.rows.get(query["observation_key"])
         return deepcopy(row) if row is not None else None
+
+    def insert_many(self, docs, *, ordered=False):
+        result = self.bulk_write([UpdateOne({"observation_key": doc["observation_key"]}, {"$setOnInsert": doc}, upsert=True) for doc in docs], ordered=ordered)
+        return SimpleNamespace(inserted_ids=list(range(result.upserted_count)))
 
     def update_one(self, query: dict, update: dict, *, upsert: bool = False) -> SimpleNamespace:
         assert upsert is True
@@ -309,3 +314,29 @@ def test_persistent_timeout_is_bounded_and_permission_errors_are_not_retried(mon
         with pytest.raises(type(error)):
             persist_formula_observations(collection, docs)
         assert len(calls) == expected_calls
+
+
+@pytest.mark.parametrize("conflicting", [False, True])
+def test_duplicate_insert_race_validates_the_winning_evidence(conflicting):
+    from pymongo.errors import BulkWriteError
+    from ullebets_v2.formula_journal.observations import immutable_observation_fingerprint
+    collection = FakeCollection()
+    docs = build_js_observation_docs(lines=[_js_line()], context=_context(), runtime_sha256="a" * 64, registry=_registry(), journaled_at=NOW)
+    original = collection.insert_many
+    calls = []
+    def race(incoming, **kwargs):
+        calls.append(1)
+        winner = deepcopy(incoming[0])
+        if conflicting:
+            winner["offered_odds"] = 99.0
+            winner["observation_fingerprint_sha256"] = immutable_observation_fingerprint(winner)
+        collection.rows[winner["observation_key"]] = winner
+        original(incoming[1:], **kwargs)
+        raise BulkWriteError({"writeErrors": [{"code": 11000}], "writeConcernErrors": []})
+    collection.insert_many = race
+    if conflicting:
+        with pytest.raises(ImmutableFormulaObservationConflict):
+            persist_formula_observations(collection, docs)
+    else:
+        assert persist_formula_observations(collection, docs)["existing"] == len(docs)
+    assert len(calls) == 1

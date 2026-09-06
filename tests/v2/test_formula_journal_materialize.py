@@ -85,6 +85,12 @@ class FakeCollection:
     def distinct(self, field):
         return sorted({row[field] for row in self.rows if row.get(field) is not None})
 
+    def insert_many(self, docs, *, ordered=False, session=None):
+        assert ordered is False
+        self.sessions.append(session)
+        self.rows.extend(deepcopy(docs))
+        return SimpleNamespace(inserted_ids=list(range(len(docs))))
+
 
 class FakeDatabase(dict):
     def __getitem__(self, key):

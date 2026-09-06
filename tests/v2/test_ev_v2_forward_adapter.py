@@ -211,3 +211,20 @@ def test_forward_features_use_only_prior_canonical_match_stats() -> None:
     assert frame.iloc[0]["offer_key"] == "current-line"
     assert audit["history_observations_at_or_after_snapshot_used"] == 0
     assert audit["history_observations_excluded_by_snapshot"] == 2
+
+    # An unrelated league/team must not change any feature or as-of audit when
+    # its statistics are omitted from the database query.
+    from scripts.forward_v2.score_ev_shadow_model import _history_match_keys
+    extra = {**fixtures.iloc[0].to_dict(), "match_key": "unrelated", "home_team_key": "x", "away_team_key": "y"}
+    expanded_fixtures = pd.concat([fixtures, pd.DataFrame([extra])], ignore_index=True)
+    extra_stats = stats[stats["match_key"] == "past-home"].assign(match_key="unrelated", actual_value=1000)
+    expanded_stats = pd.concat([stats, extra_stats], ignore_index=True)
+    history_keys = _history_match_keys(expanded_fixtures.to_dict("records"), ["current"])
+    assert "unrelated" not in history_keys
+    assert "current" not in history_keys
+    full, full_audit = build_v2_forward_model_frame(snapshots=snapshots, fixtures=expanded_fixtures, match_stats=expanded_stats)
+    scoped, scoped_audit = build_v2_forward_model_frame(snapshots=snapshots, fixtures=expanded_fixtures, match_stats=expanded_stats[expanded_stats["match_key"].isin(history_keys)])
+    pd.testing.assert_frame_equal(full, scoped)
+    assert full_audit == scoped_audit
+    empty, _ = build_v2_forward_model_frame(snapshots=snapshots, fixtures=fixtures, match_stats=pd.DataFrame())
+    assert empty["baseline_lambda"].isna().all()

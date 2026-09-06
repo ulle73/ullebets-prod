@@ -6,7 +6,7 @@ import json
 import math
 from typing import Any, Iterable
 
-from pymongo import UpdateOne
+from pymongo.errors import BulkWriteError
 from ullebets_v2.storage.retry import retry_idempotent
 
 from ullebets_v2.formula_journal.registry import frozen_model_registry_by_id
@@ -370,6 +370,7 @@ def _persist_formula_observation_batch(
     docs: Iterable[dict[str, Any]],
     *,
     session: Any | None = None,
+    reconcile_duplicate: bool = True,
 ) -> dict[str, int]:
     metrics = {"inserted": 0, "existing": 0, "conflicts": 0}
     incoming_by_key: dict[str, dict[str, Any]] = {}
@@ -430,48 +431,24 @@ def _persist_formula_observation_batch(
         bulk_kwargs = {"ordered": False}
         if session is not None:
             bulk_kwargs["session"] = session
-        result = collection.bulk_write(
-            [
-                UpdateOne(
-                    {"observation_key": key},
-                    {"$setOnInsert": doc},
-                    upsert=True,
-                )
-                for key, doc in missing
-            ],
-            **bulk_kwargs,
-        )
-        inserted = int(result.upserted_count)
-        raced = len(missing) - inserted
-        metrics["inserted"] += inserted
-        metrics["existing"] += raced
-        if raced:
-            raced_rows = list(
-                collection.find(
-                    {"observation_key": {"$in": [key for key, _ in missing]}},
-                    **find_kwargs,
-                )
-            )
-            raced_by_key = {
-                str(row.get("observation_key") or ""): row
-                for row in raced_rows
-            }
-            for key, doc in missing:
-                stored = raced_by_key.get(key)
-                if stored is None:
-                    metrics["conflicts"] += 1
-                    raise ImmutableFormulaObservationConflict(
-                        f"formula observation disappeared after concurrent insert: {key}"
-                    )
-                stored_fingerprint = immutable_observation_fingerprint(stored)
-                if (
-                    stored.get("observation_fingerprint_sha256") != stored_fingerprint
-                    or stored_fingerprint != immutable_observation_fingerprint(doc)
-                ):
-                    metrics["conflicts"] += 1
-                    raise ImmutableFormulaObservationConflict(
-                        f"immutable formula observation conflict after concurrent insert: {key}"
-                    )
+        try:
+            # These identities were already checked above. Insert immutable
+            # rows directly instead of making the server execute an upsert
+            # query for every observation. The unique observation index is
+            # the arbiter when another worker races us.
+            result = collection.insert_many([dict(doc) for _, doc in missing], **bulk_kwargs)
+            metrics["inserted"] += len(result.inserted_ids)
+        except BulkWriteError as exc:
+            errors = exc.details.get("writeErrors") or []
+            if (not reconcile_duplicate or not errors
+                    or exc.details.get("writeConcernErrors")
+                    or any(row.get("code") != 11000 for row in errors)):
+                raise
+            # Read and fingerprint-check the winners, never ignore duplicates.
+            # Bound reconciliation so an unrelated unique-index error escapes.
+            reconciled = _persist_formula_observation_batch(collection, [doc for _, doc in missing], session=session, reconcile_duplicate=False)
+            for key in metrics:
+                metrics[key] += reconciled[key]
     return metrics
 
 

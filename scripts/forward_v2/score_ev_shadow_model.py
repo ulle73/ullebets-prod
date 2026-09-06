@@ -156,10 +156,15 @@ def _load_rows(
             },
         )
     )
-    stats = list(
-        database[MATCH_STATS_CANONICAL].find(
+    # Features use only the two target teams' own match histories. Reading
+    # every team's statistics for each frozen model makes scoped cron work
+    # proportional to the entire database instead of the requested matches.
+    history_keys = _history_match_keys(fixtures, target_keys)
+    stats = []
+    for offset in range(0, len(history_keys), 100):
+        stats.extend(database[MATCH_STATS_CANONICAL].find(
             {
-                "match_key": {"$nin": target_keys},
+                "match_key": {"$in": history_keys[offset:offset + 100]},
                 "stat_key": {"$in": sorted(set(TEAM_STATS_KEYS.values()))},
                 "period": {"$in": ["ALL", "1ST", "2ND"]},
                 "scope": {"$in": ["home", "away", "total"]},
@@ -172,9 +177,17 @@ def _load_rows(
                 "scope": 1,
                 "actual_value": 1,
             },
-        )
-    )
+        ))
     return snapshots, fixtures, stats
+
+
+def _history_match_keys(fixtures: list[dict[str, Any]], target_keys: list[str]) -> list[str]:
+    targets = set(target_keys)
+    teams = {str(row.get(f"{role}_team_key")) for row in fixtures
+             if str(row.get("match_key")) in targets for role in ("home", "away")}
+    return sorted({str(row["match_key"]) for row in fixtures
+                   if str(row["match_key"]) not in targets
+                   and any(str(row.get(f"{role}_team_key")) in teams for role in ("home", "away"))})
 
 
 def _write_local_report(

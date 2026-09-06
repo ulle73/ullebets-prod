@@ -119,6 +119,8 @@ def _build_history_groups(
     dict[tuple[str, str, str], CanonicalHistory],
     dict[tuple[str, str, str, str], CanonicalHistory],
 ]:
+    if match_stats.empty:
+        return {}, {}
     fixture_columns = [
         "match_key",
         "start_time",
