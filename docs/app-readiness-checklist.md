@@ -1,6 +1,6 @@
 # Ullebets app readiness checklist
 
-Last updated: 2026-08-29
+Last updated: 2026-09-06
 
 Overall status: **NOT READY FOR COMPLETE PRODUCTION USE**
 
@@ -13,6 +13,12 @@ Status details and evidence:
 - [Work log](work-log.md)
 - [Backend verification](v2-backend-verification-status.md)
 - [Model experiments](ev-model-experiments.md)
+
+Cron reliability: `PARTIAL` as of 2026-09-06. New scheduler failures exposed
+unindexed per-row snapshot writes and non-resumable downstream work. The repair
+passes local recovery tests; hosted nonempty processing and replay verification
+remain required. See the latest work-log entry. Earlier successful empty runs
+do not prove this complete path.
 
 ## Critical blockers
 

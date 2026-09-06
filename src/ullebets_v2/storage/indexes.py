@@ -324,6 +324,7 @@ def build_core_index_plan() -> list[dict[str, Any]]:
                     "unique": True,
                 },
                 {"keys": [("snapshot_time", 1), ("match_start_time", 1)], "name": "snapshot_time_match_start_time"},
+                {"keys": [("match_start_time", 1)], "name": "snapshot_match_start_time"},
                 {"keys": [("invalid_for_model", 1), ("snapshot_time", -1)], "name": "invalid_for_model_snapshot_time"},
             ],
         },

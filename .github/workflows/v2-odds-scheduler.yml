@@ -58,69 +58,22 @@ jobs:
             ARGS+=(--dry-run)
           fi
           python scripts/forward_v2/capture_odds_checkpoints.py "${ARGS[@]}" | tee "$CAPTURE_SUMMARY"
-          CAPTURED_SNAPSHOTS="$(python - "$CAPTURE_SUMMARY" <<'PY'
-          import json
-          import sys
 
-          with open(sys.argv[1], encoding="utf-8") as handle:
-              summary = json.load(handle)
-          print(int(summary.get("market_snapshot_upserts") or 0))
-          PY
-          )"
-          mapfile -t CAPTURED_MATCH_KEYS < <(python - "$CAPTURE_SUMMARY" <<'PY'
-          import json
-          import sys
-
-          with open(sys.argv[1], encoding="utf-8") as handle:
-              summary = json.load(handle)
-          seen = set()
-          for row in summary.get("due_targets") or []:
-              match_key = str(row.get("match_key") or "")
-              if match_key and match_key not in seen:
-                  seen.add(match_key)
-                  print(match_key)
-          PY
-          )
-          SCOPED_MATCH_ARGS=()
-          for MATCH_KEY in "${CAPTURED_MATCH_KEYS[@]}"; do
-            SCOPED_MATCH_ARGS+=(--match-key "$MATCH_KEY")
-          done
-          mapfile -t T1D_MATCH_KEYS < <(python - "$CAPTURE_SUMMARY" <<'PY'
-          import json
-          import sys
-          with open(sys.argv[1], encoding="utf-8") as handle:
-              summary = json.load(handle)
-          seen = set()
-          for row in summary.get("due_targets") or []:
-              match_key = str(row.get("match_key") or "")
-              if row.get("checkpoint_key") == "T_MINUS_1D" and match_key and match_key not in seen:
-                  seen.add(match_key)
-                  print(match_key)
-          PY
-          )
-          if [ "${#T1D_MATCH_KEYS[@]}" -gt 0 ]; then
-            MATCHUP_ARGS=()
-            for MATCH_KEY in "${T1D_MATCH_KEYS[@]}"; do MATCHUP_ARGS+=(--match-key "$MATCH_KEY"); done
-            if [ "${{ inputs.dry_run || false }}" = "true" ]; then MATCHUP_ARGS+=(--dry-run); fi
-            python scripts/forward_v2/materialize_matchup_observations.py --repo-root . "${MATCHUP_ARGS[@]}"
-          fi
-
-          if [ "${{ inputs.dry_run || false }}" = "true" ]; then
-            echo "Skipping all-model scoring after dry-run capture."
-          elif [ "$CAPTURED_SNAPSHOTS" -gt 0 ]; then
-            if [ "${#SCOPED_MATCH_ARGS[@]}" -eq 0 ]; then
-              echo "Capture wrote snapshots but exposed no match keys; refusing unscoped scoring." >&2
-              exit 1
-            fi
-            python -m pip install -e .
-            python scripts/forward_v2/score_registered_shadow_models.py \
-              --repo-root . \
-              --registry models/ev/shadow_formula_registry_v1.json \
-              "${SCOPED_MATCH_ARGS[@]}"
-            python scripts/forward_v2/materialize_formula_journal.py \
-              --repo-root . \
-              --registry models/ev/shadow_formula_registry_v1.json \
-              "${SCOPED_MATCH_ARGS[@]}"
-          else
-            echo "Skipping all-model scoring: checkpoint capture wrote no new snapshots."
-          fi
+  process-persisted-checkpoints:
+    needs: schedule-odds-captures
+    if: ${{ always() && inputs.dry_run != true && !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_DB: ullebets_v2
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install model dependencies
+        run: python -m pip install -e .
+      - name: Resume persisted checkpoints and verify consumers
+        run: python -u scripts/forward_v2/resume_checkpoint_processing.py --repo-root .

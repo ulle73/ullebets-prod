@@ -269,3 +269,43 @@ def test_same_market_at_two_checkpoints_gets_two_distinct_observation_keys() -> 
     assert {row["observation_key"] for row in t3d}.isdisjoint(
         {row["observation_key"] for row in t2h}
     )
+
+
+@pytest.mark.parametrize("partial", [False, True])
+def test_timeout_reconciles_partial_writes_without_replacing_evidence(monkeypatch, partial):
+    from pymongo.errors import ExecutionTimeout
+    from ullebets_v2.storage import retry
+    monkeypatch.setattr(retry.time, "sleep", lambda _: None)
+    collection = FakeCollection()
+    docs = build_js_observation_docs(lines=[_js_line()], context=_context(), runtime_sha256="a" * 64, registry=_registry(), journaled_at=NOW)
+    original = collection.bulk_write
+    calls = []
+    def uncertain(operations, **kwargs):
+        calls.append(len(operations))
+        if len(calls) == 1:
+            if partial:
+                original(operations[:1], **kwargs)
+            raise ExecutionTimeout("server timeout", code=50)
+        return original(operations, **kwargs)
+    collection.bulk_write = uncertain
+    result = persist_formula_observations(collection, docs)
+    assert result["inserted"] + result["existing"] == len(docs)
+    assert calls == [2, 1 if partial else 2]
+    assert list(collection.rows.values()) == docs
+
+
+def test_persistent_timeout_is_bounded_and_permission_errors_are_not_retried(monkeypatch):
+    from pymongo.errors import ExecutionTimeout, OperationFailure
+    from ullebets_v2.storage import retry
+    monkeypatch.setattr(retry.time, "sleep", lambda _: None)
+    docs = build_js_observation_docs(lines=[_js_line()], context=_context(), runtime_sha256="a" * 64, registry=_registry(), journaled_at=NOW)
+    for error, expected_calls in [(ExecutionTimeout("timeout", code=50), 4), (OperationFailure("forbidden", code=13), 1)]:
+        collection = FakeCollection()
+        calls = []
+        def fail(*args, **kwargs):
+            calls.append(1)
+            raise error
+        collection.bulk_write = fail
+        with pytest.raises(type(error)):
+            persist_formula_observations(collection, docs)
+        assert len(calls) == expected_calls

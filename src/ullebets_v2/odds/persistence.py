@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.bulk import upsert_rows
+
 
 def _dedupe_documents(
     rows: list[dict[str, Any]],
@@ -26,32 +28,11 @@ def persist_odds_data_records(
     event_link_docs: list[dict[str, Any]],
     market_offer_docs: list[dict[str, Any]],
 ) -> dict[str, int]:
-    raw_upserts = 0
-    for row in raw_docs:
-        result = database["raw_odds_kambi"].update_one(
-            {"raw_key": row["raw_key"]},
-            {"$set": row},
-            upsert=True,
-        )
-        raw_upserts += 1 if result.upserted_id is not None else 0
+    raw_upserts = upsert_rows(database["raw_odds_kambi"], raw_docs, key_fields=("raw_key",))
 
-    event_link_upserts = 0
-    for row in event_link_docs:
-        result = database["unibet_event_links"].update_one(
-            {"event_id": row["event_id"]},
-            {"$set": row},
-            upsert=True,
-        )
-        event_link_upserts += 1 if result.upserted_id is not None else 0
+    event_link_upserts = upsert_rows(database["unibet_event_links"], event_link_docs, key_fields=("event_id",))
 
-    market_offer_upserts = 0
-    for row in _dedupe_documents(market_offer_docs, key_fields=("offer_key",)):
-        result = database["market_offers"].update_one(
-            {"offer_key": row["offer_key"]},
-            {"$set": row},
-            upsert=True,
-        )
-        market_offer_upserts += 1 if result.upserted_id is not None else 0
+    market_offer_upserts = upsert_rows(database["market_offers"], _dedupe_documents(market_offer_docs, key_fields=("offer_key",)), key_fields=("offer_key",))
 
     return {
         "raw_upserts": raw_upserts,

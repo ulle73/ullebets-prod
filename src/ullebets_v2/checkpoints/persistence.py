@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ullebets_v2.storage.bulk import upsert_rows
+
 
 def persist_checkpoint_records(
     database: Any,
@@ -11,14 +13,8 @@ def persist_checkpoint_records(
     audit_rows: list[dict[str, Any]],
     health_rows: list[dict[str, Any]],
 ) -> dict[str, int]:
-    market_snapshot_upserts = 0
-    for row in market_snapshot_docs:
-        result = database["market_snapshots"].update_one(
-            {"snapshot_key": row["snapshot_key"]},
-            {"$set": row},
-            upsert=True,
-        )
-        market_snapshot_upserts += 1 if result.upserted_id is not None else 0
+    # Match the existing unique index; snapshot_key has no production index.
+    market_snapshot_upserts = upsert_rows(database["market_snapshots"], market_snapshot_docs, key_fields=("match_key", "offer_key", "snapshot_label"))
 
     parity_upserts = 0
     for row in parity_rows:

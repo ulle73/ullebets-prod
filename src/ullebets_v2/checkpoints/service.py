@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+import time
 
 from ullebets_v2.checkpoints.persistence import persist_checkpoint_records
 from ullebets_v2.checkpoints.policy import (
@@ -426,6 +427,7 @@ def run_checkpoint_capture(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     captured_at = now or utc_now()
+    started = time.monotonic()
     snapshots = existing_snapshot_docs
     if snapshots is None and database is not None:
         snapshots = load_existing_snapshot_docs(database, [str(target["match_key"]) for target in targets])
@@ -475,6 +477,7 @@ def run_checkpoint_capture(
         snapshot_time=captured_at,
         source_workflow=source_workflow,
     )
+    capture_seconds = time.monotonic() - started
     report_date = captured_at.date().isoformat()
     parity_rows = build_checkpoint_parity_rows(
         source_workflow=source_workflow,
@@ -503,6 +506,7 @@ def run_checkpoint_capture(
 
     summary: dict[str, Any] = {
         "job": "capture_odds_checkpoints",
+        "capture_seconds": round(capture_seconds, 3),
         "captured_at": captured_at.isoformat(),
         "target_matches": len(targets),
         "due_matches": len(due_targets),
@@ -557,12 +561,15 @@ def run_checkpoint_capture(
     database["job_runs"].insert_one(run_doc)
     job_metrics = {key: value for key, value in summary.items() if key not in {"due_targets", "match_rows"}}
     try:
+        write_started = time.monotonic()
         odds_metrics = persist_odds_data_records(
             database,
             raw_docs=documents.get("raw_docs", []),
             event_link_docs=documents.get("event_link_docs", []),
             market_offer_docs=documents.get("market_offer_docs", []),
         )
+        summary["odds_write_seconds"] = round(time.monotonic() - write_started, 3)
+        write_started = time.monotonic()
         checkpoint_metrics = persist_checkpoint_records(
             database,
             market_snapshot_docs=market_snapshot_docs,
@@ -570,13 +577,16 @@ def run_checkpoint_capture(
             audit_rows=audit_rows,
             health_rows=health_rows,
         )
+        summary["checkpoint_write_seconds"] = round(time.monotonic() - write_started, 3)
         summary.update(odds_metrics)
         summary.update(checkpoint_metrics)
         database["job_runs"].update_one(
             {"run_id": run_doc["run_id"]},
             build_job_run_finished_update(
                 status="succeeded",
-                metrics={**odds_metrics, **checkpoint_metrics, **job_metrics},
+                metrics={**odds_metrics, **checkpoint_metrics, **job_metrics,
+                         "odds_write_seconds": summary["odds_write_seconds"],
+                         "checkpoint_write_seconds": summary["checkpoint_write_seconds"]},
             ),
         )
     except Exception as exc:

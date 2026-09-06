@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 from ullebets_v2.odds.discovery import extract_event_list, find_unibet_event_for_match
 from ullebets_v2.odds.mapper import map_unibet_odds
@@ -34,6 +35,11 @@ class FakeCollection:
 
     def insert_one(self, doc: dict) -> None:
         self.docs.append(dict(doc))
+
+    def bulk_write(self, operations, *, ordered=False):
+        assert ordered is False
+        count = sum(self.update_one(op._filter, op._doc, upsert=op._upsert).upserted_id is not None for op in operations)
+        return SimpleNamespace(upserted_count=count)
 
     def find(self, query: dict | None = None, projection: dict | None = None):  # noqa: ARG002
         query = query or {}

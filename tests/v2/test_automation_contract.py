@@ -84,7 +84,6 @@ def test_match_aware_odds_scheduler_owns_only_regular_production_checkpoints() -
 
 def test_checkpoint_capture_workflows_score_registry_and_materialize_after_new_snapshots() -> None:
     workflows = {
-        "v2-odds-scheduler.yml": "capture_odds_checkpoints.py",
         "run-unibet-odds-checkpoints.yml": "capture_odds_checkpoints.py",
     }
 
@@ -533,3 +532,12 @@ def test_legacy_ev_backtest_is_manual_parity_only() -> None:
 
     assert "schedule:" not in workflow
     assert "Legacy EV Parity Replay" in workflow
+
+
+def test_scheduler_resumes_persisted_work_even_when_capture_fails_or_inserts_nothing():
+    workflow = (repo_root() / ".github/workflows/v2-odds-scheduler.yml").read_text()
+    assert "resume_checkpoint_processing.py" in workflow
+    assert "needs: schedule-odds-captures" in workflow
+    assert "always() && inputs.dry_run != true && !cancelled()" in workflow
+    assert "CAPTURED_SNAPSHOTS" not in workflow
+    assert workflow.count("timeout-minutes: 60") == 2

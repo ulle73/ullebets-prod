@@ -1,6 +1,6 @@
 # Ullebets work log
 
-Last updated: 2026-09-04
+Last updated: 2026-09-06
 
 This is the mandatory first-read project log. It records what has already been
 tested, what currently works, what failed, the strongest insights, and what is
@@ -18,6 +18,48 @@ still worth testing. Detailed evidence remains in the linked reports.
 - `NOT STARTED`: a required product area has no completed implementation yet.
 
 Valid empty source responses are not failures when no matches or markets exist.
+
+### 2026-09-06 - Indexed checkpoint writes and resumable downstream processing
+
+Status: `PARTIAL`: root causes and local recovery tests verified; hosted execution
+of this revision remains unproven until recorded below.
+
+- Failed run `34047614099`: Cosmos code 50 in formula observation bulk_write
+  (500-row batch). Cancelled `34038484989`: capture persistence started
+  14:13:58.555 UTC and finished 15:08:51.335 UTC, leaving under five minutes
+  of the 60-minute job for models. `34029202263` also reached runner timeout.
+- Live list_indexes proves market_snapshots has the unique
+  (match_key, offer_key, snapshot_label) index but no snapshot_key index.
+  Previous checkpoint writes used snapshot_key and one request per row.
+  Legacy run-unibet-forward-backtests.old.js writes all match lines with one
+  indexed _id update. This explains the architectural regression; network
+  collection was already finished before the 55-minute persistence interval.
+- Checkpoint persistence now uses the existing compound unique index. Odds
+  and checkpoint writes use serial batches of 50. Selective bounded retries
+  apply only to idempotent writes. Acknowledged insert counts are lower bounds
+  after uncertain partial writes and do not gate downstream work.
+- Formula observations use batches of 50 with read-back fingerprint validation
+  before retrying only transient failures. Frozen evidence is not regenerated
+  inside a retry and conflicts/permissions/exhausted retries remain errors.
+- Scheduler capture and downstream consumers have separate jobs. Recovery
+  derives work from persisted future snapshots and records a deterministic
+  completion marker in job_runs only after consumers succeed. No new insert is
+  required to resume. Deadlines, oracle errors and missing fixtures fail closed.
+  First adoption rechecks existing snapshots because old runs lack markers.
+- Added production index snapshot_match_start_time for bounded upcoming-work
+  queries; create_index completed in 38.012 seconds and list_indexes verified
+  it. Added the index to the permanent index plan.
+- Tests: `PYTHONPATH=src python -m pytest tests/v2 -q`: 594 passed in 61.68s.
+  Coverage includes partial timeout commit, retry exhaustion, permission
+  rejection, indexed batch replay, interrupted consumer recovery, new snapshot
+  reopening work and oracle errors not publishing completion.
+- `python scripts/forward_v2/resume_checkpoint_processing.py --dry-run`:
+  13 upcoming matches / 3462 snapshots; 9.55 seconds including startup/network.
+  This is a pending processing scope, not proof all observations are missing.
+- Capture now reports capture_seconds, odds_write_seconds and
+  checkpoint_write_seconds separately. Remaining gate: hosted real nonempty
+  capture and journal writes, then a replay with no pending work. Expired
+  missing forward evidence cannot be reconstructed after kickoff.
 
 ### 2026-09-04 - Idempotent matchup-cron och begränsad Cosmos-refresh
 

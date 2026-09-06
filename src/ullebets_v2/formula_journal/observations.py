@@ -7,6 +7,7 @@ import math
 from typing import Any, Iterable
 
 from pymongo import UpdateOne
+from ullebets_v2.storage.retry import retry_idempotent
 
 from ullebets_v2.formula_journal.registry import frozen_model_registry_by_id
 
@@ -364,7 +365,7 @@ def partition_unseen_formula_observations(
     )
 
 
-def persist_formula_observations(
+def _persist_formula_observation_batch(
     collection: Any,
     docs: Iterable[dict[str, Any]],
     *,
@@ -389,7 +390,7 @@ def persist_formula_observations(
             )
         incoming_by_key[key] = doc
 
-    batch_size = 500
+    batch_size = 50
     incoming_items = list(incoming_by_key.items())
     for offset in range(0, len(incoming_items), batch_size):
         batch = incoming_items[offset : offset + batch_size]
@@ -471,4 +472,32 @@ def persist_formula_observations(
                     raise ImmutableFormulaObservationConflict(
                         f"immutable formula observation conflict after concurrent insert: {key}"
                     )
+    return metrics
+
+
+def persist_formula_observations(
+    collection: Any,
+    docs: Iterable[dict[str, Any]],
+    *,
+    session: Any | None = None,
+) -> dict[str, int]:
+    # Keep original evidence across retries. A timeout can commit some writes:
+    # each retry reads and validates those identities before writing the rest.
+    prepared = list(docs)
+    by_key: dict[str, dict[str, Any]] = {}
+    for doc in prepared:
+        key = str(doc.get("observation_key") or "")
+        fingerprint = immutable_observation_fingerprint(doc)
+        if not key or doc.get("observation_fingerprint_sha256") != fingerprint:
+            raise ImmutableFormulaObservationConflict(f"invalid immutable formula observation fingerprint: {key}")
+        if key in by_key and immutable_observation_fingerprint(by_key[key]) != fingerprint:
+            raise ImmutableFormulaObservationConflict(f"duplicate immutable formula observation conflict: {key}")
+        by_key[key] = doc
+    rows = list(by_key.values())
+    metrics = {"inserted": 0, "existing": 0, "conflicts": 0}
+    for offset in range(0, len(rows), 50):
+        batch = rows[offset:offset + 50]
+        result = retry_idempotent(lambda: _persist_formula_observation_batch(collection, batch, session=session))
+        for key in metrics:
+            metrics[key] += result[key]
     return metrics
