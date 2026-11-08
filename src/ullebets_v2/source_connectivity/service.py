@@ -149,6 +149,8 @@ def fetch_json(
         return {"ok": False, "status": exc.code, "status_text": str(exc.reason), "data": None}
     except URLError as exc:
         return {"ok": False, "status": 0, "status_text": str(exc.reason), "data": None}
+    except TimeoutError as exc:
+        return {"ok": False, "status": 0, "status_text": str(exc), "data": None}
 
 
 @dataclass(frozen=True)
